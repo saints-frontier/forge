@@ -520,7 +520,9 @@
   // 95-100 % (mean ~99 %). Different seeds land in different layouts, so more searches beat more time.
   const FORGE_IDLE = 30, FORGE_MAX = 180, RESTART_AFTER = 15, POLISH_SECS = 12;
   let pool = null;
-  function forgeSearches() { return Math.max(2, Math.min(8, (navigator.hardwareConcurrency || 4) - 1)); }
+  // one search per logical thread but one (the page keeps one for itself); a 10-core / 20-thread CPU runs 19. Capped at 32
+  // so a big workstation does not open hundreds of Workers. (Was min(8, cores - 1) until 2026-10-09.)
+  function forgeSearches() { return Math.max(2, Math.min(32, (navigator.hardwareConcurrency || 4) - 1)); }
   function forgeParallel(fillers, values, keepMin) {
     const K = forgeSearches(), t0 = Date.now();
     const valueOf = pl => pl.reduce((a, p) => a + (values[p[0]] || 0), 0);
