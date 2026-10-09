@@ -75,6 +75,13 @@ button[disabled] { opacity: .5; cursor: default; }
 .prow.core .pname { color: var(--fg); }
 .pbtn { padding: 1px 0; font-size: 13px; line-height: 1.2; letter-spacing: 0; clip-path: none; border-color: var(--line-strong); }
 .gridwrap { padding: 12px; overflow: auto; max-height: calc(100vh - 250px); min-height: 240px; }
+/* the solver's progress, over the fitting window */
+.forgebar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px 0; }
+.fb-track { height: 12px; background: #0b0a0e; border: 1px solid var(--gold-soft); clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px); overflow: hidden; }
+.fb-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--crimson), var(--red)); box-shadow: 0 0 10px rgba(227,34,44,.6); transition: width .25s linear; }
+.fb-fill.busy { width: 30%; animation: fbslide 1.1s linear infinite; }
+@keyframes fbslide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+.fb-text { font: 600 11px var(--mono); color: var(--gold); letter-spacing: 1px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .hullsvg { display: block; margin: 0 auto; user-select: none; touch-action: none; }
 .zoom { display: flex; gap: 4px; align-items: center; }
 .zoom .z { font: 600 11px var(--mono); color: var(--dim); min-width: 42px; text-align: center; }
@@ -194,6 +201,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 
     <section class="pane mid" aria-label="Hull">
       <h2>Fitting window <span class="n">drag to move · R rotates · Del removes</span></h2>
+      <div class="forgebar" id="forgebar" hidden><div class="fb-track"><div class="fb-fill" id="fb-fill"></div></div><div class="fb-text" id="fb-text">Forging…</div></div>
       <div class="gridwrap" id="grid"></div>
       <div id="selbox" hidden><span id="sel-name"></span><span id="sel-detail"></span><button type="button" id="btn-rotate">Rotate</button><button type="button" id="btn-remove">Remove</button></div>
       <div class="gridtools">
@@ -244,7 +252,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 
 <script src="data.js?v=3abd91c2"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=45bd388f"></script>
+<script src="app.js?v=fccf1ab6"></script>
 <script>
 (function () {
   var bf = document.getElementById("nav-forge"), bg = document.getElementById("nav-guide"), forge = document.getElementById("tab-forge"), guide = document.getElementById("tab-guide");

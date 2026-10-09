@@ -38,14 +38,35 @@
   }
   function onSolver(m) {
     if (m.type === "ready") { solverReady = true; return; }
-    if (m.type === "progress") { if (running === "optimize") { state.placements = m.placements; render(); setStatus(`Forging… ${m.iterations} re-packs, ${m.gains} gains`, "info"); } return; }
+    if (m.type === "progress") { if (prog) { prog.iterations = m.iterations; prog.gains = m.gains; progressTick(); } if (running === "optimize") { state.placements = m.placements; render(); setStatus(`Forging… ${m.iterations} re-packs, ${m.gains} gains`, "info"); } return; }
     if (m.type === "done") {
-      const kind = running; running = null; $("btn-forge").textContent = "Forge for the role"; $("btn-forge").disabled = false;
+      const kind = running; running = null; progressStop(); $("btn-forge").textContent = "Forge for the role"; $("btn-forge").disabled = false;
       if (kind === "optimize") { state.placements = m.placements; markDirty(); render(); setStatus(`Forged: ${m.iterations} re-packs in ${m.seconds.toFixed(0)} s, ${m.gains} gains. ${hold(state.placements)} m³ hold.`, m.gains ? "ok" : "info"); }
       if (kind === "tryadd") { if (pendingResolve) { const r = pendingResolve; pendingResolve = null; r(m); } }
     }
   }
   function solve(msg, kind) { return new Promise(res => { running = kind; pendingResolve = res; solver.postMessage(msg); }); }
+
+  // ---------- the progress bar over the fitting window ----------
+  let prog = null;                                           // { t0, secs, timer, iterations, gains } while the solver runs
+  function progressStart(secs, label) {
+    progressStop();
+    prog = { t0: Date.now(), secs, timer: null, iterations: 0, gains: 0, label };
+    const bar = $("forgebar"), fill = $("fb-fill"); if (!bar) return;
+    bar.hidden = false; fill.classList.toggle("busy", !secs); fill.style.width = secs ? "0%" : "";
+    $("fb-text").textContent = label;
+    if (secs) prog.timer = setInterval(progressTick, 200);
+  }
+  function progressTick() {
+    if (!prog || !prog.secs) return;
+    const el = (Date.now() - prog.t0) / 1000, pct = Math.min(100, el / prog.secs * 100);
+    $("fb-fill").style.width = pct.toFixed(1) + "%";
+    $("fb-text").textContent = `${prog.label} ${Math.min(el, prog.secs).toFixed(0)} / ${prog.secs} s · ${prog.iterations} re-packs · ${prog.gains} gains`;
+  }
+  function progressStop() {
+    if (prog && prog.timer) clearInterval(prog.timer);
+    prog = null; const bar = $("forgebar"); if (bar) { bar.hidden = true; $("fb-fill").classList.remove("busy"); }
+  }
 
   // ---------- geometry helpers ----------
   function rotShape(cells, rot) {
@@ -284,7 +305,7 @@
     if (cap && (counts(state.placements)[name] || 0) >= cap) { setStatus(`${name}: the game allows at most ${cap} per ship.`, "bad"); return; }
     const grp = groupCap(name, counts(state.placements)); if (grp) { setStatus(grp, "bad"); return; }
     if (!solverReady) { setStatus("Solver still loading…", "warn"); return; }
-    $("btn-forge").disabled = true; setStatus(`Fitting ${name}…`, "info");
+    $("btn-forge").disabled = true; setStatus(`Fitting ${name}…`, "info"); progressStart(0, `Finding a spot for ${name}…`);
     const r = await solve({ type: "tryadd", placements: state.placements, add: [name], seconds: 6, seed: Date.now() & 0xffff }, "tryadd");
     $("btn-forge").disabled = false;
     if (r.missing && r.missing.length) { setStatus(`No room for ${name}, even after rearranging.`, "bad"); return; }
@@ -302,6 +323,7 @@
     render();
     if (!solverReady) await new Promise(r => { const t = setInterval(() => { if (solverReady) { clearInterval(t); r(); } }, 50); });
     const core = []; for (const n in D.base_ship.never_removed) for (let i = 0; i < D.base_ship.never_removed[n]; i++) core.push(n);
+    progressStart(0, "Laying the keel…");
     const r = await solve({ type: "tryadd", placements: [], add: core, seconds: 5, seed: 7 }, "tryadd");
     state.placements = r.placements; state.minCaps = D.base_ship.never_removed["Capacitor"] || 1; $("min-caps").value = state.minCaps; markDirty(); render();
     setStatus(`${state.hull}: clean slate with the ${core.length} modules the game never removes (${[...new Set(core)].join(", ")}). Add the rest from the palette, then forge for the role.`, "info");
@@ -319,7 +341,7 @@
     // every other filler keeps at least what the pilot placed by hand (the base ship's one Fuel Bay, Repairer ...)
     fillers.forEach(f => { if (f !== "Capacitor") keepMin[f] = Math.min(c[f] || 0, D.base_ship.always[f] || 0); });
     const secs = +$("forge-secs").value || 60;
-    running = "optimize"; $("btn-forge").textContent = "Stop"; setStatus("Forging…", "info");
+    running = "optimize"; $("btn-forge").textContent = "Stop"; setStatus("Forging…", "info"); progressStart(secs, "Forging");
     solver.postMessage({ type: "optimize", placements: state.placements, fillers, values, keepMin, seconds: secs, seed: Date.now() & 0xffff, maxSections: 3 });
   }
 
