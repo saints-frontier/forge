@@ -64,6 +64,11 @@
     const set = sectionSet(s), occ = occupiedMap()[s];
     return cells.every(c => { const k = c.join(","); return set.has(k) && (!occ.has(k) || occ.get(k) === ignore); });
   }
+  // a family cap (one engine of any class): the message when `name` would break it, else null
+  function groupCap(name, c) {
+    for (const g in (D.base_ship.max_group || {})) { const G = D.base_ship.max_group[g]; if (G.names.includes(name) && G.names.reduce((a, n) => a + (c[n] || 0), 0) >= G.max) return `${name}: the game allows at most ${G.max} ${g} per ship.`; }
+    return null;
+  }
   function hold(pl) { let m = 0; pl.forEach(p => { const e = MOD[p[0]]; if (e && e.hold) m += e.hold; }); return m; }
   function counts(pl) { const c = {}; pl.forEach(p => c[p[0]] = (c[p[0]] || 0) + 1); return c; }
 
@@ -92,6 +97,7 @@
     for (const n in need) { if (MOD[n]) out.push([(c[n] || 0) >= need[n], `${n} ×${need[n]}`]); else out.push([(ext[n] || 0) >= need[n], `${n} (exterior)`]); }
     const eng = D.base_ship.engines.some(e => c[e]); out.push([eng, "one engine (R10 / R25 / R50)"]);
     for (const n in (D.base_ship.max_fit || {})) if ((c[n] || 0) > D.base_ship.max_fit[n]) out.push([false, `${n}: at most ${D.base_ship.max_fit[n]} per ship (${c[n]} fitted)`]);
+    for (const g in (D.base_ship.max_group || {})) { const G = D.base_ship.max_group[g], k = G.names.reduce((a, n) => a + (c[n] || 0), 0); if (k > G.max) out.push([false, `at most ${G.max} ${g} per ship (${k} fitted)`]); }
     const weapons = Object.keys(ext).filter(n => EXT[n] && EXT[n].hardpoint === "weapon").reduce((a, n) => a + ext[n], 0);
     const receivers = c["Weapon Receiver"] || 0;
     out.push([weapons <= receivers, `weapons on receivers (${weapons} of ${receivers})`]);
@@ -234,9 +240,9 @@
       if (!groups[g]) continue;
       html += `<div class="pgroup"><h3>${g}</h3>`;
       groups[g].forEach(m => { const k = c[m.name] || 0;
-        const lockMin = D.base_ship.never_removed[m.name] || 0, locked = k <= lockMin, full = (D.base_ship.max_fit || {})[m.name] && k >= D.base_ship.max_fit[m.name];
+        const lockMin = D.base_ship.never_removed[m.name] || 0, locked = k <= lockMin, full = ((D.base_ship.max_fit || {})[m.name] && k >= D.base_ship.max_fit[m.name]) || !!groupCap(m.name, c);
         html += `<div class="prow${k ? " has" : ""}${lockMin ? " core" : ""}"><span class="sw" style="background:${m.color}"></span><span class="pname">${m.name}${lockMin ? ' <span class="lock" title="the game never lets this be removed">✠</span>' : ""}</span><span class="psize">${m.size}</span>` +
-                `<span class="pcount">${k || ""}</span><button class="pbtn" data-add="${m.name}" title="${full ? "the game allows at most " + D.base_ship.max_fit[m.name] : "add one"}" aria-label="add ${m.name}"${full ? " disabled" : ""}>+</button><button class="pbtn" data-sub="${m.name}" title="${lockMin ? "the game keeps " + lockMin : "remove one"}" aria-label="remove ${m.name}"${locked ? " disabled" : ""}>−</button></div>`; });
+                `<span class="pcount">${k || ""}</span><button class="pbtn" data-add="${m.name}" title="${full ? "the game allows no more of these" : "add one"}" aria-label="add ${m.name}"${full ? " disabled" : ""}>+</button><button class="pbtn" data-sub="${m.name}" title="${lockMin ? "the game keeps " + lockMin : "remove one"}" aria-label="remove ${m.name}"${locked ? " disabled" : ""}>−</button></div>`; });
       html += `</div>`;
     }
     html += `<div class="pgroup"><h3>Exterior (hardpoints)</h3>`;
@@ -276,6 +282,7 @@
   async function addModule(name) {
     const cap = (D.base_ship.max_fit || {})[name];
     if (cap && (counts(state.placements)[name] || 0) >= cap) { setStatus(`${name}: the game allows at most ${cap} per ship.`, "bad"); return; }
+    const grp = groupCap(name, counts(state.placements)); if (grp) { setStatus(grp, "bad"); return; }
     if (!solverReady) { setStatus("Solver still loading…", "warn"); return; }
     $("btn-forge").disabled = true; setStatus(`Fitting ${name}…`, "info");
     const r = await solve({ type: "tryadd", placements: state.placements, add: [name], seconds: 6, seed: Date.now() & 0xffff }, "tryadd");
