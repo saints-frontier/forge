@@ -128,6 +128,10 @@ ul.checks li.bad .dot { background: var(--red); } ul.checks li.bad { color: var(
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .row label { font-size: 12px; color: var(--silver); }
 .row input[type=number] { width: 64px; }
+.keep { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; align-items: center; }
+.keep .kl { grid-column: 1 / -1; font: 600 11px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--gold); }
+.keep label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--silver); min-width: 0; }
+.keep input[type=number] { width: 60px; flex: none; }
 .note { font: 11px var(--mono); color: var(--dim); }
 .share { padding: 10px 12px; display: grid; gap: 8px; border-top: 1px solid rgba(217,178,76,.25); }
 #share-text { width: 100%; height: 110px; font: 12px var(--mono); }
@@ -526,12 +530,18 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 
       <h2>Forge for the role</h2>
       <div class="forge">
-        <div class="note">Modules you placed stay; hold, capacitor, fuel and armour modules may be rearranged or traded (never below the minimum). The spare cells get filled by these priorities, top first; off = never add.</div>
+        <div class="note">Modules you placed stay; hold, capacitor, fuel and armour modules may be rearranged or traded (never below the minimums below). The spare cells get filled by these priorities, top first; off = never add.</div>
         <div class="prio"><span>Hold</span><input type="range" id="prio-hold" min="0" max="3" step="1"><span class="pv" id="prio-hold-v"></span></div>
         <div class="prio"><span>Capacitor</span><input type="range" id="prio-cap" min="0" max="3" step="1"><span class="pv" id="prio-cap-v"></span></div>
         <div class="prio"><span>Fuel</span><input type="range" id="prio-fuel" min="0" max="3" step="1"><span class="pv" id="prio-fuel-v"></span></div>
         <div class="prio"><span>Armour</span><input type="range" id="prio-hp" min="0" max="3" step="1"><span class="pv" id="prio-hp-v"></span></div>
-        <div class="row"><label for="min-caps">Keep at least</label><input type="number" id="min-caps" min="1" value="1"> <label>Capacitors</label><button type="button" id="btn-capstable">cap-stable: <span id="cap-stable-n">—</span></button></div>
+        <div class="keep"><span class="kl">Keep at least</span>
+          <label><input type="number" id="min-cargo" min="0" value="0"> Cargo Containers</label>
+          <label><input type="number" id="min-caps" min="1" value="1"> Capacitors</label>
+          <label><input type="number" id="min-fuel" min="0" value="0"> Fuel Bays</label>
+          <label><input type="number" id="min-brace" min="0" value="0"> Structural Braces</label>
+        </div>
+        <div class="row"><button type="button" id="btn-capstable">cap-stable: <span id="cap-stable-n">—</span></button></div>
         <div class="row"><button type="button" class="primary" id="btn-forge">Forge for the role</button></div>
         <div class="note">Runs several searches at once and stops by itself when nothing better has turned up for 30 seconds (3 minutes at most). Stop any time; the best fit found so far stays.</div>
       </div>
@@ -570,7 +580,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 </div>
 <script src="data.js?v=9fdcaf3d"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=6e0c6238"></script>
+<script src="app.js?v=bba72e66"></script>
 <script>
 (function () {
   // pages and their own addresses: thesaintsforge.com/aboutus, /forge, /guide (Cloudflare serves the page at each,

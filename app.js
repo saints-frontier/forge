@@ -12,7 +12,7 @@
   const PRIO_OF = { "Cargo Container": "hold", "Emergency Container": "hold", "Capacitor": "cap", "Fuel Bay": "fuel", "Fuel Blister": "fuel", "Structural Brace": "hp" };
   const $ = id => document.getElementById(id);
 
-  const state = { hull: "Reiver", name: "Untitled fit", placements: [], exterior: {}, selected: -1, zoom: 1, prio: { hold: 3, cap: 2, fuel: 0, hp: 0 }, minCaps: 0, fuelGrade: "Unstable", preset: null, dirty: false };
+  const state = { hull: "Reiver", name: "Untitled fit", placements: [], exterior: {}, selected: -1, zoom: 1, prio: { hold: 3, cap: 2, fuel: 0, hp: 0 }, minCaps: 0, mins: { "Cargo Container": 0, "Fuel Bay": 0, "Structural Brace": 0 }, fuelGrade: "Unstable", preset: null, dirty: false };
   let solver = null, solverReady = false, running = null, pendingResolve = null;
 
   // ---------- solver plumbing ----------
@@ -21,7 +21,7 @@
     const payload = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     try {
       if (solver && solver.terminate) solver.terminate();
-      solver = new Worker("solver.js?v=2b3e5a43");
+      solver = new Worker("solver.js?v=53b0c540");
       solver.onmessage = e => onSolver(e.data);
       solver.onerror = () => { solver = null; fallbackSolver(payload); };
       solver.postMessage(payload);
@@ -29,7 +29,7 @@
   }
   function fallbackSolver(payload) {
     if (!window.ForgeSolver || !window.ForgeSolver.post) {
-      const s = document.createElement("script"); s.src = "solver.js?v=2b3e5a43"; s.onload = () => fallbackSolver(payload); document.head.appendChild(s); return;
+      const s = document.createElement("script"); s.src = "solver.js?v=53b0c540"; s.onload = () => fallbackSolver(payload); document.head.appendChild(s); return;
     }
     window.ForgeSolver.onmessage = onSolver;
     solver = { postMessage: m => setTimeout(() => window.ForgeSolver.post(m), 0), terminate() {} };
@@ -336,7 +336,7 @@
     if (!d.shown || ev.type === "pointercancel") return;
     if (!cellUnder(ev)) { setStatus(`Drop ${d.name} on the hull to fit it.`, "info"); return; }
     if (!d.spot) { setStatus(`No room for ${d.name} there. Try another spot, or press + to let the forge rearrange.`, "bad"); return; }
-    state.placements.push([d.name, d.spot.s, d.spot.rot, d.spot.cells]); state.selected = state.placements.length - 1; if (d.name === "Capacitor") capsByHand();
+    state.placements.push([d.name, d.spot.s, d.spot.rot, d.spot.cells]); state.selected = state.placements.length - 1; keepByHand(d.name);
     markDirty(); render(); setStatus(`${d.name} fitted in the ${D.hulls[state.hull].sections[d.spot.s].name} section.`, "ok");
   }
   function cellUnder(ev) { const els = document.elementsFromPoint(ev.clientX, ev.clientY); return els.find(e => e.classList && e.classList.contains("cell")) || null; }
@@ -379,7 +379,7 @@
   function removeAt(i) {
     const [l] = state.placements[i];
     if (locked(l)) { setStatus(`${l} cannot be removed (the game keeps it).`, "bad"); render(); return; }
-    state.placements.splice(i, 1); state.selected = -1; if (l === "Capacitor") capsByHand(); markDirty(); render(); setStatus(`${l} removed.`, "ok");
+    state.placements.splice(i, 1); state.selected = -1; keepByHand(l); markDirty(); render(); setStatus(`${l} removed.`, "ok");
   }
   function removeSelected() { if (state.selected >= 0) removeAt(state.selected); }
   function select(i) { state.selected = i; renderGrid(); renderSelection(); }
@@ -430,12 +430,12 @@
     $("st-caprech-note").textContent = `recharge model: ${D.models.recharge.a}·n^${D.models.recharge.b}, measured at 2, 5 and 13 Capacitors`;
   }
   function renderHeader() { if (!K) return; const th = K.themes[state.hull].theme; $("tier").textContent = `✠ ${th.name} · ${th.tier} ✠`; }
-  function render() { renderGrid(); renderPalette(); renderStats(); renderSelection(); renderHeader(); $("fit-name").value = state.name; $("hull-sel").value = state.hull; $("free-count").textContent = ""; record(); }
+  function render() { renderGrid(); renderPalette(); renderStats(); renderSelection(); renderHeader(); $("fit-name").value = state.name; $("hull-sel").value = state.hull; $("free-count").textContent = ""; syncKeepInputs(); record(); }
 
   // ---------- undo / redo ----------
   // Every render records the fit if it changed (a forge or a + search records once, when it ends). 100 steps kept.
   let history = [], hidx = -1, holdHistory = false;
-  function snap() { return JSON.stringify({ h: state.hull, p: state.placements, e: state.exterior, n: state.name, b: state.preset, d: state.dirty, c: state.minCaps }); }
+  function snap() { return JSON.stringify({ h: state.hull, p: state.placements, e: state.exterior, n: state.name, b: state.preset, d: state.dirty, c: state.minCaps, k: state.mins }); }
   function record() {
     if (holdHistory || pool || running) return;
     const s = snap(); if (hidx >= 0 && history[hidx] === s) return;
@@ -444,7 +444,7 @@
   function undoButtons() { const u = $("btn-undo"), r = $("btn-redo"); if (u) u.disabled = hidx <= 0; if (r) r.disabled = hidx >= history.length - 1; }
   function restore(s) {
     const o = JSON.parse(s), hullChanged = o.h !== state.hull;
-    Object.assign(state, { hull: o.h, placements: o.p, exterior: o.e, name: o.n, preset: o.b, dirty: o.d, minCaps: o.c, selected: -1 });
+    Object.assign(state, { hull: o.h, placements: o.p, exterior: o.e, name: o.n, preset: o.b, dirty: o.d, minCaps: o.c, mins: Object.assign(zeroMins(), o.k || {}), selected: -1 });
     $("min-caps").value = state.minCaps; if (hullChanged) startSolver(); render(); undoButtons();
   }
   function undo() { if (pool || running || hidx <= 0) return; hidx--; restore(history[hidx]); setStatus("Undone.", "info"); }
@@ -460,6 +460,14 @@
 
   // ---------- actions ----------
   // the forge may trade Capacitors down to the minimum: one placed or removed by hand moves that minimum with it
+  // 'Keep at least' for the other role fillers (user 2026-10-09): Cargo Containers (hold), Fuel Bays (fuel), Structural
+  // Braces (armour). Same rules as the Capacitor minimum: a loaded fit sets them to its own counts, a module placed or
+  // removed by hand moves its minimum with it, the forge never goes below them.
+  const KEEP_IDS = { "Cargo Container": "min-cargo", "Fuel Bay": "min-fuel", "Structural Brace": "min-brace" };
+  function zeroMins() { return { "Cargo Container": 0, "Fuel Bay": 0, "Structural Brace": 0 }; }
+  function syncKeepInputs() { if ($("min-caps")) $("min-caps").value = state.minCaps; for (const n in KEEP_IDS) { const el = $(KEEP_IDS[n]); if (el) el.value = state.mins[n] || 0; } }
+  function setMinsFromFit() { const c = counts(state.placements); state.mins = zeroMins(); for (const n in KEEP_IDS) state.mins[n] = c[n] || 0; syncKeepInputs(); }
+  function keepByHand(name) { if (name === "Capacitor") return capsByHand(); if (KEEP_IDS[name]) { state.mins[name] = counts(state.placements)[name] || 0; syncKeepInputs(); } }
   function capsByHand() { const n = counts(state.placements)["Capacitor"] || 0; if (n !== state.minCaps) { state.minCaps = n; $("min-caps").value = n; } }
   async function addModule(name, quiet) {
     const cap = (D.base_ship.max_fit || {})[name];
@@ -470,7 +478,7 @@
     const r = await solve({ type: "tryadd", placements: state.placements, add: [name], seconds: 6, seed: Date.now() & 0xffff }, "tryadd");
     $("btn-forge").disabled = false;
     if (r.missing && r.missing.length) { if (!quiet) setStatus(`No room for ${name}, even after rearranging.`, "bad"); return false; }
-    state.placements = r.placements; if (name === "Capacitor") capsByHand(); markDirty(); render(); setStatus(`${name} fitted.`, "ok"); return true;
+    state.placements = r.placements; keepByHand(name); markDirty(); render(); setStatus(`${name} fitted.`, "ok"); return true;
   }
   // ◀ ▶ on the stat tiles: each stat has the module that raises it, and a smaller one to try when that does not fit
   const ADJ = { hold: ["Cargo Container", "Emergency Container"], fuel: ["Fuel Bay", "Fuel Blister"], cap: ["Capacitor"], hp: ["Structural Brace"] };
@@ -492,7 +500,7 @@
     const idxs = state.placements.map((p, i) => p[0] === name ? i : -1).filter(i => i >= 0);
     if (!idxs.length) return;
     if (D.base_ship.never_removed[name] && idxs.length <= D.base_ship.never_removed[name]) { setStatus(`${name} cannot be removed (the game keeps it).`, "bad"); return; }
-    state.placements.splice(idxs[idxs.length - 1], 1); state.selected = -1; if (name === "Capacitor") capsByHand(); markDirty(); render();
+    state.placements.splice(idxs[idxs.length - 1], 1); state.selected = -1; keepByHand(name); markDirty(); render();
   }
   // A clean slate is never empty: the modules the game refuses to remove are fitted first.
   async function cleanSlate(keepExterior) {
@@ -502,7 +510,7 @@
     const core = []; for (const n in D.base_ship.never_removed) for (let i = 0; i < D.base_ship.never_removed[n]; i++) core.push(n);
     progressStart(0, "Laying the keel…");
     const r = await solve({ type: "tryadd", placements: [], add: core, seconds: 5, seed: 7 }, "tryadd");
-    state.placements = r.placements; state.minCaps = D.base_ship.never_removed["Capacitor"] || 1; $("min-caps").value = state.minCaps; markDirty(); render();
+    state.placements = r.placements; state.minCaps = D.base_ship.never_removed["Capacitor"] || 1; setMinsFromFit(); markDirty(); render();
     setStatus(`${state.hull}: clean slate with the ${core.length} modules the game never removes (${[...new Set(core)].join(", ")}). Add the rest from the palette, then forge for the role.`, "info");
   }
 
@@ -516,12 +524,13 @@
   function forgeParallel(fillers, values, keepMin) {
     const K = forgeSearches(), t0 = Date.now();
     const valueOf = pl => pl.reduce((a, p) => a + (values[p[0]] || 0), 0);
-    const P = pool = { workers: [], best: valueOf(state.placements), bestPl: state.placements, lastGain: t0, gains: 0, iters: [], done: 0, stopping: false, reason: "", timer: null, t0, K,
+    const startOk = Object.keys(keepMin).every(f => (counts(state.placements)[f] || 0) >= keepMin[f]);
+    const P = pool = { workers: [], best: startOk ? valueOf(state.placements) : -Infinity, bestPl: state.placements, lastGain: t0, gains: 0, iters: [], done: 0, stopping: false, reason: "", timer: null, t0, K,
                        wBest: [], wLast: [], restarting: [], restarts: 0, fillers, values, keepMin };
     const init = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     const consider = m => { if (m.value > P.best) { P.best = m.value; P.bestPl = m.placements; P.lastGain = Date.now(); P.gains++; state.placements = m.placements; render(); } };
     const spawn = i => {
-      let w; try { w = new Worker("solver.js?v=2b3e5a43"); } catch (e) { return null; }
+      let w; try { w = new Worker("solver.js?v=53b0c540"); } catch (e) { return null; }
       const launch = () => { P.wBest[i] = P.best; P.wLast[i] = Date.now(); P.restarting[i] = false;
         w.postMessage({ type: "optimize", placements: P.bestPl, fillers, values, keepMin, seconds: FORGE_MAX, seed: (Date.now() + i * 7919 + P.restarts * 104729) & 0xffff || i + 1, maxSections: 3 }); };
       w.onmessage = e => {
@@ -560,7 +569,7 @@
     if (P.polishing || P.finished) return; P.polishing = true;
     clearInterval(P.timer); P.workers.forEach(w => w.terminate());
     if (P.reason === "stopped") { forgeFinish(P); return; }
-    let w; try { w = new Worker("solver.js?v=2b3e5a43"); } catch (e) { forgeFinish(P); return; }
+    let w; try { w = new Worker("solver.js?v=53b0c540"); } catch (e) { forgeFinish(P); return; }
     $("fb-fill").classList.add("busy"); $("fb-text").textContent = `Polishing · ${hold(P.bestPl)} m³…`;
     const t0 = Date.now(); P.polishWorker = w;
     w.onmessage = e => { const m = e.data;
@@ -582,6 +591,12 @@
     if (window.__forge) window.__forge.last = { gains: P.gains, restarts: P.restarts, polishGains: P.polishGains || 0, secs, hold: hold(state.placements), reason: P.reason };
     progressDone(`Forged: ${P.gains} gains from ${P.workers.length} searches${extra}, ${its} re-packs in ${secs} s (${why}) · ${hold(state.placements)} m³ hold`);
     $("btn-forge").textContent = "Forge for the role"; setStatus("", "info");
+    shortOfMinimums(P.keepMin);
+  }
+  // a minimum above what the hull can hold (with the other minimums kept) is never reached: say so instead of staying quiet
+  function shortOfMinimums(keepMin) {
+    const c = counts(state.placements), short = Object.keys(keepMin || {}).filter(n => (c[n] || 0) < keepMin[n]);
+    if (short.length) setStatus(`No room for ${short.map(n => `${keepMin[n]} ${n}${keepMin[n] === 1 ? "" : "s"} (has ${c[n] || 0})`).join(", ")} while keeping the other minimums. Lower a minimum to make room, or remove a module by hand.`, "warn");
   }
   function forge() {
     if (pool) { forgeStop(pool, "stopped"); return; }
@@ -595,6 +610,8 @@
     keepMin["Capacitor"] = Math.max(state.minCaps, D.base_ship.never_removed["Capacitor"] || 1);
     // every other filler keeps at least what the pilot placed by hand (the base ship's one Fuel Bay, Repairer ...)
     fillers.forEach(f => { if (f !== "Capacitor") keepMin[f] = Math.min(c[f] || 0, D.base_ship.always[f] || 0); });
+    // and never below the pilot's own minimums (a filler whose priority is off is not traded at all)
+    for (const n in KEEP_IDS) if (fillers.includes(n)) keepMin[n] = Math.max(keepMin[n] || 0, state.mins[n] || 0);
     $("btn-forge").textContent = "Stop"; setStatus("", "info");
     if (forgeParallel(fillers, values, keepMin)) return;
     // no Workers here (the in-page solver): one search, 60 s
@@ -607,12 +624,12 @@
     const p = D.presets.find(x => x.n === +n); if (!p) return;
     state.hull = p.hull; state.placements = p.placements.map(x => [x[0], x[1], x[2], x[3].map(c => [c[0], c[1]])]); state.exterior = Object.assign({}, p.exterior);
     state.name = docName(p); state.preset = p.n; state.selected = -1; state.dirty = false;
-    state.minCaps = counts(state.placements)["Capacitor"] || 1; $("min-caps").value = state.minCaps;
-    startSolver(); render(); setStatus(`${p.name} loaded (${p.role}). Keeping its ${state.minCaps} Capacitors unless you lower the minimum.`, "ok");
+    state.minCaps = counts(state.placements)["Capacitor"] || 1; setMinsFromFit();
+    startSolver(); render(); setStatus(`${p.name} loaded (${p.role}). Keeping its ${state.minCaps} Capacitors, ${state.mins["Cargo Container"]} Cargo Containers, ${state.mins["Fuel Bay"]} Fuel Bays and ${state.mins["Structural Brace"]} Braces unless you lower the minimums.`, "ok");
   }
   function encode() {
     const idx = {}; D.modules.forEach((m, i) => idx[m.name] = i);
-    const obj = { h: state.hull, n: state.name, p: state.placements.map(p => [idx[p[0]], p[1], p[2], Math.min(...p[3].map(c => c[0])), Math.min(...p[3].map(c => c[1]))]), e: state.exterior, r: state.prio, c: state.minCaps, b: state.preset };
+    const obj = { h: state.hull, n: state.name, p: state.placements.map(p => [idx[p[0]], p[1], p[2], Math.min(...p[3].map(c => c[0])), Math.min(...p[3].map(c => c[1]))]), e: state.exterior, r: state.prio, c: state.minCaps, k: state.mins, b: state.preset };
     const s = JSON.stringify(obj);
     return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   }
@@ -629,6 +646,7 @@
       const o = JSON.parse(s); if (!o.h || !D.hulls[o.h]) return false;
       state.hull = o.h; state.name = o.n || "Shared fit"; state.exterior = o.e || {}; state.prio = Object.assign(state.prio, o.r || {}); delete state.prio.repair; state.minCaps = o.c || 0; state.preset = o.b || null;
       state.placements = o.p.map(([mi, s, rot, x, y]) => { const m = D.modules[mi]; const shape = rotShape(m.cells, rot); return [m.name, s, rot, shape.map(c => [c[0] + x, c[1] + y])]; });
+      if (o.k) { state.mins = Object.assign(zeroMins(), o.k); syncKeepInputs(); } else setMinsFromFit();
       return true;
     } catch (e) { return false; }
   }
@@ -900,6 +918,7 @@
     $("btn-undo").addEventListener("click", undo); $("btn-redo").addEventListener("click", redo);
     ["hold", "cap", "fuel", "hp"].forEach(k => { const el = $("prio-" + k); el.value = state.prio[k]; el.addEventListener("input", () => { state.prio[k] = +el.value; $("prio-" + k + "-v").textContent = ["off", "low", "mid", "top"][+el.value]; }); $("prio-" + k + "-v").textContent = ["off", "low", "mid", "top"][state.prio[k]]; });
     $("min-caps").addEventListener("input", e => { state.minCaps = +e.target.value || 0; });
+    for (const n in KEEP_IDS) $(KEEP_IDS[n]).addEventListener("input", e => { state.mins[n] = Math.max(0, Math.floor(+e.target.value || 0)); });
     $("btn-capstable").addEventListener("click", () => { const n = +$("cap-stable-n").textContent; state.minCaps = n; $("min-caps").value = n; setStatus(`Minimum Capacitors set to ${n}: estimated recharge covers everything firing at once.`, "ok"); });
     $("fuel-sel").addEventListener("change", e => { state.fuelGrade = e.target.value; renderStats(); });
     $("btn-forge").addEventListener("click", forge);

@@ -186,12 +186,19 @@ function rng(seed) { let x = seed >>> 0 || 1; return () => { x ^= x << 13; x >>>
 
 /* Ruin-and-recreate for `seconds`. mandatory = labels never removed (everything that is not a filler); keepMin = minimum
    counts of fillers that must survive (re-placed as mandatory in the ruined sections). */
+/* Does a fit hold every minimum? A start that doesn't (the pilot raised a minimum) is worth -Infinity, so the first
+   layout that meets them all is taken even when it holds less. */
+function meetsMin(pl, keepMin) {
+  const c = {}; for (const p of pl) c[p[0]] = (c[p[0]] || 0) + 1;
+  for (const f in keepMin || {}) if ((c[f] || 0) < keepMin[f]) return false;
+  return true;
+}
 function optimize(msg) {
   const { placements, fillers, values, keepMin, seconds, seed, maxSections } = msg;
   const rnd = rng(seed || 1);
   const fillSet = new Set(fillers);
   let cur = placements.map(p => [p[0], p[1], p[2], p[3]]);
-  let curValue = valueOf(cur, fillers, values);
+  let curValue = meetsMin(cur, keepMin) ? valueOf(cur, fillers, values) : -Infinity;
   const t0 = Date.now(); let it = 0, gains = 0, lastPost = 0;
   const trace = [[0, curValue]];                     // [ms, value] at every strict gain: how fast the search converges
   const n = HULL.n;
@@ -275,7 +282,7 @@ function polish(msg) {
   const rnd = rng(seed || 3);
   const fillSet = new Set(fillers);
   let cur = placements.map(p => [p[0], p[1], p[2], p[3]]);
-  let curValue = valueOf(cur, fillers, values);
+  let curValue = meetsMin(cur, keepMin) ? valueOf(cur, fillers, values) : -Infinity;
   const t0 = Date.now(); let gains = 0, it = 0;
   const n = HULL.n;
   outer: for (let round = 0; round < 2; round++) {
