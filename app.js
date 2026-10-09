@@ -21,7 +21,7 @@
     const payload = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     try {
       if (solver && solver.terminate) solver.terminate();
-      solver = new Worker("solver.js");
+      solver = new Worker("solver.js?v=2b3e5a43");
       solver.onmessage = e => onSolver(e.data);
       solver.onerror = () => { solver = null; fallbackSolver(payload); };
       solver.postMessage(payload);
@@ -29,7 +29,7 @@
   }
   function fallbackSolver(payload) {
     if (!window.ForgeSolver || !window.ForgeSolver.post) {
-      const s = document.createElement("script"); s.src = "solver.js"; s.onload = () => fallbackSolver(payload); document.head.appendChild(s); return;
+      const s = document.createElement("script"); s.src = "solver.js?v=2b3e5a43"; s.onload = () => fallbackSolver(payload); document.head.appendChild(s); return;
     }
     window.ForgeSolver.onmessage = onSolver;
     solver = { postMessage: m => setTimeout(() => window.ForgeSolver.post(m), 0), terminate() {} };
@@ -521,7 +521,7 @@
     const init = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     const consider = m => { if (m.value > P.best) { P.best = m.value; P.bestPl = m.placements; P.lastGain = Date.now(); P.gains++; state.placements = m.placements; render(); } };
     const spawn = i => {
-      let w; try { w = new Worker("solver.js"); } catch (e) { return null; }
+      let w; try { w = new Worker("solver.js?v=2b3e5a43"); } catch (e) { return null; }
       const launch = () => { P.wBest[i] = P.best; P.wLast[i] = Date.now(); P.restarting[i] = false;
         w.postMessage({ type: "optimize", placements: P.bestPl, fillers, values, keepMin, seconds: FORGE_MAX, seed: (Date.now() + i * 7919 + P.restarts * 104729) & 0xffff || i + 1, maxSections: 3 }); };
       w.onmessage = e => {
@@ -560,7 +560,7 @@
     if (P.polishing || P.finished) return; P.polishing = true;
     clearInterval(P.timer); P.workers.forEach(w => w.terminate());
     if (P.reason === "stopped") { forgeFinish(P); return; }
-    let w; try { w = new Worker("solver.js"); } catch (e) { forgeFinish(P); return; }
+    let w; try { w = new Worker("solver.js?v=2b3e5a43"); } catch (e) { forgeFinish(P); return; }
     $("fb-fill").classList.add("busy"); $("fb-text").textContent = `Polishing · ${hold(P.bestPl)} m³…`;
     const t0 = Date.now(); P.polishWorker = w;
     w.onmessage = e => { const m = e.data;

@@ -255,10 +255,13 @@ function tryAdd(msg) {
     const free = HULL.full.map((f, s) => chosen.has(s) ? Uint32Array.from(f) : new Uint32Array(HULL.words));
     const res = pack(free, mandatory, fillers, vals, 60000, rnd);
     if (!res) continue;
-    const cand = keep.concat(res.placed);
-    const counts = {}; for (const p of cand) counts[p[0]] = (counts[p[0]] || 0) + 1;
+    const counts = {}; for (const p of keep.concat(res.placed)) counts[p[0]] = (counts[p[0]] || 0) + 1;
     let lost = false; for (const f of fillers) if ((counts[f] || 0) < (before[f] || 0)) lost = true;
     if (lost) continue;
+    // the exact fill packs every free cell; adding one module must not add containers or capacitors the pilot did not ask for
+    const extra = {}; for (const f of fillers) extra[f] = (counts[f] || 0) - (before[f] || 0);
+    const placed = res.placed.filter(p => !(extra[p[0]] > 0 && extra[p[0]]-- > 0));
+    const cand = keep.concat(placed);
     cur = cand; left.length = 0; break;
   }
   emit({ type: "done", placements: cur, added: add.length - left.length, missing: left, iterations: it });
