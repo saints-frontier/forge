@@ -130,6 +130,16 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #card-svg svg { width: 100%; height: auto; display: block; border: 1px solid rgba(217,178,76,.3); }
 #card-png { width: 100%; height: auto; display: block; border: 1px solid var(--gold); }
 .mprev .row { padding: 0; }
+.tabs { display: flex; gap: 6px; margin-top: 12px; border-bottom: 1px solid rgba(217,178,76,.35); }
+.tab { border: 1px solid var(--gold-soft); border-bottom: 0; background: var(--panel); color: var(--silver); clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px); padding: 9px 16px; }
+.tab.on { background: var(--crimson); color: #fff; border-color: var(--gold); }
+.guide { max-width: 78ch; padding: 6px 0 20px; font: 14px/1.55 var(--body); color: var(--fg); }
+.guide .gtitle { font: 900 clamp(22px, 3vw, 30px)/1.2 var(--deco); color: var(--gold); margin: 14px 0 6px; }
+.guide h3 { font: 700 12px var(--mono); letter-spacing: 3px; color: var(--red); text-transform: uppercase; margin: 22px 0 6px; padding-top: 10px; border-top: 1px solid rgba(217,178,76,.25); }
+.guide p { margin: 6px 0; } .guide p.small { font: 11px var(--mono); color: var(--dim); }
+.guide ul, .guide ol { margin: 4px 0; padding-left: 22px; } .guide li { margin: 3px 0; }
+.guide blockquote { margin: 6px 0; padding: 6px 10px; border-left: 3px solid var(--red); background: rgba(227,34,44,.08); }
+.guide b { color: var(--title); } .guide code { font: 12px var(--mono); color: var(--gold); }
 </style>
 <div class="band" aria-hidden="true"></div>
 <div class="wrap">
@@ -148,6 +158,222 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
       <button type="button" id="btn-save">Save</button>
     </div>
   </header>
+  <nav class="tabs" aria-label="Pages"><button type="button" class="tab on" data-tab="forge">Forge</button><button type="button" class="tab" data-tab="guide">Beginner's guide</button></nav>
+  <div id="tab-guide" class="guide" hidden><h2 class="gtitle">Beginner's guide</h2>
+<p>What a new rider needs in the first days, from the first undock to the first base. Everything here was learned in</p>
+<p>play on the current build; a ❓ marks something reported once and not yet confirmed. Found a mistake? Open an issue</p>
+<p>on GitHub.</p>
+<h3>🥚 Before you leave the Crèche</h3>
+<blockquote>⚠️ <b>The Crèche is one-way.</b> Once you warp out it is gone; the only way back is warping to a fleet member still inside.</blockquote>
+<ul>
+<li>Mine its <b>Ingot / Flint</b> rocks first. Layers: Crustal Anorthosite Crystals → Hydrated Gossan Matrix → <b>Massive Ataxite Matrix</b> core.</li>
+<li>Take at least <b>50x Massive Ataxite Matrix</b> for your Refuge. Outside it is hard to find.</li>
+<li><b>Overloaded = no warp, no Leap.</b> Get under max cargo before you go.</li>
+<li>Most structures <b>cannot be built near the Crèche</b>.</li>
+</ul>
+<h3>🚀 Your starter ship</h3>
+<p>2,100 HP hull, 4x Fuel Bay (2,000 fuel), one Cutting Laser on a Weapon Receiver, a Gravity Sensor with a Directional Scanner, a Docking Clamp, an Emergency Printer and a Material Processor. It mines, refines and prints the basics on its own. Two of them died at exactly ~2,100 damage: <b>halfway (~1,000 taken) = leave.</b> Load it in the Forge tab to see every module.</p>
+<h3>🏠 Your first home (no Network Node needed)</h3>
+<ul>
+<li><b>Refuge</b> = 50x Massive Ataxite Matrix. Your <b>respawn point</b>; docked ships cannot be attacked while it stands.</li>
+<li><b>Field Storage</b> = 50x Crustal Anorthosite Crystals (30,000 m³).</li>
+<li>Build both at a <b>safe spot</b> 👇</li>
+</ul>
+<h3>🕵️ Making a safe spot (2 pilots)</h3>
+<p>You can only warp to <b>known things</b>: planets, sites, gates, fleet members and <b>your own structures</b> (<b>[H]</b>).</p>
+<ol>
+<li>Fleet up. Pilot A warps between two planets that are far apart.</li>
+<li>While A is mid-warp, pilot B warps <b>to A</b> and lands in deep space.</li>
+<li>B builds right there. It shows under <b>[H]</b>: B's private warp point.</li>
+</ol>
+<h3>⛽ Fuel</h3>
+<ul>
+<li><b>Free Unstable Fuel</b> at the Fueling Docks of waystation sites: a powered <b>Docking Clamp</b>, within <b>80 m</b>.</li>
+<li><b>D1 Fuel</b>: 208x Water Ice → 75x D1 Fuel, or 21x Hydrocarbon Residue → 75x D1 Fuel.</li>
+<li><b>EU-40 Fuel</b>: 10x Eupraxite → 600x EU-40 Fuel (Eupraxite comes from rift crude).</li>
+<li>🚀 Burn depends on the <b>fuel, not the engine</b>: EU-40 Fuel goes <b>2.35x as far as D1 Fuel</b>. The R10 engine is fine for it.</li>
+<li>🔌 <b>Before logoff:</b> dock and switch off every module that shows <b>0.1 MW</b> in the fitting window: those burn fuel. Leave the <b>Power Generator and Capacitors on</b> (no MW number): they cost nothing, and your capacitor is still full when you undock.</li>
+</ul>
+<h3>🪨 Mining</h3>
+<ul>
+<li><b>Rocks are layered</b>: keep cutting the same spot. Which rock gives what: the rock families below.</li>
+<li>💡 <b>F2</b> hides the asteroid so you can grab chunks stuck inside. Scoop range <b>2,500 m</b>.</li>
+</ul>
+<h3>🪨 Rock families: what's inside</h3>
+<p>The <b>rock family</b> (Mire, Pitch, Char, ...) decides the ores.</p>
+<ul>
+<li>🟫 <b>Crustal Anorthosite Crystals</b> (→ Hydrocarbon Residue → Carbon Weave, Thermal Composites): <b>most of Rind, Glaze, Marrow</b>; under the crust of Bone, Flint, Spall, Char.</li>
+<li>⚙️ <b>Massive Ataxite Matrix</b> (→ Palladium): <b>cores of Ingot, Spar, Slag</b>; less under Flint &amp; Spall crust.</li>
+<li>💧 <b>Hydrated Gossan Matrix</b> (→ Water Ice): <b>rich under Murk's crust</b>; <b>Comet</b> cores; less in Grist, Scale, Spar.</li>
+<li>❄️ <b>Primitive Rime Shards</b> (→ Tholin Aggregates + Water Ice): deep in <b>Pitch</b>; outside of <b>Ember, Soot, Glint, Dewdrop</b>; under Mire &amp; Char crust.</li>
+<li>🛢️ <b>Primordial Anthraxolite Sludge</b> (→ Kerogen Tar, best source): <b>Ember cores</b>; under the crust of Scale &amp; Char; also Mire &amp; Pitch.</li>
+<li>☢️ <b>Irradiated Anthraxolite Veins</b> (→ Kerogen Tar + Aromatic Carbon Weave): <b>richest under Soot</b>; <b>Glint</b> cores; big veins in Pitch.</li>
+<li>🌑 <b>Irradiated Cryoconite Nodules</b> (→ Aromatic Carbon Weave): <b>Soot</b> cores; Pitch, Char, Ember, Mire.</li>
+<li>🪸 <b>Native Reef Nodules</b>: <b>Ingot</b>.</li>
+<li>♻️ <b>Salvage is minable</b>: wrecks and debris fields give <b>Debris</b> (→ Salvaged Materials).</li>
+</ul>
+<h3>🔫 Ammo (Mini Printer, 100 rounds)</h3>
+<ul>
+<li><b>100x Pyro Round</b> = 1,303x Nickel-Iron Veins · <b>100x Slug Round</b> = 132x Iron-Rich Nodules. Pyro Round needs half the ore.</li>
+</ul>
+<h3>🧪 Refining (Refinery structure)</h3>
+<ul>
+<li>40x Crustal Anorthosite Crystals → 20x Hydrocarbon Residue + 18x Silica Grains + 2x Iron-Rich Nodules. <i>The only Hydrocarbon Residue source.</i></li>
+<li>10x Iron-Rich Nodules → 198x Nickel-Iron Veins + 20x Platinum-Group Veins</li>
+<li>40x Hydrated Gossan Matrix → 400x Water Ice</li>
+<li>20x Silica Grains → 150x Silicon Dust + 50x Feldspar Crystal Shards</li>
+<li>10x Debris → 6x Salvaged Materials + 2x Aromatic Carbon Weave + 2x Nickel-Iron Veins + 6x Silicon Dust (Cargo Debris doesn't refine)</li>
+<li>20x Salvaged Materials → 6x Reinforced Alloys + 2x Thermal Composites + 1x Carbon Weave</li>
+<li>20x Hydrocarbon Residue → 193x Tholin Aggregates + 10x Troilite Sulfide Grains</li>
+<li>40x Massive Ataxite Matrix → 8x Palladium</li>
+<li>5x Industrial Waste → 3x Salvaged Materials + 2x Palladium</li>
+<li>5x Mummified Corpse → 1x Aromatic Carbon Weave + 1x Kerogen Tar + 50x Water Ice</li>
+</ul>
+<h3>🛠️ Key parts (Emergency Printer)</h3>
+<ul>
+<li>1x Printed Circuits = 2x Silicon Dust + 1x Nickel-Iron Veins</li>
+<li>1x Carbon Weave = 17x Hydrocarbon Residue</li>
+<li>1x Thermal Composites = 7x Hydrocarbon Residue + 5x Silica Grains</li>
+<li>💡 <b>Cheaper (Mini Printer):</b> 14x Carbon Weave = 2,100x Tholin Aggregates · 14x Thermal Composites = 456x Silicon Dust + 794x Tholin Aggregates + 135x Feldspar Crystal Shards</li>
+<li>1x Reinforced Alloys = 13x Silica Grains + 9x Iron-Rich Nodules + 4x Palladium</li>
+<li>1x Brace Weld = 2x Nickel-Iron Veins + 1x Water Ice</li>
+<li>1x Coolant Reservoir = 2x Water Ice + 1x Nickel-Iron Veins + 4x Silica Grains</li>
+<li>1x Transponder (Mini Printer / Printer) = 20x Printed Circuits + 1x Coolant Reservoir + 20x Palladium. 4 cells. It lets you see and use a tribe's catapults.</li>
+<li><b>Palladium</b>: debris fields (one gave 29x), 40x Massive Ataxite Matrix → 8x Palladium, 5x Industrial Waste → 2x Palladium.</li>
+</ul>
+<h3>🏗️ Building your base</h3>
+<p><b>1️⃣ Network Node</b>: 8x Printed Circuits, 8x Carbon Weave, 8x Thermal Composites</p>
+<ul>
+<li>Build it at your <b>safe spot</b> on an unclaimed anchor. Parts must be in your <b>ship cargo</b>.</li>
+<li>Fuel per hour: <b>12x D1 Fuel or 3x EU-40 Fuel</b> (Unstable Fuel is rejected).</li>
+<li>🔌 <b>Node offline = nothing prints, and you can't take items out.</b></li>
+<li>🕵️ Nodes show on scans (high EM). <b>Dismantling gives the parts back</b>: move it if it's exposed.</li>
+</ul>
+<p><b>2️⃣ Relay</b> (6x Printed Circuits, 6x Carbon Weave, 6x Thermal Composites): a <b>trading post</b>. Sells the <b>Lens 60X</b> for 1,000 EVE, buys <b>Feral Data</b> for 25,000 LUX (100 LUX = 1 EVE). Feral Data comes from containers in wreck cargo.</p>
+<p><b>3️⃣ Mini Printer</b> (15x Printed Circuits, 15x Reinforced Alloys): Building Foam, Cargo Containers, weapons, engines, Hull Repairer, ammo.</p>
+<ul>
+<li>10x Building Foam = 65x Reinforced Alloys + 65x Carbon Weave + 65x Thermal Composites</li>
+</ul>
+<p><b>4️⃣ Refinery</b> (15x Reinforced Alloys, 15x Thermal Composites, Build Mode): the structure is better than the ship module.</p>
+<p><b>🏭 Bigger factories</b>: same recipes and costs, just <b>bigger jobs</b>. Heavy Refinery: Eupraxite → EU-40 Fuel · Heavy Printer: EU-90 &amp; SOF-80 Fuel · Field Printer: sensors, Directional Scanner, Leap, Hull Repairer · Nursery: clone shells · Berths: ships.</p>
+<p><b>📦 Storage</b>: Field Storage = 50x Crustal Anorthosite Crystals (anywhere) · Mini Storage = 250x Crustal Anorthosite Crystals + 250x Massive Ataxite Matrix (at a Node) · Storage = 20x Building Foam</p>
+<h3>🚚 Moving to a new system</h3>
+<p>Parts are bulky (each): <b>Carbon Weave 15 m³, Reinforced Alloys &amp; Thermal Composites 10 m³, Printed Circuits 4 m³, Building Foam 47 m³</b>.</p>
+<ul>
+<li>Trip 1: <b>50x Massive Ataxite Matrix (Refuge first: you respawn there)</b> + Node parts + D1 Fuel for the Node</li>
+<li>Trip 2: Refinery parts · Trip 3: Mini Printer parts</li>
+<li>Bring <b>light</b> materials (Nickel-Iron Veins, Silicon Dust, Water Ice: 0.1 m³ each) and print parts on site.</li>
+</ul>
+<h3>🚪 Stargates &amp; catapults</h3>
+<ul>
+<li>Gates run <b>only on crude fuel</b>: 50x EU-40 Fuel or 50x SOF-40 Fuel per jump.</li>
+<li>⚠️ <b>Read the popup before jumping.</b> <i>"Destination gate unfueled… jump anyway?"</i> means no way back until someone fuels the far side. Never tick "don't ask again".</li>
+<li>Player catapults and gates need a <b>Transponder</b> online to show on your map.</li>
+<li>⛽ <b>Big systems cost more fuel.</b> Fill up before you go; there may be no fuel on the route.</li>
+</ul>
+<h3>🔍 The blockchain sees your stuff</h3>
+<ul>
+<li><b>Storage contents are public.</b> Locations are hidden, so <b>never press "Publish Location"</b> on stuff with loot.</li>
+</ul>
+<h3>⚔️ Staying alive</h3>
+<ul>
+<li><b>Leave at ~1,000 damage taken</b>, unless a Hull Repairer is holding.</li>
+<li><b>Shoot back right away</b>: waiting is how new players die.</li>
+<li>Gankers camp docks and spawning rocks; don't idle there.</li>
+<li>Player bases defend themselves: see turrets and sentries below.</li>
+<li>🔋 <b>Warping needs capacitor charge.</b> Run it empty and you can't warp out.</li>
+</ul>
+<h3>🐞 Known bugs</h3>
+<ul>
+<li><b>Esc while typing in chat when docked can undock you.</b></li>
+<li>Logging off docked at your Refuge may ask <i>"Leave your vessel in space?"</i>: if you're docked, it's safe to log off.</li>
+<li>Storage: a failed deposit or withdrawal shows <b>no error</b>, so check your cargo after moving items.</li>
+</ul>
+<h3>🧩 Fitting</h3>
+<ul>
+<li><b>Command Pod, Power Generator and one Capacitor</b> can be moved but never removed. Most modules draw 0.1 MW of 15.</li>
+<li><b>Hull Repairer</b>: ~25 HP/s. Your best survival module. <b>Structural Brace</b>: +375 HP.</li>
+<li><b>Capacitor / Blackstart Cell</b>: +100 GJ and +1.2 GJ/s each. They stack.</li>
+<li><b>Fuel Bay</b> +500 fuel (10 cells) · <b>Fuel Blister</b> +250 fuel (5 cells): same fuel per cell, keep both.</li>
+<li><b>Cargo Container</b>: 36 m³ each.</li>
+<li><b>Two Weapon Receivers fit</b> = two lasers. Mining nonstop with both needs <b>8x Capacitor + 1x Blackstart Cell</b>.</li>
+<li><b>Directional Scanner</b> needs a <b>Gravity Sensor</b>. The Gravity Sensor scan (M1) names rocks 300+ km away.</li>
+<li>⚠️ <b>R25 engine</b>: on D1 Fuel or Unstable Fuel it loses a third of its thrust. Only build it once you have D2 Fuel or EU-40 Fuel.</li>
+<li>Try all of it in the <b>Forge</b> tab: it shows hold, fuel hours, whether the capacitor holds up, and power before you build.</li>
+</ul>
+<h3>🔫 Weapons</h3>
+<ul>
+<li><b>Cutting Laser</b>: 12 km, <b>ramps 2.3x over 16 s</b>, resets on a target switch. Mines too.</li>
+<li><b>Stuttergun</b>: 35 km, full damage from shot one, can't mine. Ammo: Pyro Round or Slug Round (314 damage) ❓</li>
+<li><b>Needle</b>: 25 km laser, ramps 2.5x over 20 s, mines worse.</li>
+</ul>
+<h3>🐺 Ferals</h3>
+<ul>
+<li><b>Starter ferals</b>: Ostler hits hardest → Luthier → Caird. A pack does ~14 HP/s: a repairer holds.</li>
+<li>🎯 <b>Keep range on fast orbiters</b> (Luthier): up close your laser misses almost every shot.</li>
+<li><b>Grave ferals (threat 4 systems)</b>: Grave Wright hits hardest (~65 every 5 s); Grave Shambler hits ~200 but misses a lot. The full pack does <b>~28 HP/s, more than a repairer</b>: kill the Wright first or leave.</li>
+</ul>
+<h3>🔋 Capacitor</h3>
+<ul>
+<li>4x Capacitor + 1x Blackstart Cell: one laser + repairer lasts <b>~5 min of nonstop fighting</b>.</li>
+<li>8x Capacitor + 1x Blackstart Cell: one laser + repairer <b>never runs dry</b>; two lasers + repairer ~8 min.</li>
+</ul>
+<h3>🗼 Player turrets</h3>
+<ul>
+<li><b>Mini Turret</b> 30,000 HP, 120 km · <b>Turret</b> 45,000 HP, 140 km · <b>Heavy Turret</b> 75,000 HP, 160 km (HP split evenly across shield/armor/hull)</li>
+<li>Every turret <b>locks only 2 ships</b>. Bring 4+ and half the fleet shoots free.</li>
+<li><b>Shields take 2 days to recharge</b>: damage sticks, hit-and-run works.</li>
+<li>A Mini Turret hits for <b>400–600 per shot</b>.</li>
+<li>To build: Mini Turret = 20x Reinforced Alloys + 20x Carbon Weave + 20x Thermal Composites · Turret = 10x Building Foam · Heavy Turret = 20x Building Foam</li>
+</ul>
+<h3>🛡️ Field Sentry</h3>
+<ul>
+<li><b>4,800 HP</b>, 25% resists, shields back in ~1 min.</li>
+<li><b>~100 DPS each</b> (162 per 1.6 s), targets within <b>25 km</b>, shoots to 50 km, one target at a time. Lasts <b>1 day</b>.</li>
+<li>Several together can kill a full-HP ship in <b>18 seconds</b>. Out-range them: the Stuttergun reaches 35 km.</li>
+<li>To build (Mini Printer): 4x Reinforced Alloys + 4x Printed Circuits + 300x Feldspar Crystal Shards.</li>
+</ul>
+<h3>⚔️ How to fight a base</h3>
+<ul>
+<li>🏢 <b>Fight from behind cover.</b> Behind a building, a Mini Turret missed 91 of 99 shots and the sentries 142 of 147.</li>
+<li>🔫 <b>Lasers work on player structures</b> (215–260 per shot). Watchers are the exception: a laser barely scratches them, and they drop nothing.</li>
+<li>Never go back <b>alone</b> to finish a base.</li>
+<li>Structure kills may not show up as killmails on chain ❓</li>
+</ul>
+<h3>📡 How scanning works</h3>
+<ul>
+<li><b>Strength</b> = range. Range grows with the <b>square root</b> of strength: 4x strength = 2x range.</li>
+<li><b>Resolution</b> = blur. The error grows with distance: <b>1 mrad = 1 km off per 1,000 km away</b>.</li>
+<li>🧲 <b>Passive markers</b> (Gravity Sensor) are fuzzy: about <b>8% of the distance</b>. That's why it moves or vanishes as you fly in.</li>
+<li>🎯 The <b>Directional Scanner</b> is ~27x sharper: 180 m off at 60 km. Sensors add <b>range</b>, not sharpness.</li>
+<li><b>Ion Sensor</b> = the EM channel: without it, EM range drops to a third.</li>
+</ul>
+<h3>🔦 Use the smallest cone</h3>
+<ul>
+<li>A <b>smaller cone uses less capacitor</b>: narrow 10 GJ, wide 50 GJ, omni 90 GJ.</li>
+<li>A <b>smaller cone also blooms less EM signature</b>, so others are less likely to find you. Omni blooms ~80x more than narrow.</li>
+</ul>
+<h3>📦 Finding containers</h3>
+<ul>
+<li>Containers are <b>faint</b>: 10 t (a ship is 10,000 t) and EM 25 (a ship ~300). They only resolve up close.</li>
+<li>✅ <b>Fly to ~60 km of the marker, then scan with a narrow cone.</b> Nothing? Move 20 km closer, scan again.</li>
+</ul>
+<h3>♻️ Empty container = looted, not a dud</h3>
+<ul>
+<li>Containers <b>never despawn</b> and <b>refill on a timer</b>. A scan <b>can't tell empty from full</b>.</li>
+<li>⏱️ <b>20 min</b>: Reinforced Transport Container, Jackpot Cache, wrecks, Storage Silos, Derelict Freighter.</li>
+<li>⏱️ <b>~40 s</b>: Drifting Cache, Damaged Drifting Cache, Cache ❓</li>
+<li>Found it empty? Screenshot it and <b>come back 20 min later</b>.</li>
+<li>💣 <i>"Security protocols detected… explosive triggers on containers are armed"</i> means opening them can destroy the loot. Wait for <i>"Security protocols disabled"</i> ❓</li>
+</ul>
+<h3>🗺️ Which sites</h3>
+<ul>
+<li>Most loot spots: <b>Ossuary Mill</b> (also lots of Debris), Derelict Quarry, Respite Anchorage, Fringe Latticeway.</li>
+<li><b>No ferals placed</b>: Graven Works, Dustline Waystation. <b>Most guarded</b>: Longwatch Redoubt.</li>
+<li>Natural sites (Stone/Ancient Cluster, Shale, Grove, Garden, Crossing) are <b>rocks only</b>.</li>
+</ul>
+<p class="small">Last reviewed: patch 0.7.2.0 · ❓ = reported, not confirmed</p></div>
+  <div id="tab-forge">
   <div class="status info" id="status">Loading…</div>
   <p class="intro">Will this ship get you there and back? Load the starter Reiver or forge your own: every module in the palette, the hull drawn like the game's fitting window, and the numbers that matter before you undock: hold, fuel hours, whether the capacitor holds up, power. <b>Forge for the role</b> fills the spare cells for what you need. Made by The Saints; proposal links carry the whole fit. <a href="https://github.com/saints-frontier/forge">Source and feedback on GitHub</a>.</p>
 
@@ -203,10 +429,19 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
       </div>
     </section>
   </div>
+  </div>
   <footer>EVE Frontier · Cycle 7 · Vestiges · <span id="build"></span> · est = measured curves, not the client</footer>
 </div>
 
 <script src="data.js"></script>
 <script src="card.js"></script>
 <script src="app.js"></script>
+<script>
+(function () {
+  var tabs = document.querySelectorAll(".tab"), panes = { forge: document.getElementById("tab-forge"), guide: document.getElementById("tab-guide") };
+  function show(name) { tabs.forEach(function (t) { t.classList.toggle("on", t.dataset.tab === name); }); for (var k in panes) panes[k].hidden = k !== name; if (name === "forge") window.dispatchEvent(new Event("resize")); }
+  tabs.forEach(function (t) { t.addEventListener("click", function () { show(t.dataset.tab); }); });
+  if (location.hash === "#guide") show("guide");
+})();
+</script>
 </body></html>

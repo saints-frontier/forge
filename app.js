@@ -152,21 +152,37 @@
     const el = $("hull-svg");
     el.dataset.w = vw; el.dataset.h = vh;
     fitZoom();
+    // Drag: the module follows the pointer as a ghost; on release the cell under the pointer receives the cell that was
+    // grabbed (not the module's corner), so the piece lands where it looks. No cell under the pointer = snap back.
     el.addEventListener("pointerdown", ev => {
       const g = ev.target.closest("g.mod"); if (!g) { select(-1); return; }
-      const i = +g.dataset.i; select(i);
-      const pt = svgPoint(el, ev); drag = { i, start: pt, moved: false }; el.setPointerCapture(ev.pointerId);
+      const i = +g.dataset.i; const p = state.placements[i];
+      const under = cellUnder(ev); const minx = Math.min(...p[3].map(c => c[0])), miny = Math.min(...p[3].map(c => c[1]));
+      const dx = under && +under.dataset.s === p[1] ? +under.dataset.x - minx : 0, dy = under && +under.dataset.s === p[1] ? +under.dataset.y - miny : 0;
+      const pt = svgPoint(el, ev); drag = { i, start: pt, moved: false, dx, dy, pointerId: ev.pointerId };
+      if (state.selected !== i) { state.selected = i; renderSelection(); }
+      el.querySelectorAll("g.mod.sel").forEach(x => x.classList.remove("sel")); g.classList.add("sel");
+      try { el.setPointerCapture(ev.pointerId); } catch (e) {}
+      ev.preventDefault();
     });
-    el.addEventListener("pointermove", ev => { if (!drag) return; const pt = svgPoint(el, ev); if (Math.hypot(pt.x - drag.start.x, pt.y - drag.start.y) > 4) drag.moved = true; });
-    el.addEventListener("pointerup", ev => {
+    el.addEventListener("pointermove", ev => {
+      if (!drag) return; const pt = svgPoint(el, ev);
+      if (!drag.moved && Math.hypot(pt.x - drag.start.x, pt.y - drag.start.y) > 4) drag.moved = true;
+      if (!drag.moved) return;
+      const k = (+el.dataset.w) / el.getBoundingClientRect().width;               // screen px -> drawing units
+      const g = el.querySelector(`g.mod[data-i="${drag.i}"]`);
+      if (g) { g.setAttribute("transform", `translate(${((pt.x - drag.start.x) * k).toFixed(1)},${((pt.y - drag.start.y) * k).toFixed(1)})`); g.style.opacity = "0.75"; g.style.pointerEvents = "none"; }
+    });
+    const endDrag = ev => {
       if (!drag) return; const d = drag; drag = null;
-      if (!d.moved) return;
-      const target = document.elementFromPoint(ev.clientX, ev.clientY); const cellEl = target && target.closest && target.closest("rect.cell");
-      if (!cellEl) { const m = target && target.closest("g.mod"); if (!m) return; }
-      const el2 = cellEl || cellUnder(ev);
-      if (!el2) return;
-      moveTo(d.i, +el2.dataset.s, +el2.dataset.x, +el2.dataset.y);
-    });
+      const g = el.querySelector(`g.mod[data-i="${d.i}"]`); if (g) { g.removeAttribute("transform"); g.style.opacity = ""; g.style.pointerEvents = ""; }
+      if (!d.moved || ev.type === "pointercancel") return;
+      const cell = cellUnder(ev);
+      if (!cell) { setStatus("Dropped outside the hull: the module stays where it was.", "warn"); return; }
+      moveTo(d.i, +cell.dataset.s, +cell.dataset.x - d.dx, +cell.dataset.y - d.dy);
+    };
+    el.addEventListener("pointerup", endDrag);
+    el.addEventListener("pointercancel", endDrag);
   }
   // The drawing fits the visible pane (height and width), times the zoom factor; zoomed in, the pane scrolls.
   function fitZoom() {
@@ -181,12 +197,13 @@
   function cellUnder(ev) { const els = document.elementsFromPoint(ev.clientX, ev.clientY); return els.find(e => e.classList && e.classList.contains("cell")) || null; }
   function svgPoint(svg, ev) { const r = svg.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; }
   function moveTo(i, s, x, y) {
-    const p = state.placements[i]; const shape = rotShape(p[3], 0);
-    // anchor: the dragged module's first cell lands on the target cell, keeping its shape
+    const p = state.placements[i];
+    // the module's top-left cell lands on (x, y) of section s, keeping its shape and rotation
     const minx = Math.min(...p[3].map(c => c[0])), miny = Math.min(...p[3].map(c => c[1]));
     const cells = p[3].map(c => [c[0] - minx + x, c[1] - miny + y]);
+    if (s === p[1] && cells.every((c, k) => c[0] === p[3][k][0] && c[1] === p[3][k][1])) { render(); return; }
     if (canPlace(s, cells, i)) { state.placements[i] = [p[0], s, p[2], cells]; markDirty(); render(); setStatus(`${p[0]} moved to the ${D.hulls[state.hull].sections[s].name} section.`, "ok"); }
-    else setStatus(`${p[0]} does not fit there.`, "bad");
+    else { render(); setStatus(`${p[0]} does not fit there.`, "bad"); }
   }
   function rotateSelected() {
     const i = state.selected; if (i < 0) return; const p = state.placements[i];
