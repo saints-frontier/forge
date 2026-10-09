@@ -176,8 +176,9 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .mhead { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 14px 10px; border-bottom: 1px solid rgba(217,178,76,.3); }
 .mhead .mt { font: 700 12px var(--mono); letter-spacing: 4px; color: var(--gold); text-transform: uppercase; }
 .mhead .ms { font: 11px var(--mono); color: var(--dim); flex: 1 1 auto; }
-.mhead .mbtn { font: 600 11px var(--mono); letter-spacing: 2px; text-transform: uppercase; background: var(--crimson); color: #fff; border: 1px solid var(--gold); padding: 8px 12px; text-decoration: none; white-space: nowrap; }
-.mhead .mbtn:hover { background: var(--red); }
+.mbtn { display: inline-block; font: 600 11px var(--mono); letter-spacing: 2px; text-transform: uppercase; background: var(--crimson); color: #fff; border: 1px solid var(--gold); padding: 8px 12px; text-decoration: none; white-space: nowrap; }
+.mbtn:hover { background: var(--red); }
+.row .hint { font: 11px var(--mono); color: var(--dim); flex: 1 1 200px; min-width: 0; }
 .mbody { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; padding: 14px; }
 @media (max-width: 900px) { .mbody { grid-template-columns: 1fr; } }
 .mform { display: grid; gap: 6px; align-content: start; }
@@ -537,6 +538,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 
       <div class="share">
         <div class="row"><button type="button" id="btn-share">Copy proposal link</button><button type="button" id="btn-discord">Copy Discord text</button><button type="button" id="btn-shop">Shopping list</button><button type="button" id="btn-compare">Compare</button></div>
+        <div class="row"><a class="mbtn" id="btn-lodge" href="#" target="_blank" rel="noopener" title="Open the Mason's Lodge with every module of this fit as something to build">⚒ Build it in the Lodge</a><span class="hint">Every module of this fit becomes a build goal: what to mine, refine and print.</span></div>
         <div class="note">A proposal link carries the whole fit. Anyone with the page can open it, change it and send their own.</div>
         <div id="share-out" hidden><textarea id="share-text" aria-label="Share text" readonly></textarea></div>
       </div>
@@ -554,7 +556,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 </div>
 <div class="modal" id="shopmodal" hidden>
   <div class="mbox" role="dialog" aria-label="Shopping list">
-    <div class="mhead"><span class="mt">Shopping list</span><span class="ms" id="shop-sub"></span><a class="mbtn" id="shop-lodge" href="#" target="_blank" rel="noopener" title="Open the Mason's Lodge with every module of this fit as something to build">Build it in the Lodge</a><button type="button" id="shop-copy">Copy as text</button><button type="button" id="shop-close">Close</button></div>
+    <div class="mhead"><span class="mt">Shopping list</span><span class="ms" id="shop-sub"></span><button type="button" id="shop-copy">Copy as text</button><button type="button" id="shop-close">Close</button></div>
     <div class="shopbody" id="shop-body"></div>
   </div>
 </div>
@@ -568,7 +570,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 </div>
 <script src="data.js?v=9fdcaf3d"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=0b7a66f3"></script>
+<script src="app.js?v=6e0c6238"></script>
 <script>
 (function () {
   // pages and their own addresses: thesaintsforge.com/aboutus, /forge, /guide (Cloudflare serves the page at each,

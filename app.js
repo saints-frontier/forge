@@ -783,10 +783,9 @@
       `<div class="note">Command Pod and Weapon Receiver have no printer recipe: they come with the ship, and wrecks drop spares.</div></div>` +
       `<div><h3>Materials, total</h3><table>${mats.map(m => `<tr><td class="n">${f(s.mats[m])}x</td><td>${m}</td></tr>`).join("")}</table>` +
       `<div class="note">Recipes as read from the Industry window; the simplest printer that makes each module (the Emergency Printer where it can, else the Mini Printer; the ship Printer makes the same). Refining the raw ore into these is one step further.</div></div>`;
-    $("shop-lodge").href = lodgeLink(lodgePayload());
     $("shopmodal").hidden = false; document.body.style.overflow = "hidden";
   }
-  // "Build it in the Lodge": every module of the fit becomes a goal of the Mason's Lodge. On the site the Lodge is the
+  // "Build it in the Lodge" (its own button under the share row): every module of the fit becomes a goal of the Mason's Lodge. On the site the Lodge is the
   // next page over (window.__lodgeImport + window.__siteGo); stand-alone, the fit travels in the Lodge's link as
   // #build-<base64url JSON> (a link keeps only letters, digits, - and _ after the #).
   const LODGE_URL = "https://claude.ai/artifact/GN4X4Zo2kfjPoWnoPuQ5cg";
@@ -853,9 +852,12 @@
     $("shop-close").addEventListener("click", () => { $("shopmodal").hidden = true; document.body.style.overflow = ""; });
     $("shopmodal").addEventListener("click", e => { if (e.target === $("shopmodal")) { $("shopmodal").hidden = true; document.body.style.overflow = ""; } });
     $("shop-copy").addEventListener("click", () => copy(shopText(), "Shopping list copied."));
-    $("shop-lodge").addEventListener("click", e => {
+    const freshLodgeLink = () => { $("btn-lodge").href = lodgeLink(lodgePayload()); };   // the link always carries the fit as it is now
+    ["pointerenter", "focus", "pointerdown"].forEach(ev => $("btn-lodge").addEventListener(ev, freshLodgeLink));
+    $("btn-lodge").addEventListener("click", e => {
+      freshLodgeLink();
       if (!(window.__lodgeImport && window.__siteGo)) return;          // stand-alone: the link opens the Lodge itself
-      e.preventDefault(); $("shopmodal").hidden = true; document.body.style.overflow = "";
+      e.preventDefault();
       window.__lodgeImport(lodgePayload()); window.__siteGo("lodge");
     });
     if ($("btn-card")) {                                   // the public edition (tools/build_forge_public.py) has no cards
