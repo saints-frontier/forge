@@ -206,14 +206,17 @@
       if (!drag.moved) return;
       const k = (+el.dataset.w) / el.getBoundingClientRect().width;               // screen px -> drawing units
       const g = el.querySelector(`g.mod[data-i="${drag.i}"]`);
-      if (g) { g.setAttribute("transform", `translate(${((pt.x - drag.start.x) * k).toFixed(1)},${((pt.y - drag.start.y) * k).toFixed(1)})`); g.style.opacity = "0.75"; g.style.pointerEvents = "none"; }
+      const off = offWindow(ev);
+      if (g) { g.setAttribute("transform", `translate(${((pt.x - drag.start.x) * k).toFixed(1)},${((pt.y - drag.start.y) * k).toFixed(1)})`); g.style.opacity = off ? "0.3" : "0.75"; g.style.pointerEvents = "none"; }
+      if (off !== drag.off) { drag.off = off; const l = state.placements[drag.i][0]; setStatus(off ? (locked(l) ? `${l} cannot be removed (the game keeps it).` : `Release to remove ${l}.`) : "", off ? "warn" : "info"); }
     });
     const endDrag = ev => {
       if (!drag) return; const d = drag; drag = null;
       const g = el.querySelector(`g.mod[data-i="${d.i}"]`); if (g) { g.removeAttribute("transform"); g.style.opacity = ""; g.style.pointerEvents = ""; }
       if (!d.moved || ev.type === "pointercancel") return;
+      if (offWindow(ev)) { removeAt(d.i); return; }                // dragged off the fitting window = removed
       const cell = cellUnder(ev);
-      if (!cell) { setStatus("Dropped outside the hull: the module stays where it was.", "warn"); return; }
+      if (!cell) { setStatus("Not on a hull cell: the module stays where it was.", "warn"); return; }
       moveTo(d.i, +cell.dataset.s, +cell.dataset.x - d.dx, +cell.dataset.y - d.dy);
     };
     el.addEventListener("pointerup", endDrag);
@@ -335,7 +338,14 @@
     const i = state.selected; if (i < 0) return; const p = state.placements[i];
     if (turnTo(i, (p[2] + 180) % 360)) setStatus(`${p[0]} flipped.`, "ok"); else setStatus(`${p[0]} has no room to flip here.`, "bad");
   }
-  function removeSelected() { const i = state.selected; if (i < 0) return; const [l] = state.placements[i]; if (D.base_ship.never_removed[l] && counts(state.placements)[l] <= D.base_ship.never_removed[l]) { setStatus(`${l} cannot be removed (the game keeps it).`, "bad"); return; } state.placements.splice(i, 1); state.selected = -1; markDirty(); render(); }
+  function locked(l) { return D.base_ship.never_removed[l] && counts(state.placements)[l] <= D.base_ship.never_removed[l]; }
+  function offWindow(ev) { const r = $("grid").getBoundingClientRect(); return ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom; }
+  function removeAt(i) {
+    const [l] = state.placements[i];
+    if (locked(l)) { setStatus(`${l} cannot be removed (the game keeps it).`, "bad"); render(); return; }
+    state.placements.splice(i, 1); state.selected = -1; markDirty(); render(); setStatus(`${l} removed.`, "ok");
+  }
+  function removeSelected() { if (state.selected >= 0) removeAt(state.selected); }
   function select(i) { state.selected = i; renderGrid(); renderSelection(); }
   function renderSelection() {
     const i = state.selected; const box = $("selbox");
@@ -381,7 +391,25 @@
     $("st-caprech-note").textContent = `recharge model: ${D.models.recharge.a}·n^${D.models.recharge.b}, measured at 2, 5 and 13 Capacitors`;
   }
   function renderHeader() { if (!K) return; const th = K.themes[state.hull].theme; $("tier").textContent = `✠ ${th.name} · ${th.tier} ✠`; }
-  function render() { renderGrid(); renderPalette(); renderStats(); renderSelection(); renderHeader(); $("fit-name").value = state.name; $("hull-sel").value = state.hull; $("free-count").textContent = ""; }
+  function render() { renderGrid(); renderPalette(); renderStats(); renderSelection(); renderHeader(); $("fit-name").value = state.name; $("hull-sel").value = state.hull; $("free-count").textContent = ""; record(); }
+
+  // ---------- undo / redo ----------
+  // Every render records the fit if it changed (a forge or a + search records once, when it ends). 100 steps kept.
+  let history = [], hidx = -1, holdHistory = false;
+  function snap() { return JSON.stringify({ h: state.hull, p: state.placements, e: state.exterior, n: state.name, b: state.preset, d: state.dirty, c: state.minCaps }); }
+  function record() {
+    if (holdHistory || pool || running) return;
+    const s = snap(); if (hidx >= 0 && history[hidx] === s) return;
+    history = history.slice(0, hidx + 1); history.push(s); if (history.length > 100) history.shift(); hidx = history.length - 1; undoButtons();
+  }
+  function undoButtons() { const u = $("btn-undo"), r = $("btn-redo"); if (u) u.disabled = hidx <= 0; if (r) r.disabled = hidx >= history.length - 1; }
+  function restore(s) {
+    const o = JSON.parse(s), hullChanged = o.h !== state.hull;
+    Object.assign(state, { hull: o.h, placements: o.p, exterior: o.e, name: o.n, preset: o.b, dirty: o.d, minCaps: o.c, selected: -1 });
+    $("min-caps").value = state.minCaps; if (hullChanged) startSolver(); render(); undoButtons();
+  }
+  function undo() { if (pool || running || hidx <= 0) return; hidx--; restore(history[hidx]); setStatus("Undone.", "info"); }
+  function redo() { if (pool || running || hidx >= history.length - 1) return; hidx++; restore(history[hidx]); setStatus("Redone.", "info"); }
   function setStatus(text, tone) { const s = $("status"); s.textContent = text; s.className = "status " + (tone || ""); }
   // Doctrine fits are written +NAME+ (the Saints' mark). The moment one is changed it becomes a proposal and loses the
   // marks, so nobody mistakes a modified fit for the doctrine. Ships outside the doctrine would carry no marks (none at the moment).
@@ -412,7 +440,7 @@
   // A clean slate is never empty: the modules the game refuses to remove are fitted first.
   async function cleanSlate(keepExterior) {
     state.placements = []; if (!keepExterior) state.exterior = {}; state.preset = null; state.selected = -1; state.name = "Forge your own";
-    render();
+    holdHistory = true; render(); holdHistory = false;
     if (!solverReady) await new Promise(r => { const t = setInterval(() => { if (solverReady) { clearInterval(t); r(); } }, 50); });
     const core = []; for (const n in D.base_ship.never_removed) for (let i = 0; i < D.base_ship.never_removed[n]; i++) core.push(n);
     progressStart(0, "Laying the keel…");
@@ -630,6 +658,12 @@
     $("btn-flip").addEventListener("click", flipSelected);
     $("btn-remove").addEventListener("click", removeSelected);
     document.addEventListener("keydown", e => { if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return; if (e.key === "r" || e.key === "R") rotateSelected(); if (e.key === "f" || e.key === "F") flipSelected(); if (e.key === "Delete" || e.key === "Backspace") removeSelected(); });
+    document.addEventListener("keydown", e => {
+      if (!(e.ctrlKey || e.metaKey) || e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); undo(); } else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); redo(); }
+    });
+    $("btn-undo").addEventListener("click", undo); $("btn-redo").addEventListener("click", redo);
     ["hold", "cap", "fuel", "hp", "repair"].forEach(k => { const el = $("prio-" + k); el.value = state.prio[k]; el.addEventListener("input", () => { state.prio[k] = +el.value; $("prio-" + k + "-v").textContent = ["off", "low", "mid", "top"][+el.value]; }); $("prio-" + k + "-v").textContent = ["off", "low", "mid", "top"][state.prio[k]]; });
     $("min-caps").addEventListener("input", e => { state.minCaps = +e.target.value || 0; });
     $("btn-capstable").addEventListener("click", () => { const n = +$("cap-stable-n").textContent; state.minCaps = n; $("min-caps").value = n; setStatus(`Minimum Capacitors set to ${n}: estimated recharge covers everything firing at once.`, "ok"); });
