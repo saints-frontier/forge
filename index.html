@@ -131,6 +131,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #card-png { width: 100%; height: auto; display: block; border: 1px solid var(--gold); }
 .mprev .row { padding: 0; }
 /* the beginner's guide: section cards with code-drawn art, bigger text */
+.guide-on .topctl, .guide-on .tier { display: none; }           /* the guide page shows no fitting controls */
 .sidenav { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 10px; }
 .sidenav .gobtn { min-width: 340px; flex: 1 1 340px; white-space: nowrap; }
 @media (min-width: 1600px) {
@@ -247,7 +248,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 <script>
 (function () {
   var bf = document.getElementById("nav-forge"), bg = document.getElementById("nav-guide"), forge = document.getElementById("tab-forge"), guide = document.getElementById("tab-guide");
-  function show(name) { guide.hidden = name !== "guide"; forge.hidden = name === "guide"; bf.classList.toggle("on", name === "forge"); bg.classList.toggle("on", name === "guide"); if (name === "forge") window.dispatchEvent(new Event("resize")); window.scrollTo(0, 0); }
+  function show(name) { guide.hidden = name !== "guide"; forge.hidden = name === "guide"; document.body.classList.toggle("guide-on", name === "guide"); bf.classList.toggle("on", name === "forge"); bg.classList.toggle("on", name === "guide"); if (name === "forge") window.dispatchEvent(new Event("resize")); window.scrollTo(0, 0); }
   bf.addEventListener("click", function () { show("forge"); }); bg.addEventListener("click", function () { show("guide"); });
   if (location.hash === "#guide") show("guide");
 })();
