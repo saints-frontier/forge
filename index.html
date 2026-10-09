@@ -236,7 +236,8 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
         <div class="prio"><span>Armour</span><input type="range" id="prio-hp" min="0" max="3" step="1"><span class="pv" id="prio-hp-v"></span></div>
         <div class="prio"><span>Repair</span><input type="range" id="prio-repair" min="0" max="3" step="1"><span class="pv" id="prio-repair-v"></span></div>
         <div class="row"><label for="min-caps">Keep at least</label><input type="number" id="min-caps" min="1" value="1"> <label>Capacitors</label><button type="button" id="btn-capstable">cap-stable: <span id="cap-stable-n">—</span></button></div>
-        <div class="row"><label for="forge-secs">Search</label><input type="number" id="forge-secs" min="5" max="600" value="45"> <label>seconds</label><button type="button" class="primary" id="btn-forge">Forge for the role</button></div>
+        <div class="row"><button type="button" class="primary" id="btn-forge">Forge for the role</button></div>
+        <div class="note">Runs several searches at once and stops by itself when nothing better has turned up for 30 seconds (3 minutes at most). Stop any time; the best fit found so far stays.</div>
       </div>
 
       <div class="share">
@@ -252,7 +253,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 
 <script src="data.js?v=3abd91c2"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=f4600df2"></script>
+<script src="app.js?v=953ea6bc"></script>
 <script>
 (function () {
   var bf = document.getElementById("nav-forge"), bg = document.getElementById("nav-guide"), forge = document.getElementById("tab-forge"), guide = document.getElementById("tab-guide");

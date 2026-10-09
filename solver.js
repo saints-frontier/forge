@@ -193,6 +193,7 @@ function optimize(msg) {
   let cur = placements.map(p => [p[0], p[1], p[2], p[3]]);
   let curValue = valueOf(cur, fillers, values);
   const t0 = Date.now(); let it = 0, gains = 0, lastPost = 0;
+  const trace = [[0, curValue]];                     // [ms, value] at every strict gain: how fast the search converges
   const n = HULL.n;
   while (Date.now() - t0 < seconds * 1000 && !STOP) {
     it++;
@@ -211,12 +212,13 @@ function optimize(msg) {
     if (!okMin) continue;
     const v = valueOf(cand, fillers, values);
     if (v >= curValue) {
-      if (v > curValue) { gains++; }
+      const gain = v > curValue;
+      if (gain) { gains++; trace.push([Date.now() - t0, v]); }
       cur = cand; curValue = v;
-      if (v > curValue - 1 && Date.now() - lastPost > 400) { lastPost = Date.now(); emit({ type: "progress", placements: cur, value: curValue, iterations: it, gains }); }
+      if (gain || Date.now() - lastPost > 400) { lastPost = Date.now(); emit({ type: "progress", placements: cur, value: curValue, iterations: it, gains }); }
     }
   }
-  emit({ type: "done", placements: cur, value: curValue, iterations: it, gains, seconds: (Date.now() - t0) / 1000 });
+  emit({ type: "done", placements: cur, value: curValue, iterations: it, gains, seconds: (Date.now() - t0) / 1000, trace });
 }
 
 /* Try to add modules: first a direct spot for each; if none, ruin-and-recreate with the new modules mandatory. */

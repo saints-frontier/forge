@@ -336,7 +336,57 @@
     setStatus(`${state.hull}: clean slate with the ${core.length} modules the game never removes (${[...new Set(core)].join(", ")}). Add the rest from the palette, then forge for the role.`, "info");
   }
 
+  // ---------- Forge for the role: parallel searches until nothing better turns up ----------
+  // Bench 2026-10-09 (27 runs, 9 fits x 3 seeds, 180 s): a single search reached only 92-99 % of the best found in 3 min,
+  // while the best of three seeds in parallel was at 98.5-100 % within ~45 s; a stop after 30 s without a gain landed at
+  // 95-100 % (mean ~99 %). Different seeds land in different layouts, so more searches beat more time.
+  const FORGE_IDLE = 30, FORGE_MAX = 180;
+  let pool = null;
+  function forgeSearches() { return Math.max(2, Math.min(8, (navigator.hardwareConcurrency || 4) - 1)); }
+  function forgeParallel(fillers, values, keepMin) {
+    const K = forgeSearches(), t0 = Date.now();
+    const valueOf = pl => pl.reduce((a, p) => a + (values[p[0]] || 0), 0);
+    const P = pool = { workers: [], best: valueOf(state.placements), bestPl: state.placements, lastGain: t0, gains: 0, iters: [], done: 0, stopping: false, reason: "", timer: null, t0, K };
+    const init = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
+    const consider = m => { if (m.value > P.best) { P.best = m.value; P.bestPl = m.placements; P.lastGain = Date.now(); P.gains++; state.placements = m.placements; render(); } };
+    for (let i = 0; i < K; i++) {
+      let w; try { w = new Worker("solver.js"); } catch (e) { break; }
+      w.onmessage = e => {
+        const m = e.data;
+        if (m.type === "ready") w.postMessage({ type: "optimize", placements: P.bestPl, fillers, values, keepMin, seconds: FORGE_MAX, seed: (Date.now() + i * 7919) & 0xffff || i + 1, maxSections: 3 });
+        else if (m.type === "progress") { P.iters[i] = m.iterations; consider(m); }
+        else if (m.type === "done") { P.iters[i] = m.iterations; consider(m); if (++P.done >= P.workers.length) forgeFinish(P); }
+      };
+      w.onerror = () => { if (++P.done >= P.workers.length) forgeFinish(P); };
+      w.postMessage(init); P.workers.push(w);
+    }
+    if (!P.workers.length) { pool = null; return false; }
+    P.timer = setInterval(() => {
+      const now = Date.now(), idle = (now - P.lastGain) / 1000, el = (now - P.t0) / 1000;
+      const holdNow = hold(P.bestPl), its = P.iters.reduce((a, b) => a + (b || 0), 0);
+      $("fb-fill").style.width = Math.min(100, idle / FORGE_IDLE * 100).toFixed(1) + "%";
+      $("fb-text").textContent = `Forging · ${P.workers.length} searches · ${el.toFixed(0)} s · ${its} re-packs · ${holdNow} m³ · ${P.gains ? "last gain " + idle.toFixed(0) + " s ago" : "no gain yet"}`;
+      if (!P.stopping && (idle >= FORGE_IDLE || el >= FORGE_MAX)) forgeStop(P, idle >= FORGE_IDLE ? "settled" : "time");
+    }, 250);
+    progressStart(0, `Forging · ${K} searches…`); $("fb-fill").classList.remove("busy"); $("fb-fill").style.width = "0%";
+    return true;
+  }
+  function forgeStop(P, reason) {
+    if (P.stopping) return; P.stopping = true; P.reason = reason;
+    P.workers.forEach(w => w.postMessage({ type: "stop" }));
+    setTimeout(() => forgeFinish(P), 2500);                  // a worker that never answers does not hold the page
+  }
+  function forgeFinish(P) {
+    if (P.finished) return; P.finished = true;
+    clearInterval(P.timer); P.workers.forEach(w => w.terminate()); if (pool === P) pool = null;
+    state.placements = P.bestPl; if (P.gains) markDirty(); render();
+    const secs = ((Date.now() - P.t0) / 1000).toFixed(0), its = P.iters.reduce((a, b) => a + (b || 0), 0);
+    const why = P.reason === "settled" ? `nothing better for ${FORGE_IDLE} s` : P.reason === "time" ? "3 min limit" : "stopped";
+    progressDone(`Forged: ${P.gains} gains from ${P.workers.length} searches, ${its} re-packs in ${secs} s (${why}) · ${hold(state.placements)} m³ hold`);
+    $("btn-forge").textContent = "Forge for the role"; setStatus("", "info");
+  }
   function forge() {
+    if (pool) { forgeStop(pool, "stopped"); return; }
     if (running) { solver.postMessage({ type: "stop" }); return; }
     if (!solverReady) { setStatus("Solver still loading…", "warn"); return; }
     const fillers = FILLERS.filter(f => state.prio[PRIO_OF[f]] > 0);
@@ -347,9 +397,11 @@
     keepMin["Capacitor"] = Math.max(state.minCaps, D.base_ship.never_removed["Capacitor"] || 1);
     // every other filler keeps at least what the pilot placed by hand (the base ship's one Fuel Bay, Repairer ...)
     fillers.forEach(f => { if (f !== "Capacitor") keepMin[f] = Math.min(c[f] || 0, D.base_ship.always[f] || 0); });
-    const secs = +$("forge-secs").value || 60;
-    running = "optimize"; $("btn-forge").textContent = "Stop"; setStatus("", "info"); progressStart(secs, "Forging");
-    solver.postMessage({ type: "optimize", placements: state.placements, fillers, values, keepMin, seconds: secs, seed: Date.now() & 0xffff, maxSections: 3 });
+    $("btn-forge").textContent = "Stop"; setStatus("", "info");
+    if (forgeParallel(fillers, values, keepMin)) return;
+    // no Workers here (the in-page solver): one search, 60 s
+    running = "optimize"; progressStart(60, "Forging");
+    solver.postMessage({ type: "optimize", placements: state.placements, fillers, values, keepMin, seconds: 60, seed: Date.now() & 0xffff, maxSections: 3 });
   }
 
   // ---------- presets, share, save ----------
