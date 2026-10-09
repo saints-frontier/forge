@@ -6,9 +6,10 @@ hours it lasts, capacitor and whether it stays charged with everything running, 
 **Forge for the role** fills the spare cells by your priorities (hold, capacitor, fuel, armour) and never
 removes what you placed. A proposal link carries the whole fit; paste it in Discord.
 
-Open it: https://saints-frontier.github.io/forge/
+Open it: https://www.thesaintsforge.com/ (hosted on Cloudflare Pages from this repository; the GitHub Pages copy at
+https://saints-frontier.github.io/forge/ stays as a mirror).
 
-Everything runs in your browser; nothing is uploaded. The solver uses one CPU core for the seconds you set.
+Everything runs in your browser; nothing is uploaded. The forge runs several searches on your CPU cores and stops by itself.
 
 Numbers come from the game client's own data (module footprints, hull grids) plus measured curves for capacitor
 recharge and fuel burn (marked *est*). Found a wrong number? Open an issue with a screenshot.
