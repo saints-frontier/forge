@@ -821,7 +821,14 @@
     if ($("tour-open")) $("tour-open").addEventListener("click", () => { $("tour-never").checked = false; tourShow(0); });
     document.addEventListener("keydown", e => { if (tourI >= 0 && e.key === "Escape") tourShow(-1); });
     window.addEventListener("resize", () => { if (tourI >= 0) tourShow(tourI); });
-    if (!tourSeen() && !location.hash) setTimeout(() => tourShow(0), 900);
+    // first visit: the tour waits until the Forge is on screen (the public site opens on About us; a proposal link skips it)
+    const tourStart = () => {
+      const fp = document.getElementById("tab-forge"), visible = () => !fp || (!fp.hidden && fp.offsetParent !== null);
+      if (visible()) { tourShow(0); return; }
+      const again = () => { if (visible()) { window.removeEventListener("resize", again); setTimeout(() => { if (!tourSeen() && tourI < 0) tourShow(0); }, 500); } };
+      window.addEventListener("resize", again);
+    };
+    if (!tourSeen() && location.hash.length <= 8) setTimeout(tourStart, 900);
   }
 
   // ---------- wiring ----------
