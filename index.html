@@ -426,7 +426,13 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
   }
   Object.keys(pages).forEach(function (k) { var b = el("nav-" + k); if (b) b.addEventListener("click", function () { go(k); }); });
   window.addEventListener("popstate", function () { show(fromUrl()); });
-  show(fromUrl());
+  var first = fromUrl();
+  show(first);
+  // the bare address and the old #about / #forge / #guide links take the page's own address, so it can be copied
+  // (a proposal link keeps its hash)
+  var h0 = location.hash.slice(1);
+  if (usePaths && (!h0 || pages[h0]) && (location.pathname.split("/").filter(Boolean).pop() || "").toLowerCase() !== PATH[first])
+    history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
 </body></html>
