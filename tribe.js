@@ -16,9 +16,9 @@
       loggedOut(q === "denied" ? "Saint rank or above needed. Ask in Discord." : q === "error" ? "The login did not go through. Try again." : "");
       return;
     }
-    var knight = /knight/i.test(me.rank || "");
+    var knight = !!me.upload;                       // Knights and the site keepers (DOCTRINE_ADMINS) may replace the fits
     box.innerHTML = '<span class="tribe-who">✠ ' + esc(me.name) + " · " + esc(me.rank) + '</span>'
-      + (knight ? '<label class="tribe-up" title="Replace the doctrine fits with an exported doctrine-payload.json (Knights only)">update doctrine<input type="file" accept="application/json,.json" hidden></label>' : "")
+      + (knight ? '<label class="tribe-up" title="Replace the doctrine fits with an exported doctrine-payload.json">update doctrine<input type="file" accept="application/json,.json" hidden></label>' : "")
       + '<a class="tribe-out" href="/api/logout">log out</a>';
     var who = box.querySelector(".tribe-who");
     function note(t) { var n = box.querySelector(".tribe-note"); if (!n) { n = document.createElement("span"); n.className = "tribe-note"; who.after(n); } n.textContent = " · " + t; }

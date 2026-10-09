@@ -100,5 +100,8 @@ export async function session(env, req) {
   const s2 = Object.assign({}, s, { n: displayName(member), r: rank, rt: tok.refresh_token || s.rt, chk: Date.now(), exp: Date.now() + SEVEN_DAYS });
   return { s: s2, cookies: [setCookie("sf_session", await sign(env, s2), SEVEN_DAYS / 1000)] };
 }
+/* who may replace the doctrine fits: Knights (incl. the leader) and the Discord user ids listed in DOCTRINE_ADMINS */
+export const canUpload = (env, s) => !!s && (/knight/i.test(s.r || "") ||
+  (env.DOCTRINE_ADMINS || "").split(",").map(x => x.trim()).filter(Boolean).includes(String(s.u || "")));
 export const newSession = (member, rank, tok) => ({ u: member.user && member.user.id, n: displayName(member), r: rank, rt: tok.refresh_token, chk: Date.now(), exp: Date.now() + SEVEN_DAYS });
 export const SESSION_SECONDS = SEVEN_DAYS / 1000;
