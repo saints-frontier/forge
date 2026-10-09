@@ -38,7 +38,7 @@
   }
   function onSolver(m) {
     if (m.type === "ready") { solverReady = true; return; }
-    if (m.type === "progress") { if (prog) { prog.iterations = m.iterations; prog.gains = m.gains; progressTick(); } if (running === "optimize") { state.placements = m.placements; render(); setStatus(`Forging… ${m.iterations} re-packs, ${m.gains} gains`, "info"); } return; }
+    if (m.type === "progress") { if (prog) { prog.iterations = m.iterations; prog.gains = m.gains; progressTick(); } if (running === "optimize") { state.placements = m.placements; render(); } return; }
     if (m.type === "done") {
       const kind = running; running = null; $("btn-forge").textContent = "Forge for the role"; $("btn-forge").disabled = false;
       if (kind === "optimize") { state.placements = m.placements; markDirty(); render(); progressDone(`Forged: ${m.iterations} re-packs in ${m.seconds.toFixed(0)} s, ${m.gains} gains · ${hold(state.placements)} m³ hold`); setStatus("", "info"); }
@@ -348,7 +348,7 @@
     // every other filler keeps at least what the pilot placed by hand (the base ship's one Fuel Bay, Repairer ...)
     fillers.forEach(f => { if (f !== "Capacitor") keepMin[f] = Math.min(c[f] || 0, D.base_ship.always[f] || 0); });
     const secs = +$("forge-secs").value || 60;
-    running = "optimize"; $("btn-forge").textContent = "Stop"; setStatus("Forging…", "info"); progressStart(secs, "Forging");
+    running = "optimize"; $("btn-forge").textContent = "Stop"; setStatus("", "info"); progressStart(secs, "Forging");
     solver.postMessage({ type: "optimize", placements: state.placements, fillers, values, keepMin, seconds: secs, seed: Date.now() & 0xffff, maxSections: 3 });
   }
 
