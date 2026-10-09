@@ -280,12 +280,11 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 
       <h2>Forge for the role</h2>
       <div class="forge">
-        <div class="note">Every module already fitted stays. The spare cells get filled by these priorities, top first; off = never add.</div>
+        <div class="note">Modules you placed stay; hold, capacitor, fuel and armour modules may be rearranged or traded (never below the minimum). The spare cells get filled by these priorities, top first; off = never add.</div>
         <div class="prio"><span>Hold</span><input type="range" id="prio-hold" min="0" max="3" step="1"><span class="pv" id="prio-hold-v"></span></div>
         <div class="prio"><span>Capacitor</span><input type="range" id="prio-cap" min="0" max="3" step="1"><span class="pv" id="prio-cap-v"></span></div>
         <div class="prio"><span>Fuel</span><input type="range" id="prio-fuel" min="0" max="3" step="1"><span class="pv" id="prio-fuel-v"></span></div>
         <div class="prio"><span>Armour</span><input type="range" id="prio-hp" min="0" max="3" step="1"><span class="pv" id="prio-hp-v"></span></div>
-        <div class="prio"><span>Repair</span><input type="range" id="prio-repair" min="0" max="3" step="1"><span class="pv" id="prio-repair-v"></span></div>
         <div class="row"><label for="min-caps">Keep at least</label><input type="number" id="min-caps" min="1" value="1"> <label>Capacitors</label><button type="button" id="btn-capstable">cap-stable: <span id="cap-stable-n">—</span></button></div>
         <div class="row"><button type="button" class="primary" id="btn-forge">Forge for the role</button></div>
         <div class="note">Runs several searches at once and stops by itself when nothing better has turned up for 30 seconds (3 minutes at most). Stop any time; the best fit found so far stays.</div>
@@ -324,7 +323,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 </div>
 <script src="data.js?v=9fdcaf3d"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=3bfea3b3"></script>
+<script src="app.js?v=af868a63"></script>
 <script>
 (function () {
   var bf = document.getElementById("nav-forge"), bg = document.getElementById("nav-guide"), forge = document.getElementById("tab-forge"), guide = document.getElementById("tab-guide");

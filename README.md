@@ -3,7 +3,7 @@
 An EVE Frontier ship-fitting tool, made by The Saints. Fit a Reiver or a LAI module by module on the hull grid, exactly
 as the game's fitting window lays it out, and see the numbers that matter before you undock: hold, fuel and how many
 hours it lasts, capacitor and whether it stays charged with everything running, hull HP and repair, damage, power.
-**Forge for the role** fills the spare cells by your priorities (hold, capacitor, fuel, armour, repair) and never
+**Forge for the role** fills the spare cells by your priorities (hold, capacitor, fuel, armour) and never
 removes what you placed. A proposal link carries the whole fit; paste it in Discord.
 
 Open it: https://saints-frontier.github.io/forge/

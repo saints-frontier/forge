@@ -5,14 +5,14 @@
   const K = window.FORGE_CARD || null;                     // the card chrome (card.js): hull outlines, palette, prose
   const MOD = {}; D.modules.forEach(m => MOD[m.name] = m);
   const EXT = {}; D.exterior.forEach(e => EXT[e.name] = e);
-  const FILLERS = ["Cargo Container", "Emergency Container", "Capacitor", "Fuel Bay", "Fuel Blister", "Structural Brace", "Hull Repairer"];
+  const FILLERS = ["Cargo Container", "Emergency Container", "Capacitor", "Fuel Bay", "Fuel Blister", "Structural Brace"];
   // filler value per unit at weight 1: tuned so every filler has the same value per cell (6/cell); the weight (0-3)
   // then orders them lexicographically (x1000 per step), so "Hold 3, Capacitor 2" means hold first, then capacitors.
-  const FILL_BASE = { "Cargo Container": 36, "Emergency Container": 25, "Capacitor": 12, "Fuel Bay": 60, "Fuel Blister": 30, "Structural Brace": 42, "Hull Repairer": 84 };
-  const PRIO_OF = { "Cargo Container": "hold", "Emergency Container": "hold", "Capacitor": "cap", "Fuel Bay": "fuel", "Fuel Blister": "fuel", "Structural Brace": "hp", "Hull Repairer": "repair" };
+  const FILL_BASE = { "Cargo Container": 36, "Emergency Container": 25, "Capacitor": 12, "Fuel Bay": 60, "Fuel Blister": 30, "Structural Brace": 42 };
+  const PRIO_OF = { "Cargo Container": "hold", "Emergency Container": "hold", "Capacitor": "cap", "Fuel Bay": "fuel", "Fuel Blister": "fuel", "Structural Brace": "hp" };
   const $ = id => document.getElementById(id);
 
-  const state = { hull: "Reiver", name: "Untitled fit", placements: [], exterior: {}, selected: -1, zoom: 1, prio: { hold: 3, cap: 2, fuel: 0, hp: 0, repair: 0 }, minCaps: 0, fuelGrade: "Unstable", preset: null, dirty: false };
+  const state = { hull: "Reiver", name: "Untitled fit", placements: [], exterior: {}, selected: -1, zoom: 1, prio: { hold: 3, cap: 2, fuel: 0, hp: 0 }, minCaps: 0, fuelGrade: "Unstable", preset: null, dirty: false };
   let solver = null, solverReady = false, running = null, pendingResolve = null;
 
   // ---------- solver plumbing ----------
@@ -336,7 +336,7 @@
     if (!d.shown || ev.type === "pointercancel") return;
     if (!cellUnder(ev)) { setStatus(`Drop ${d.name} on the hull to fit it.`, "info"); return; }
     if (!d.spot) { setStatus(`No room for ${d.name} there. Try another spot, or press + to let the forge rearrange.`, "bad"); return; }
-    state.placements.push([d.name, d.spot.s, d.spot.rot, d.spot.cells]); state.selected = state.placements.length - 1;
+    state.placements.push([d.name, d.spot.s, d.spot.rot, d.spot.cells]); state.selected = state.placements.length - 1; if (d.name === "Capacitor") capsByHand();
     markDirty(); render(); setStatus(`${d.name} fitted in the ${D.hulls[state.hull].sections[d.spot.s].name} section.`, "ok");
   }
   function cellUnder(ev) { const els = document.elementsFromPoint(ev.clientX, ev.clientY); return els.find(e => e.classList && e.classList.contains("cell")) || null; }
@@ -379,7 +379,7 @@
   function removeAt(i) {
     const [l] = state.placements[i];
     if (locked(l)) { setStatus(`${l} cannot be removed (the game keeps it).`, "bad"); render(); return; }
-    state.placements.splice(i, 1); state.selected = -1; markDirty(); render(); setStatus(`${l} removed.`, "ok");
+    state.placements.splice(i, 1); state.selected = -1; if (l === "Capacitor") capsByHand(); markDirty(); render(); setStatus(`${l} removed.`, "ok");
   }
   function removeSelected() { if (state.selected >= 0) removeAt(state.selected); }
   function select(i) { state.selected = i; renderGrid(); renderSelection(); }
@@ -459,6 +459,8 @@
   }
 
   // ---------- actions ----------
+  // the forge may trade Capacitors down to the minimum: one placed or removed by hand moves that minimum with it
+  function capsByHand() { const n = counts(state.placements)["Capacitor"] || 0; if (n !== state.minCaps) { state.minCaps = n; $("min-caps").value = n; } }
   async function addModule(name, quiet) {
     const cap = (D.base_ship.max_fit || {})[name];
     if (cap && (counts(state.placements)[name] || 0) >= cap) { setStatus(`${name}: the game allows at most ${cap} per ship.`, "bad"); return; }
@@ -468,7 +470,7 @@
     const r = await solve({ type: "tryadd", placements: state.placements, add: [name], seconds: 6, seed: Date.now() & 0xffff }, "tryadd");
     $("btn-forge").disabled = false;
     if (r.missing && r.missing.length) { if (!quiet) setStatus(`No room for ${name}, even after rearranging.`, "bad"); return false; }
-    state.placements = r.placements; markDirty(); render(); setStatus(`${name} fitted.`, "ok"); return true;
+    state.placements = r.placements; if (name === "Capacitor") capsByHand(); markDirty(); render(); setStatus(`${name} fitted.`, "ok"); return true;
   }
   // ◀ ▶ on the stat tiles: each stat has the module that raises it, and a smaller one to try when that does not fit
   const ADJ = { hold: ["Cargo Container", "Emergency Container"], fuel: ["Fuel Bay", "Fuel Blister"], cap: ["Capacitor"], hp: ["Structural Brace"] };
@@ -490,7 +492,7 @@
     const idxs = state.placements.map((p, i) => p[0] === name ? i : -1).filter(i => i >= 0);
     if (!idxs.length) return;
     if (D.base_ship.never_removed[name] && idxs.length <= D.base_ship.never_removed[name]) { setStatus(`${name} cannot be removed (the game keeps it).`, "bad"); return; }
-    state.placements.splice(idxs[idxs.length - 1], 1); state.selected = -1; markDirty(); render();
+    state.placements.splice(idxs[idxs.length - 1], 1); state.selected = -1; if (name === "Capacitor") capsByHand(); markDirty(); render();
   }
   // A clean slate is never empty: the modules the game refuses to remove are fitted first.
   async function cleanSlate(keepExterior) {
@@ -625,7 +627,7 @@
     try {
       const s = decodeURIComponent(escape(atob(h.replace(/-/g, "+").replace(/_/g, "/"))));
       const o = JSON.parse(s); if (!o.h || !D.hulls[o.h]) return false;
-      state.hull = o.h; state.name = o.n || "Shared fit"; state.exterior = o.e || {}; state.prio = Object.assign(state.prio, o.r || {}); state.minCaps = o.c || 0; state.preset = o.b || null;
+      state.hull = o.h; state.name = o.n || "Shared fit"; state.exterior = o.e || {}; state.prio = Object.assign(state.prio, o.r || {}); delete state.prio.repair; state.minCaps = o.c || 0; state.preset = o.b || null;
       state.placements = o.p.map(([mi, s, rot, x, y]) => { const m = D.modules[mi]; const shape = rotShape(m.cells, rot); return [m.name, s, rot, shape.map(c => [c[0] + x, c[1] + y])]; });
       return true;
     } catch (e) { return false; }
@@ -790,7 +792,7 @@
     { at: "#palette", title: "Everything you can fit", text: "Every module in the game, with the cells it takes. Press + to fit one (the forge finds a spot, rearranging if it must), or drag it straight onto the hull." },
     { at: ".tiles", title: "These numbers decide if you get home", text: "Hold, fuel and how many hours it lasts, capacitor and whether it stays charged with everything running, hull HP, power. The ◀ ▶ arrows add or remove the module behind each one." },
     { at: "#hints", title: "What should I change?", text: "Red checks are rules the game enforces. Below them, one-line advice a new rider wishes they had known, each with a button that does it." },
-    { at: "#btn-forge", title: "Forge for the role", text: "Set what matters (hold, capacitor, fuel, armour, repair) and press Forge: several searches fill the spare cells at once and stop by themselves when nothing better turns up. Then share the fit with a proposal link." },
+    { at: "#btn-forge", title: "Forge for the role", text: "Set what matters (hold, capacitor, fuel, armour) and press Forge: several searches fill the spare cells at once and stop by themselves when nothing better turns up. Then share the fit with a proposal link." },
   ];
   let tourI = -1;
   function tourSeen() { try { return localStorage.getItem("forge:tour") === "done"; } catch (e) { return true; } }
@@ -872,7 +874,7 @@
       if (k === "z" && !e.shiftKey) { e.preventDefault(); undo(); } else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); redo(); }
     });
     $("btn-undo").addEventListener("click", undo); $("btn-redo").addEventListener("click", redo);
-    ["hold", "cap", "fuel", "hp", "repair"].forEach(k => { const el = $("prio-" + k); el.value = state.prio[k]; el.addEventListener("input", () => { state.prio[k] = +el.value; $("prio-" + k + "-v").textContent = ["off", "low", "mid", "top"][+el.value]; }); $("prio-" + k + "-v").textContent = ["off", "low", "mid", "top"][state.prio[k]]; });
+    ["hold", "cap", "fuel", "hp"].forEach(k => { const el = $("prio-" + k); el.value = state.prio[k]; el.addEventListener("input", () => { state.prio[k] = +el.value; $("prio-" + k + "-v").textContent = ["off", "low", "mid", "top"][+el.value]; }); $("prio-" + k + "-v").textContent = ["off", "low", "mid", "top"][state.prio[k]]; });
     $("min-caps").addEventListener("input", e => { state.minCaps = +e.target.value || 0; });
     $("btn-capstable").addEventListener("click", () => { const n = +$("cap-stable-n").textContent; state.minCaps = n; $("min-caps").value = n; setStatus(`Minimum Capacitors set to ${n}: estimated recharge covers everything firing at once.`, "ok"); });
     $("fuel-sel").addEventListener("change", e => { state.fuelGrade = e.target.value; renderStats(); });
