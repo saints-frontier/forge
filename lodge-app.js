@@ -482,7 +482,29 @@
 
   renderGoals(); salvageNote(); invNote();
   $("foot-data").textContent = `DATA OF ${D.generated.toUpperCase()} · ${D.recipes.length} RECIPES`;
-  if (store.opts) {                                    // saved goals must still be items this data knows
+  // ---------- a fit from the Forge: "Build it in the Lodge" ----------
+  // On the site the Forge calls window.__lodgeImport and switches the page; the stand-alone Lodge gets the fit in the
+  // link as #build-<base64url JSON {name, hull, goals: [{item, qty}]}> (only letters, digits, - and _ survive a link).
+  function importGoals(p) {
+    const goals = [], skipped = [];
+    for (const g of (p && p.goals) || []) {
+      const item = ITEMS.find(i => i.toLowerCase() === String(g.item || "").trim().toLowerCase());
+      if (item && g.qty > 0) goals.push({ item, qty: Math.floor(g.qty) }); else skipped.push(`${g.qty}x ${g.item}`);
+    }
+    if (!goals.length) { toast("Nothing in that fit has a recipe here."); return false; }
+    closePicker(); form.goals = goals; renderGoals(); persistForm(); goalHints();
+    store.opts = currentOpts(); save(); build();
+    toast(`${p.name ? p.name + ": " : ""}${goals.length} kinds of module to build.` + (skipped.length ? ` No recipe for ${skipped.join(", ")}: they come with the ship.` : ""));
+    setTimeout(() => { const h = document.getElementById("h-work"); if (h) h.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80);
+    return true;
+  }
+  window.__lodgeImport = importGoals;
+  const fromLink = /^#build-([A-Za-z0-9_-]+)$/.exec(location.hash); let imported = false;
+  if (fromLink) {
+    try { imported = importGoals(JSON.parse(decodeURIComponent(escape(atob(fromLink[1].replace(/-/g, "+").replace(/_/g, "/")))))); } catch (e) { toast("That Forge link could not be read."); }
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+  if (!imported && store.opts) {                       // saved goals must still be items this data knows
     store.opts.goals = (store.opts.goals || []).filter(g => ITEMS.includes(g.item) && g.qty > 0);
     if (store.opts.goals.length) build(); else store.opts = null;
   }

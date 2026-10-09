@@ -16,7 +16,7 @@
       loggedOut(q === "denied" ? "Saint rank or above needed. Ask in Discord." : q === "error" ? "The login did not go through. Try again." : "");
       return;
     }
-    var knight = !!me.upload;                       // Knights and the site keepers (DOCTRINE_ADMINS) may replace the fits
+    var knight = !!me.upload;                       // Paladins, Knights and the site keepers (DOCTRINE_ADMINS) may replace the fits
     box.innerHTML = '<span class="tribe-who">✠ ' + esc(me.name) + " · " + esc(me.rank) + '</span>'
       + (knight ? '<label class="tribe-up" title="Replace the doctrine fits with an exported doctrine-payload.json">update doctrine<input type="file" accept="application/json,.json" hidden></label>' : "")
       + '<a class="tribe-out" href="/api/logout">log out</a>';
