@@ -40,8 +40,9 @@
     if (m.type === "ready") { solverReady = true; return; }
     if (m.type === "progress") { if (prog) { prog.iterations = m.iterations; prog.gains = m.gains; progressTick(); } if (running === "optimize") { state.placements = m.placements; render(); setStatus(`Forging… ${m.iterations} re-packs, ${m.gains} gains`, "info"); } return; }
     if (m.type === "done") {
-      const kind = running; running = null; progressStop(); $("btn-forge").textContent = "Forge for the role"; $("btn-forge").disabled = false;
-      if (kind === "optimize") { state.placements = m.placements; markDirty(); render(); setStatus(`Forged: ${m.iterations} re-packs in ${m.seconds.toFixed(0)} s, ${m.gains} gains. ${hold(state.placements)} m³ hold.`, m.gains ? "ok" : "info"); }
+      const kind = running; running = null; $("btn-forge").textContent = "Forge for the role"; $("btn-forge").disabled = false;
+      if (kind === "optimize") { state.placements = m.placements; markDirty(); render(); progressDone(`Forged: ${m.iterations} re-packs in ${m.seconds.toFixed(0)} s, ${m.gains} gains · ${hold(state.placements)} m³ hold`); setStatus(m.gains ? "Forged. The result is on the hull; share it or forge again." : "Forged: nothing better found in that time; try more seconds.", m.gains ? "ok" : "info"); }
+      else progressStop();
       if (kind === "tryadd") { if (pendingResolve) { const r = pendingResolve; pendingResolve = null; r(m); } }
     }
   }
@@ -53,7 +54,7 @@
     progressStop();
     prog = { t0: Date.now(), secs, timer: null, iterations: 0, gains: 0, label };
     const bar = $("forgebar"), fill = $("fb-fill"); if (!bar) return;
-    bar.hidden = false; fill.classList.toggle("busy", !secs); fill.style.width = secs ? "0%" : "";
+    bar.hidden = false; fill.classList.remove("done"); fill.classList.toggle("busy", !secs); fill.style.width = secs ? "0%" : "";
     $("fb-text").textContent = label;
     if (secs) prog.timer = setInterval(progressTick, 200);
   }
@@ -62,6 +63,12 @@
     const el = (Date.now() - prog.t0) / 1000, pct = Math.min(100, el / prog.secs * 100);
     $("fb-fill").style.width = pct.toFixed(1) + "%";
     $("fb-text").textContent = `${prog.label} ${Math.min(el, prog.secs).toFixed(0)} / ${prog.secs} s · ${prog.iterations} re-packs · ${prog.gains} gains`;
+  }
+  // the finished run stays on the bar (full, gold) until the next search starts
+  function progressDone(text) {
+    if (prog && prog.timer) clearInterval(prog.timer);
+    prog = null; const bar = $("forgebar"); if (!bar) return;
+    bar.hidden = false; $("fb-fill").classList.remove("busy"); $("fb-fill").classList.add("done"); $("fb-fill").style.width = "100%"; $("fb-text").textContent = text;
   }
   function progressStop() {
     if (prog && prog.timer) clearInterval(prog.timer);
