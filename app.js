@@ -229,6 +229,73 @@
     el.setAttribute("width", Math.round(w * scale)); el.setAttribute("height", Math.round(h * scale));
     $("zoom-v").textContent = state.zoom === 1 ? "fit" : Math.round(state.zoom * 100) + "%";
   }
+  // ---------- drag from the palette onto the hull ----------
+  let pdrag = null;                                           // { name, ghost, shown, target }
+  function capMessage(name) {
+    const c = counts(state.placements), cap = (D.base_ship.max_fit || {})[name];
+    if (cap && (c[name] || 0) >= cap) return `${name}: the game allows at most ${cap} per ship.`;
+    return groupCap(name, c);
+  }
+  // where `name` would go if dropped on cell (s, x, y): the module's centre on that cell, the turn the drag is using
+  // first, then the other turns, nudged up to 2 cells, nearest first. -> {s, rot, cells} or null
+  function dropSpot(name, s, x, y, prefRot) {
+    const offs = []; for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) offs.push([dx, dy]);
+    offs.sort((a, b) => (a[0] * a[0] + a[1] * a[1]) - (b[0] * b[0] + b[1] * b[1]));
+    for (const rot of [prefRot, ...[0, 90, 180, 270].filter(r => r !== prefRot)]) {
+      const shape = rotShape(MOD[name].cells, rot);
+      const sx = Math.round(shape.reduce((a, c) => a + c[0], 0) / shape.length - 0.01), sy = Math.round(shape.reduce((a, c) => a + c[1], 0) / shape.length - 0.01);
+      for (const [dx, dy] of offs) {
+        const cells = shape.map(c => [c[0] - sx + x + dx, c[1] - sy + y + dy]);
+        if (canPlace(s, cells, -1)) return { s, rot, cells };
+      }
+    }
+    return null;
+  }
+  function ghostFor(name, rot) {
+    const el = $("hull-svg"), ch = K && K.themes[state.hull], cellU = ch ? ch.cell : 22;
+    const k = el ? el.getBoundingClientRect().width / +el.dataset.w : 1, px = Math.max(8, cellU * k);
+    const shape = rotShape(MOD[name].cells, rot), w = Math.max(...shape.map(c => c[0])) + 1, h = Math.max(...shape.map(c => c[1])) + 1;
+    const g = document.createElement("div"); g.className = "pghost";
+    g.innerHTML = `<svg width="${w * px}" height="${h * px}">${shape.map(([x, y]) => `<rect x="${x * px}" y="${y * px}" width="${px}" height="${px}" fill="${MOD[name].color}" stroke="#07070a" stroke-width="1.5"/>`).join("")}</svg><span>${name}</span>`;
+    document.body.appendChild(g); return g;
+  }
+  function clearHint() { document.querySelectorAll("#hull-svg rect.cell.hint-ok, #hull-svg rect.cell.hint-bad").forEach(r => r.classList.remove("hint-ok", "hint-bad")); }
+  function showHint(spot, s, x, y, name) {
+    clearHint();
+    if (spot) { for (const [cx, cy] of spot.cells) { const r = document.querySelector(`#hull-svg rect.cell[data-s="${spot.s}"][data-x="${cx}"][data-y="${cy}"]`); if (r) r.classList.add("hint-ok"); } }
+    else { const shape = rotShape(MOD[name].cells, pdrag.rot); for (const [cx, cy] of shape) { const r = document.querySelector(`#hull-svg rect.cell[data-s="${s}"][data-x="${cx + x}"][data-y="${cy + y}"]`); if (r) r.classList.add("hint-bad"); } }
+  }
+  function paletteDown(ev) {
+    const row = ev.target.closest(".prow[data-mod]"); if (!row || ev.target.closest("button")) return;
+    const name = row.dataset.mod; if (!MOD[name]) return;
+    pdrag = { name, x0: ev.clientX, y0: ev.clientY, shown: false, ghost: null, spot: null, rot: 0, touch: ev.pointerType === "touch", t0: Date.now() };
+    try { row.setPointerCapture(ev.pointerId); } catch (e) {}
+  }
+  function paletteMove(ev) {
+    if (!pdrag) return;
+    if (!pdrag.shown) {
+      const far = Math.hypot(ev.clientX - pdrag.x0, ev.clientY - pdrag.y0) > 6;
+      if (!far) return;
+      if (pdrag.touch && Date.now() - pdrag.t0 < 250) { pdrag = null; return; }   // a quick swipe on a phone scrolls the list
+      const msg = capMessage(pdrag.name); if (msg) { setStatus(msg, "bad"); pdrag = null; return; }
+      pdrag.shown = true; pdrag.ghost = ghostFor(pdrag.name, pdrag.rot); document.body.classList.add("pdragging");
+    }
+    ev.preventDefault();
+    pdrag.ghost.style.left = ev.clientX + "px"; pdrag.ghost.style.top = ev.clientY + "px";
+    const cell = cellUnder(ev);
+    if (!cell) { clearHint(); pdrag.spot = null; return; }
+    const s = +cell.dataset.s, x = +cell.dataset.x, y = +cell.dataset.y;
+    pdrag.spot = dropSpot(pdrag.name, s, x, y, pdrag.rot); showHint(pdrag.spot, s, x, y, pdrag.name);
+  }
+  function paletteUp(ev) {
+    if (!pdrag) return; const d = pdrag; pdrag = null;
+    clearHint(); document.body.classList.remove("pdragging"); if (d.ghost) d.ghost.remove();
+    if (!d.shown || ev.type === "pointercancel") return;
+    if (!cellUnder(ev)) { setStatus(`Drop ${d.name} on the hull to fit it.`, "info"); return; }
+    if (!d.spot) { setStatus(`No room for ${d.name} there. Try another spot, or press + to let the forge rearrange.`, "bad"); return; }
+    state.placements.push([d.name, d.spot.s, d.spot.rot, d.spot.cells]); state.selected = state.placements.length - 1;
+    markDirty(); render(); setStatus(`${d.name} fitted in the ${D.hulls[state.hull].sections[d.spot.s].name} section.`, "ok");
+  }
   function cellUnder(ev) { const els = document.elementsFromPoint(ev.clientX, ev.clientY); return els.find(e => e.classList && e.classList.contains("cell")) || null; }
   function svgPoint(svg, ev) { const r = svg.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; }
   function moveTo(i, s, x, y) {
@@ -287,7 +354,7 @@
       html += `<div class="pgroup"><h3>${g}</h3>`;
       groups[g].forEach(m => { const k = c[m.name] || 0;
         const lockMin = D.base_ship.never_removed[m.name] || 0, locked = k <= lockMin, full = ((D.base_ship.max_fit || {})[m.name] && k >= D.base_ship.max_fit[m.name]) || !!groupCap(m.name, c);
-        html += `<div class="prow${k ? " has" : ""}${lockMin ? " core" : ""}"><span class="sw" style="background:${m.color}"></span><span class="pname">${m.name}${lockMin ? ' <span class="lock" title="the game never lets this be removed">✠</span>' : ""}</span><span class="psize">${m.size}</span>` +
+        html += `<div class="prow${k ? " has" : ""}${lockMin ? " core" : ""}" data-mod="${m.name}" title="drag onto the hull, or press +"><span class="sw" style="background:${m.color}"></span><span class="pname">${m.name}${lockMin ? ' <span class="lock" title="the game never lets this be removed">✠</span>' : ""}</span><span class="psize">${m.size}</span>` +
                 `<span class="pcount">${k || ""}</span><button class="pbtn" data-add="${m.name}" title="${full ? "the game allows no more of these" : "add one"}" aria-label="add ${m.name}"${full ? " disabled" : ""}>+</button><button class="pbtn" data-sub="${m.name}" title="${lockMin ? "the game keeps " + lockMin : "remove one"}" aria-label="remove ${m.name}"${locked ? " disabled" : ""}>−</button></div>`; });
       html += `</div>`;
     }
@@ -548,6 +615,11 @@
     $("btn-own").addEventListener("click", () => cleanSlate(false));
     $("preset-sel").addEventListener("change", e => { if (e.target.value) loadPreset(e.target.value); e.target.value = ""; });
     $("fit-name").addEventListener("input", e => { state.name = e.target.value; });
+    $("palette").addEventListener("pointerdown", paletteDown);
+    document.addEventListener("pointermove", paletteMove, { passive: false });
+    document.addEventListener("pointerup", paletteUp);
+    document.addEventListener("pointercancel", paletteUp);
+    document.addEventListener("keydown", e => { if (pdrag && pdrag.shown && (e.key === "r" || e.key === "R")) { pdrag.rot = (pdrag.rot + 90) % 360; pdrag.ghost.remove(); pdrag.ghost = ghostFor(pdrag.name, pdrag.rot); e.stopImmediatePropagation(); } }, true);
     $("palette").addEventListener("click", e => {
       const b = e.target.closest("button"); if (!b) return;
       if (b.dataset.add) addModule(b.dataset.add); else if (b.dataset.sub) subModule(b.dataset.sub);
