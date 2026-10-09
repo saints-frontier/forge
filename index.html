@@ -116,6 +116,11 @@ ul.checks { list-style: none; margin: 0; padding: 4px 12px 8px; display: grid; g
 ul.checks li { font-size: 12px; color: var(--silver); display: flex; gap: 8px; align-items: center; }
 ul.checks li .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); flex: none; }
 ul.checks li.bad .dot { background: var(--red); } ul.checks li.bad { color: var(--fg); }
+.hints { padding: 4px 12px 10px; display: grid; gap: 6px; border-top: 1px solid rgba(217,178,76,.25); }
+.hints .hh { font: 700 10px var(--mono); letter-spacing: 3px; color: var(--red); text-transform: uppercase; margin: 6px 0 2px; }
+.hint { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--fg); background: rgba(227,34,44,.08); border-left: 3px solid var(--red); padding: 6px 8px; }
+.hint.ok { border-left-color: var(--good); background: rgba(91,179,106,.08); color: var(--silver); }
+.hint span { flex: 1 1 auto; } .hint button { flex: none; padding: 4px 8px; font-size: 10px; letter-spacing: 1px; white-space: nowrap; }
 .forge { padding: 10px 12px; display: grid; gap: 8px; }
 .prio { display: grid; grid-template-columns: 90px 1fr 36px; gap: 8px; align-items: center; font-size: 12px; color: var(--silver); }
 .prio input[type=range] { width: 100%; accent-color: var(--red); }
@@ -130,6 +135,40 @@ ul.checks li.bad .dot { background: var(--red); } ul.checks li.bad { color: var(
 footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); letter-spacing: 4px; text-transform: uppercase; }
 @media (prefers-reduced-motion: no-preference) { .hullsvg .mod rect { transition: opacity .15s; } }
 
+/* compare two fits */
+.cmpbody { padding: 14px; display: grid; gap: 12px; }
+.cmp-hulls { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.cmp-hulls svg { width: 100%; height: auto; max-height: 440px; display: block; }
+.cmp-name { font: 700 12px var(--mono); letter-spacing: 2px; color: var(--gold); text-transform: uppercase; margin-bottom: 6px; } .cmp-name span { color: var(--dim); letter-spacing: 0; text-transform: none; }
+.cmp-table { border-collapse: collapse; font-size: 13px; width: 100%; max-width: 640px; }
+.cmp-table th { text-align: right; font: 700 10px var(--mono); letter-spacing: 2px; color: var(--gold); text-transform: uppercase; padding: 4px 8px; }
+.cmp-table th:first-child { text-align: left; }
+.cmp-table td { padding: 4px 8px; border-top: 1px solid rgba(217,178,76,.15); text-align: right; font-variant-numeric: tabular-nums; }
+.cmp-table td:first-child { text-align: left; color: var(--silver); }
+.cmp-table td.up, .cmp-diff .up { color: var(--good); } .cmp-table td.down, .cmp-diff .down { color: var(--red); }
+.cmp-diff { font-size: 13px; color: var(--silver); } .cmp-diff b { color: var(--gold); }
+@media (max-width: 760px) { .cmp-hulls { grid-template-columns: 1fr; } }
+/* the shopping list */
+.shopbody { padding: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 14px; }
+.shopbody h3 { font: 700 11px var(--mono); letter-spacing: 3px; color: var(--red); text-transform: uppercase; margin: 0 0 8px; }
+.shopbody table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.shopbody td { padding: 4px 6px; border-bottom: 1px solid rgba(217,178,76,.15); vertical-align: top; }
+.shopbody td.n { text-align: right; font: 600 13px var(--mono); color: var(--gold); white-space: nowrap; width: 1%; }
+.shopbody td.f { color: var(--dim); font: 11px var(--mono); white-space: nowrap; }
+.shopbody .note { margin-top: 8px; }
+/* the guided first visit */
+.tour { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
+.tour-box { position: absolute; width: min(380px, calc(100vw - 32px)); background: var(--panel); border: 1px solid var(--gold); box-shadow: 0 0 30px rgba(0,0,0,.7), 0 0 18px rgba(217,178,76,.25); padding: 14px 16px; pointer-events: auto; }
+.tour-box::before { content: ""; position: absolute; left: 8px; right: 0; top: 0; height: 3px; background: var(--red); }
+.tour-step { font: 700 10px var(--mono); letter-spacing: 3px; color: var(--red); }
+.tour-title { font: 800 16px var(--display); color: var(--gold); margin: 4px 0 6px; }
+.tour-text { font: 14px/1.5 var(--body); color: var(--fg); }
+.tour-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.tour-row .sp { flex: 1 1 auto; }
+.tour-check { font: 12px var(--body); color: var(--silver); display: flex; align-items: center; gap: 6px; }
+.tour-check input { accent-color: var(--red); }
+.tour-hi { outline: 2px solid var(--gold); outline-offset: 3px; box-shadow: 0 0 0 9999px rgba(0,0,0,.55); position: relative; z-index: 69; }
+.tourlink { font: 11px var(--mono); color: var(--gold); cursor: pointer; text-decoration: underline; margin-left: auto; }
 /* the card dialog */
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 50; overflow: auto; padding: 14px; }
 .mbox { max-width: 1560px; margin: 0 auto; background: var(--panel); border: 1px solid var(--gold); position: relative; }
@@ -218,7 +257,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
         <button type="button" id="btn-undo" title="Undo (Ctrl+Z)" disabled>↶ Undo</button><button type="button" id="btn-redo" title="Redo (Ctrl+Y)" disabled>Redo ↷</button>
         <button type="button" id="btn-clear">Clean slate</button>
         <span class="zoom"><button type="button" id="zoom-out" aria-label="zoom out">−</button><span class="z" id="zoom-v">fit</span><button type="button" id="zoom-in" aria-label="zoom in">+</button><button type="button" id="zoom-fit">Fit</button></span>
-        <span class="hint">+ in the palette finds a spot, rearranging if it must</span>
+        <span class="hint">+ in the palette finds a spot, rearranging if it must</span><span class="tourlink" id="tour-open">Show me around</span>
       </div>
     </section>
 
@@ -236,6 +275,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
       </div>
       <div class="note" style="padding:8px 12px 0;border-top:1px solid rgba(217,178,76,.25)">Checks: the game's own limits (the modules it never lets you remove, an engine, hardpoints, power) and the capacitor estimate.</div>
       <ul class="checks" id="checks" style="border-top:0"></ul>
+      <div class="hints" id="hints"></div>
       <div class="note" style="padding:0 12px 8px" id="st-caprech-note"></div>
 
       <h2>Forge for the role</h2>
@@ -252,7 +292,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
       </div>
 
       <div class="share">
-        <div class="row"><button type="button" id="btn-share">Copy proposal link</button><button type="button" id="btn-discord">Copy Discord text</button></div>
+        <div class="row"><button type="button" id="btn-share">Copy proposal link</button><button type="button" id="btn-discord">Copy Discord text</button><button type="button" id="btn-shop">Shopping list</button><button type="button" id="btn-compare">Compare</button></div>
         <div class="note">A proposal link carries the whole fit. Anyone with the page can open it, change it and send their own.</div>
         <div id="share-out" hidden><textarea id="share-text" aria-label="Share text" readonly></textarea></div>
       </div>
@@ -262,9 +302,29 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
   <footer>EVE Frontier · Cycle 7 · Vestiges · <span id="build"></span></footer>
 </div>
 
-<script src="data.js?v=3abd91c2"></script>
+<div class="modal" id="cmpmodal" hidden>
+  <div class="mbox" role="dialog" aria-label="Compare fits">
+    <div class="mhead"><span class="mt">Compare</span><label class="ms" for="cmp-sel">with</label><select id="cmp-sel" aria-label="Compare with"></select><input type="text" id="cmp-link" placeholder="or paste a proposal link" aria-label="Proposal link" style="width:260px"><span class="ms"></span><button type="button" id="cmp-close">Close</button></div>
+    <div class="cmpbody" id="cmp-body"></div>
+  </div>
+</div>
+<div class="modal" id="shopmodal" hidden>
+  <div class="mbox" role="dialog" aria-label="Shopping list">
+    <div class="mhead"><span class="mt">Shopping list</span><span class="ms" id="shop-sub"></span><button type="button" id="shop-copy">Copy as text</button><button type="button" id="shop-close">Close</button></div>
+    <div class="shopbody" id="shop-body"></div>
+  </div>
+</div>
+<div class="tour" id="tour" hidden>
+  <div class="tour-box" role="dialog" aria-label="Guided tour">
+    <div class="tour-step" id="tour-step">1 / 5</div>
+    <div class="tour-title" id="tour-title"></div>
+    <div class="tour-text" id="tour-text"></div>
+    <div class="tour-row"><label class="tour-check"><input type="checkbox" id="tour-never"> Don't show this again</label><span class="sp"></span><button type="button" id="tour-skip">Skip</button><button type="button" class="primary" id="tour-next">Next</button></div>
+  </div>
+</div>
+<script src="data.js?v=9fdcaf3d"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=891dedd0"></script>
+<script src="app.js?v=3bfea3b3"></script>
 <script>
 (function () {
   var bf = document.getElementById("nav-forge"), bg = document.getElementById("nav-guide"), forge = document.getElementById("tab-forge"), guide = document.getElementById("tab-guide");

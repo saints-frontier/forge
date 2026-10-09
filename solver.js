@@ -264,10 +264,46 @@ function tryAdd(msg) {
   emit({ type: "done", placements: cur, added: add.length - left.length, missing: left, iterations: it });
 }
 
+/* Finishing polish: each section on its own, re-packed from scratch with a big budget and several seeds (the
+   mandatory modules of that section re-arranged, the fillers re-dealt), kept when the value rises. Deterministic
+   given the seed; bounded by `seconds`. */
+function polish(msg) {
+  const { placements, fillers, values, keepMin, seconds, seed, tries } = msg;
+  const rnd = rng(seed || 3);
+  const fillSet = new Set(fillers);
+  let cur = placements.map(p => [p[0], p[1], p[2], p[3]]);
+  let curValue = valueOf(cur, fillers, values);
+  const t0 = Date.now(); let gains = 0, it = 0;
+  const n = HULL.n;
+  outer: for (let round = 0; round < 2; round++) {
+    for (let s = 0; s < n; s++) {
+      for (let t = 0; t < (tries || 6); t++) {
+        if (Date.now() - t0 > seconds * 1000 || STOP) break outer;
+        it++;
+        const keep = cur.filter(p => p[1] !== s), gone = cur.filter(p => p[1] === s);
+        const mandatory = gone.filter(p => !fillSet.has(p[0])).map(p => p[0]);
+        const outside = {}; for (const p of keep) outside[p[0]] = (outside[p[0]] || 0) + 1;
+        for (const f in keepMin) for (let i = 0; i < Math.max(0, keepMin[f] - (outside[f] || 0)); i++) mandatory.push(f);
+        const free = HULL.full.map((f, k) => k === s ? Uint32Array.from(f) : new Uint32Array(HULL.words));
+        const res = pack(free, mandatory, fillers, values, 400000, rnd);
+        if (!res) continue;
+        const cand = keep.concat(res.placed);
+        const counts = {}; for (const p of cand) counts[p[0]] = (counts[p[0]] || 0) + 1;
+        let okMin = true; for (const f in keepMin) if ((counts[f] || 0) < keepMin[f]) okMin = false;
+        if (!okMin) continue;
+        const v = valueOf(cand, fillers, values);
+        if (v > curValue) { gains++; cur = cand; curValue = v; emit({ type: "progress", placements: cur, value: curValue, iterations: it, gains }); }
+      }
+    }
+  }
+  emit({ type: "done", placements: cur, value: curValue, iterations: it, gains, seconds: (Date.now() - t0) / 1000 });
+}
+
 function handle(m) {
   if (m.type === "init") { init(m.hull, m.modules); emit({ type: "ready" }); }
   else if (m.type === "optimize") { STOP = false; optimize(m); }
   else if (m.type === "tryadd") { STOP = false; tryAdd(m); }
+  else if (m.type === "polish") { STOP = false; polish(m); }
   else if (m.type === "stop") { STOP = true; }
 }
 if (IN_WORKER) self.onmessage = e => handle(e.data);

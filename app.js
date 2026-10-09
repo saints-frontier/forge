@@ -102,9 +102,10 @@
 
   // ---------- stats ----------
   function recharge(nCaps, trickle) { const r = D.models.recharge; return (nCaps > 0 ? r.a * Math.pow(nCaps, r.b) : 0) + trickle; }
-  function stats() {
-    const c = counts(state.placements), ext = state.exterior;
-    const cells = state.placements.reduce((a, p) => a + p[3].length, 0), total = D.hulls[state.hull].cells_total;
+  function stats() { return statsOf(state.hull, state.placements, state.exterior); }
+  function statsOf(hullName, placements, exterior) {
+    const c = counts(placements), ext = exterior;
+    const cells = placements.reduce((a, p) => a + p[3].length, 0), total = D.hulls[hullName].cells_total;
     let fuel = 0, cap = 0, hp = D.models.hull_hp, repair = 0, draw = 0, drain = 0, trickle = 0, power = 0, payload = 0;
     for (const n in c) { const m = MOD[n]; if (!m) continue; const k = c[n];
       fuel += (m.fuel || 0) * k; cap += (m.cap || 0) * k; hp += (m.hp || 0) * k; repair += (m.repair || 0) * k; draw += (m.draw_mw || 0) * k;
@@ -115,10 +116,36 @@
     const rech = recharge(nCaps, trickle);
     const factor = D.models.fuel.factor[state.fuelGrade];
     const burn = draw * 60 / factor;                         // units per minute
-    return { cells, total, free: total - cells, hold: hold(state.placements), fuel, cap, hp, repair, draw, power: power || D.models.power_mw, drain, rech, nCaps,
+    return { cells, total, free: total - cells, hold: hold(placements), fuel, cap, hp, repair, draw, power: power || D.models.power_mw, drain, rech, nCaps,
              burn, hours: burn > 0 ? fuel / burn / 60 : Infinity, dps, dpsRamped, mining, payload, stable: rech >= drain, lastMin: drain > rech ? cap / (drain - rech) : Infinity };
   }
   function capsNeeded(drain, trickle) { const r = D.models.recharge; if (drain <= trickle) return 0; return Math.ceil(Math.pow((drain - trickle) / r.a, 1 / r.b)); }
+  // What should I change? One line per thing a new rider wishes they had known, with the fix as a button.
+  // [{text, add: [module, ...] | null, label}]
+  function hints(st) {
+    const c = counts(state.placements), ext = state.exterior, out = [];
+    const has = n => (c[n] || 0) > 0;
+    if (!st.stable) { const need = Math.max(1, capsNeeded(st.drain, (c["Blackstart Cell"] || 0) * 0.3) - st.nCaps);
+      out.push({ text: `Capacitor runs dry in ${isFinite(st.lastMin) ? Math.round(st.lastMin) + " s" : "no time"} with everything on. Run it empty and you cannot warp away.`, add: Array(need).fill("Capacitor"), label: `Add ${need} Capacitor${need > 1 ? "s" : ""}` }); }
+    if (!has("Hull Repairer")) out.push({ text: "No Hull Repairer: nothing heals you in the field. One repairs ~25 HP/s, your best survival module.", add: ["Hull Repairer"], label: "Add one" });
+    if (!has("Leap")) out.push({ text: "No Leap: you cannot jump to another system on your own.", add: ["Leap"], label: "Add a Leap" });
+    if (!has("Docking Clamp")) out.push({ text: "No Docking Clamp: no docking at Fueling Quays, so no free Unstable Fuel.", add: ["Docking Clamp"], label: "Add one" });
+    if (!has("Transponder")) out.push({ text: "No Transponder: a tribe's catapults and gates stay invisible to you.", add: ["Transponder"], label: "Add one" });
+    if (!has("Gravity Sensor") && !has("Ion Sensor")) out.push({ text: "No sensor: you cannot find rocks, sites or ships.", add: ["Gravity Sensor"], label: "Add a Gravity Sensor" });
+    else if (!ext["Directional Scanner"]) out.push({ text: "No Directional Scanner on the sensor: no scanning for what is out there.", ext: "Directional Scanner", label: "Add one" });
+    if (!(c["Weapon Receiver"] || 0)) out.push({ text: "No Weapon Receiver: nothing to mine or shoot with.", add: ["Weapon Receiver"], label: "Add one" });
+    else if (!Object.keys(ext).some(n => EXT[n] && EXT[n].hardpoint === "weapon" && ext[n])) out.push({ text: "Empty Weapon Receiver: mount a Cutting Laser to mine and defend.", ext: "Cutting Laser", label: "Add a Cutting Laser" });
+    if (st.burn > 0 && isFinite(st.hours) && st.hours < 2) out.push({ text: `Fuel for ${st.hours.toFixed(1)} h at this burn on ${state.fuelGrade}: a long trip ends in the dark.`, add: ["Fuel Bay"], label: "Add a Fuel Bay" });
+    if (!st.fuel) out.push({ text: "No fuel tank: the ship cannot move.", add: ["Fuel Bay"], label: "Add a Fuel Bay" });
+    if (st.draw > st.power) out.push({ text: `Over the power grid (${st.draw.toFixed(1)} of ${st.power} MW): switch modules off or remove some.`, add: null });
+    if (st.hp <= D.models.hull_hp && (c["Weapon Receiver"] || 0) >= 2) out.push({ text: "A fighting fit with no Structural Brace: each adds +375 HP.", add: ["Structural Brace"], label: "Add a Brace" });
+    return out;
+  }
+  async function applyHint(i) {
+    const h = hints(stats())[i]; if (!h) return;
+    if (h.ext) { state.exterior[h.ext] = (state.exterior[h.ext] || 0) + 1; markDirty(); render(); setStatus(`${h.ext} added.`, "ok"); return; }
+    for (const n of h.add || []) { if (!(await addModule(n))) break; }
+  }
   function checks(st) {
     const c = counts(state.placements), ext = state.exterior, out = [];
     const need = D.base_ship.always;
@@ -153,15 +180,18 @@
     return { slots, w: colW.reduce((a, b) => a + b, 0) * cell + gap * (cols - 1), h: y - gap };
   }
   let drag = null;
-  function renderGrid() {
-    const hull = D.hulls[state.hull], ch = K && K.themes[state.hull];
-    const cell = ch ? ch.cell : (state.hull === "LAI" ? 16 : 22), gap = ch ? ch.gap : 16, lai = state.hull === "LAI";
-    const L = layoutSlots(state.hull, cell, gap);
+  // The hull with a fit on it, like the game's fitting window. opts: id, selected, mark (Set of "s:x:y" cells to light),
+  // numbers (true = module numbers). -> { svg, vw, vh }
+  function hullSvg(hullName, placements, opts) {
+    opts = opts || {};
+    const hull = D.hulls[hullName], ch = K && K.themes[hullName];
+    const cell = ch ? ch.cell : (hullName === "LAI" ? 16 : 22), gap = ch ? ch.gap : 16, lai = hullName === "LAI";
+    const L = layoutSlots(hullName, cell, gap);
     // room for the hull pieces' pointed tips (2.4 cells) and the LAI's two cosmetic pieces under the tail
     const padX = 3 * cell, padT = 3 * cell, padB = lai ? 2.6 * cell + 56 : 3 * cell;
     const vw = L.w + padX * 2, vh = L.h + padT + padB;
     const th = ch ? ch.theme : { cellbg: "#16141a", cellline: "#2a2630", ink: "#07070a" };
-    let svg = `<svg viewBox="0 0 ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg" class="hullsvg" id="hull-svg">`;
+    let svg = `<svg viewBox="0 0 ${vw} ${vh}" xmlns="http://www.w3.org/2000/svg" class="hullsvg"${opts.id ? ` id="${opts.id}"` : ""}>`;
     svg += `<rect x="0" y="0" width="${vw}" height="${vh}" rx="6" fill="${th.ink}" fill-opacity="0.55"/>`;
     if (ch) svg += `<g transform="translate(${padX},${padT})" pointer-events="none">${ch.outline}</g>`;
     hull.sections.forEach((sec, s) => {
@@ -170,19 +200,29 @@
       sec.cells.forEach(([x, y]) => { svg += `<rect class="cell" data-s="${s}" data-x="${x}" data-y="${y}" x="${padX + sx + x * cell}" y="${padT + sy + y * cell}" width="${cell}" height="${cell}" fill="${th.cellbg}" stroke="${th.cellline}"/>`; });
       svg += `</g>`;
     });
-    state.placements.forEach((p, i) => {
+    placements.forEach((p, i) => {
       const [label, s, rot, cells] = p; const [sx, sy] = L.slots[s]; const m = MOD[label] || { color: "#888" };
       const set = new Set(cells.map(c => c.join(",")));
-      svg += `<g class="mod${i === state.selected ? " sel" : ""}" data-i="${i}">`;
+      svg += `<g class="mod${i === opts.selected ? " sel" : ""}" data-i="${i}">`;
       cells.forEach(([x, y]) => { svg += `<rect x="${padX + sx + x * cell}" y="${padT + sy + y * cell}" width="${cell}" height="${cell}" fill="${m.color}"/>`; });
       cells.forEach(([x, y]) => { const X = padX + sx + x * cell, Y = padT + sy + y * cell;     // outline + bevel like the cards
         [[x, y - 1, X, Y, X + cell, Y, "#fff", 0.35], [x, y + 1, X, Y + cell, X + cell, Y + cell, "#000", 0.45], [x - 1, y, X, Y, X, Y + cell, "#fff", 0.25], [x + 1, y, X + cell, Y, X + cell, Y + cell, "#000", 0.35]].forEach(([nx, ny, a, b, c2, d, colr, op]) => {
           if (set.has(nx + "," + ny)) return;
           svg += `<line x1="${a}" y1="${b}" x2="${c2}" y2="${d}" stroke="${th.ink}" stroke-width="2.4"/><line x1="${a}" y1="${b}" x2="${c2}" y2="${d}" stroke="${colr}" stroke-opacity="${op}" stroke-width="1"/>`; }); });
-      const mx = cells.reduce((a, c) => a + c[0], 0) / cells.length, my = cells.reduce((a, c) => a + c[1], 0) / cells.length;
-      svg += `<text class="modnum" style="font-size:${lai ? 9 : 10}px" x="${padX + sx + (mx + 0.5) * cell}" y="${padT + sy + (my + 0.5) * cell + 3.5}">${i + 1}</text></g>`;
+      if (opts.numbers !== false) { const mx = cells.reduce((a, c) => a + c[0], 0) / cells.length, my = cells.reduce((a, c) => a + c[1], 0) / cells.length;
+        svg += `<text class="modnum" style="font-size:${lai ? 9 : 10}px" x="${padX + sx + (mx + 0.5) * cell}" y="${padT + sy + (my + 0.5) * cell + 3.5}">${i + 1}</text>`; }
+      svg += `</g>`;
     });
+    if (opts.mark && opts.mark.size) {                 // cells that differ from the other fit, lit gold
+      svg += `<g pointer-events="none">`;
+      hull.sections.forEach((sec, s) => { const [sx, sy] = L.slots[s]; sec.cells.forEach(([x, y]) => { if (opts.mark.has(`${s}:${x}:${y}`)) svg += `<rect x="${padX + sx + x * cell + 1}" y="${padT + sy + y * cell + 1}" width="${cell - 2}" height="${cell - 2}" fill="none" stroke="#d9b24c" stroke-width="2"/>`; }); });
+      svg += `</g>`;
+    }
     svg += `</svg>`;
+    return { svg, vw, vh };
+  }
+  function renderGrid() {
+    const { svg, vw, vh } = hullSvg(state.hull, state.placements, { id: "hull-svg", selected: state.selected });
     $("grid").innerHTML = svg;
     const el = $("hull-svg");
     el.dataset.w = vw; el.dataset.h = vh;
@@ -383,6 +423,9 @@
     $("st-power").textContent = `${st.draw.toFixed(1)} / ${st.power}`; $("st-power-sub").textContent = "MW";
     const ch = checks(st);
     $("checks").innerHTML = ch.map(([ok, t]) => `<li class="${ok ? "ok" : "bad"}"><span class="dot"></span>${t}</li>`).join("");
+    const hs = hints(st), hb = $("hints");
+    if (hb) hb.innerHTML = hs.length ? `<div class="hh">What should I change?</div>` + hs.map((h, i) => `<div class="hint"><span>${h.text}</span>${h.add || h.ext ? `<button type="button" data-hint="${i}">${h.label}</button>` : ""}</div>`).join("")
+                             : `<div class="hh">What should I change?</div><div class="hint ok"><span>Nothing stands out: this ship can travel, dock, refuel, see and defend itself.</span></div>`;
     $("cap-stable-n").textContent = capsNeeded(st.drain, (counts(state.placements)["Blackstart Cell"] || 0) * 0.3);
     $("st-caprech-note").textContent = `recharge model: ${D.models.recharge.a}·n^${D.models.recharge.b}, measured at 2, 5 and 13 Capacitors`;
   }
@@ -465,26 +508,33 @@
   // Bench 2026-10-09 (27 runs, 9 fits x 3 seeds, 180 s): a single search reached only 92-99 % of the best found in 3 min,
   // while the best of three seeds in parallel was at 98.5-100 % within ~45 s; a stop after 30 s without a gain landed at
   // 95-100 % (mean ~99 %). Different seeds land in different layouts, so more searches beat more time.
-  const FORGE_IDLE = 30, FORGE_MAX = 180;
+  const FORGE_IDLE = 30, FORGE_MAX = 180, RESTART_AFTER = 15, POLISH_SECS = 12;
   let pool = null;
   function forgeSearches() { return Math.max(2, Math.min(8, (navigator.hardwareConcurrency || 4) - 1)); }
   function forgeParallel(fillers, values, keepMin) {
     const K = forgeSearches(), t0 = Date.now();
     const valueOf = pl => pl.reduce((a, p) => a + (values[p[0]] || 0), 0);
-    const P = pool = { workers: [], best: valueOf(state.placements), bestPl: state.placements, lastGain: t0, gains: 0, iters: [], done: 0, stopping: false, reason: "", timer: null, t0, K };
+    const P = pool = { workers: [], best: valueOf(state.placements), bestPl: state.placements, lastGain: t0, gains: 0, iters: [], done: 0, stopping: false, reason: "", timer: null, t0, K,
+                       wBest: [], wLast: [], restarting: [], restarts: 0, fillers, values, keepMin };
     const init = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     const consider = m => { if (m.value > P.best) { P.best = m.value; P.bestPl = m.placements; P.lastGain = Date.now(); P.gains++; state.placements = m.placements; render(); } };
-    for (let i = 0; i < K; i++) {
-      let w; try { w = new Worker("solver.js"); } catch (e) { break; }
+    const spawn = i => {
+      let w; try { w = new Worker("solver.js"); } catch (e) { return null; }
+      const launch = () => { P.wBest[i] = P.best; P.wLast[i] = Date.now(); P.restarting[i] = false;
+        w.postMessage({ type: "optimize", placements: P.bestPl, fillers, values, keepMin, seconds: FORGE_MAX, seed: (Date.now() + i * 7919 + P.restarts * 104729) & 0xffff || i + 1, maxSections: 3 }); };
       w.onmessage = e => {
         const m = e.data;
-        if (m.type === "ready") w.postMessage({ type: "optimize", placements: P.bestPl, fillers, values, keepMin, seconds: FORGE_MAX, seed: (Date.now() + i * 7919) & 0xffff || i + 1, maxSections: 3 });
-        else if (m.type === "progress") { P.iters[i] = m.iterations; consider(m); }
-        else if (m.type === "done") { P.iters[i] = m.iterations; consider(m); if (++P.done >= P.workers.length) forgeFinish(P); }
+        if (m.type === "ready") launch();
+        else if (m.type === "progress") { P.iters[i] = (P.itersBase[i] || 0) + m.iterations; if (m.value > (P.wBest[i] || 0)) { P.wBest[i] = m.value; P.wLast[i] = Date.now(); } consider(m); }
+        else if (m.type === "done") { P.iters[i] = (P.itersBase[i] || 0) + m.iterations; consider(m); if (++P.done >= P.workers.length) forgePolish(P); }
       };
-      w.onerror = () => { if (++P.done >= P.workers.length) forgeFinish(P); };
-      w.postMessage(init); P.workers.push(w);
-    }
+      w.onerror = () => { if (++P.done >= P.workers.length) forgePolish(P); };
+      w.postMessage(init); return w;
+    };
+    P.itersBase = [];
+    for (let i = 0; i < K; i++) { const w = spawn(i); if (!w) break; P.workers.push(w); }
+    // a search that has gained nothing for a while, while the pool holds better, is replaced by a fresh one from the best
+    P.restart = i => { P.restarting[i] = true; P.itersBase[i] = P.iters[i] || 0; P.workers[i].terminate(); P.restarts++; const w = spawn(i); if (w) P.workers[i] = w; };
     if (!P.workers.length) { pool = null; return false; }
     P.timer = setInterval(() => {
       const now = Date.now(), idle = (now - P.lastGain) / 1000, el = (now - P.t0) / 1000;
@@ -492,6 +542,8 @@
       $("fb-fill").style.width = Math.min(100, idle / FORGE_IDLE * 100).toFixed(1) + "%";
       $("fb-text").textContent = `Forging · ${P.workers.length} searches · ${el.toFixed(0)} s · ${its} re-packs · ${holdNow} m³ · ${P.gains ? "last gain " + idle.toFixed(0) + " s ago" : "no gain yet"}`;
       if (!P.stopping && (idle >= FORGE_IDLE || el >= FORGE_MAX)) forgeStop(P, idle >= FORGE_IDLE ? "settled" : "time");
+      // searches share their best: one that has gained nothing for a while, while the pool holds better, restarts from it
+      if (!P.stopping) P.workers.forEach((w, i) => { if (!P.restarting[i] && P.wLast[i] && (now - P.wLast[i]) / 1000 >= RESTART_AFTER && (P.wBest[i] || 0) < P.best) P.restart(i); });
     }, 250);
     progressStart(0, `Forging · ${K} searches…`); $("fb-fill").classList.remove("busy"); $("fb-fill").style.width = "0%";
     return true;
@@ -499,15 +551,34 @@
   function forgeStop(P, reason) {
     if (P.stopping) return; P.stopping = true; P.reason = reason;
     P.workers.forEach(w => w.postMessage({ type: "stop" }));
-    setTimeout(() => forgeFinish(P), 2500);                  // a worker that never answers does not hold the page
+    setTimeout(() => forgePolish(P), 2500);                  // a worker that never answers does not hold the page
+  }
+  // after the searches settle (not after a manual Stop): one worker re-packs every section exhaustively, then finish
+  function forgePolish(P) {
+    if (P.polishing || P.finished) return; P.polishing = true;
+    clearInterval(P.timer); P.workers.forEach(w => w.terminate());
+    if (P.reason === "stopped") { forgeFinish(P); return; }
+    let w; try { w = new Worker("solver.js"); } catch (e) { forgeFinish(P); return; }
+    $("fb-fill").classList.add("busy"); $("fb-text").textContent = `Polishing · ${hold(P.bestPl)} m³…`;
+    const t0 = Date.now(); P.polishWorker = w;
+    w.onmessage = e => { const m = e.data;
+      if (m.type === "ready") w.postMessage({ type: "polish", placements: P.bestPl, fillers: P.fillers, values: P.values, keepMin: P.keepMin, seconds: POLISH_SECS, seed: Date.now() & 0xffff, tries: 6 });
+      else if (m.type === "progress" || m.type === "done") { if (m.value > P.best) { P.best = m.value; P.bestPl = m.placements; P.gains++; P.polishGains = (P.polishGains || 0) + 1; state.placements = m.placements; render(); }
+        if (m.type === "progress") $("fb-text").textContent = `Polishing · ${hold(P.bestPl)} m³ · ${((Date.now() - t0) / 1000).toFixed(0)} s`;
+        else { w.terminate(); forgeFinish(P); } } };
+    w.onerror = () => { w.terminate(); forgeFinish(P); };
+    w.postMessage({ type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) });
+    setTimeout(() => { if (!P.finished) { w.postMessage({ type: "stop" }); setTimeout(() => { w.terminate(); forgeFinish(P); }, 1500); } }, (POLISH_SECS + 4) * 1000);
   }
   function forgeFinish(P) {
     if (P.finished) return; P.finished = true;
-    clearInterval(P.timer); P.workers.forEach(w => w.terminate()); if (pool === P) pool = null;
+    clearInterval(P.timer); P.workers.forEach(w => w.terminate()); if (P.polishWorker) P.polishWorker.terminate(); if (pool === P) pool = null;
     state.placements = P.bestPl; if (P.gains) markDirty(); render();
     const secs = ((Date.now() - P.t0) / 1000).toFixed(0), its = P.iters.reduce((a, b) => a + (b || 0), 0);
     const why = P.reason === "settled" ? `nothing better for ${FORGE_IDLE} s` : P.reason === "time" ? "3 min limit" : "stopped";
-    progressDone(`Forged: ${P.gains} gains from ${P.workers.length} searches, ${its} re-packs in ${secs} s (${why}) · ${hold(state.placements)} m³ hold`);
+    const extra = (P.restarts ? `, ${P.restarts} restarts from the best` : "") + (P.polishGains ? `, polish +${P.polishGains}` : "");
+    if (window.__forge) window.__forge.last = { gains: P.gains, restarts: P.restarts, polishGains: P.polishGains || 0, secs, hold: hold(state.placements), reason: P.reason };
+    progressDone(`Forged: ${P.gains} gains from ${P.workers.length} searches${extra}, ${its} re-packs in ${secs} s (${why}) · ${hold(state.placements)} m³ hold`);
     $("btn-forge").textContent = "Forge for the role"; setStatus("", "info");
   }
   function forge() {
@@ -542,6 +613,13 @@
     const obj = { h: state.hull, n: state.name, p: state.placements.map(p => [idx[p[0]], p[1], p[2], Math.min(...p[3].map(c => c[0])), Math.min(...p[3].map(c => c[1]))]), e: state.exterior, r: state.prio, c: state.minCaps, b: state.preset };
     const s = JSON.stringify(obj);
     return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function decodeFit(h) {
+    try {
+      const o = JSON.parse(decodeURIComponent(escape(atob(h.replace(/-/g, "+").replace(/_/g, "/")))));
+      if (!o.h || !D.hulls[o.h]) return null;
+      return { hull: o.h, name: o.n || "Shared fit", exterior: o.e || {}, placements: o.p.map(([mi, sec, rot, x, y]) => { const m = D.modules[mi]; const shape = rotShape(m.cells, rot); return [m.name, sec, rot, shape.map(c => [c[0] + x, c[1] + y])]; }) };
+    } catch (e) { return null; }
   }
   function decode(h) {
     try {
@@ -639,8 +717,123 @@
     catch (e) { st.textContent = "Copy failed here; right-click the image and copy it instead."; st.className = "status warn"; }
   }
 
+  // ---------- compare two fits ----------
+  function cellMap(placements) { const m = new Map(); placements.forEach(p => p[3].forEach(c => m.set(`${p[1]}:${c[0]}:${c[1]}`, p[0]))); return m; }
+  function otherFit() {
+    const link = $("cmp-link").value.trim();
+    if (link) { const h = link.includes("#") ? link.split("#")[1] : link; const f = decodeFit(h); if (!f) { $("cmp-body").innerHTML = `<div class="note">That is not a proposal link from this page.</div>`; return null; } return f; }
+    const n = +$("cmp-sel").value; const p = D.presets.find(x => x.n === n); if (!p) return null;
+    return { hull: p.hull, name: docName(p), placements: p.placements, exterior: p.exterior || {} };
+  }
+  function renderCompare() {
+    const B = otherFit(); if (!B) { if (!$("cmp-link").value.trim()) $("cmp-body").innerHTML = `<div class="note">Pick a fit to compare with.</div>`; return; }
+    const A = { hull: state.hull, name: state.name, placements: state.placements, exterior: state.exterior };
+    const sa = statsOf(A.hull, A.placements, A.exterior), sb = statsOf(B.hull, B.placements, B.exterior);
+    const same = A.hull === B.hull;
+    let markA = new Set(), markB = new Set();
+    if (same) { const ma = cellMap(A.placements), mb = cellMap(B.placements); for (const [k, v] of ma) if (mb.get(k) !== v) markA.add(k); for (const [k, v] of mb) if (ma.get(k) !== v) markB.add(k); }
+    const f = (n, d) => Number(n).toLocaleString("en-US", { maximumFractionDigits: d === undefined ? 0 : d });
+    const rows = [["Cells used", sa.cells, sb.cells, 0], ["Hold m³", sa.hold, sb.hold, 0], ["Fuel", sa.fuel, sb.fuel, 0], ["Fuel hours (" + state.fuelGrade + ")", isFinite(sa.hours) ? sa.hours : 0, isFinite(sb.hours) ? sb.hours : 0, 1],
+                  ["Capacitor GJ", sa.cap, sb.cap, 0], ["Recharge GJ/s est", sa.rech, sb.rech, 1], ["Drain GJ/s", sa.drain, sb.drain, 1], ["Hull HP", sa.hp, sb.hp, 0], ["Repair HP/s", sa.repair, sb.repair, 0], ["Damage", sa.dps, sb.dps, 0], ["Power MW", sa.draw, sb.draw, 1]];
+    const ca = counts(A.placements), cb = counts(B.placements); const names = new Set([...Object.keys(ca), ...Object.keys(cb)]); const diff = [];
+    names.forEach(n => { const d = (ca[n] || 0) - (cb[n] || 0); if (d) diff.push([d, n]); });
+    const ea = A.exterior || {}, eb = B.exterior || {}; new Set([...Object.keys(ea), ...Object.keys(eb)]).forEach(n => { const d = (ea[n] || 0) - (eb[n] || 0); if (d) diff.push([d, n + " (exterior)"]); });
+    diff.sort((x, y) => y[0] - x[0]);
+    $("cmp-body").innerHTML = `<div class="cmp-hulls"><div><div class="cmp-name">${A.name} <span>(this fit)</span></div>${hullSvg(A.hull, A.placements, { mark: markA, numbers: false }).svg}</div><div><div class="cmp-name">${B.name}</div>${hullSvg(B.hull, B.placements, { mark: markB, numbers: false }).svg}</div></div>` +
+      `<div class="note">${same ? `Gold outlines mark the cells that differ: ${markA.size} on this fit, ${markB.size} on the other.` : "Different hulls: no cell-by-cell diff."}</div>` +
+      `<table class="cmp-table"><tr><th></th><th>${A.name}</th><th>${B.name}</th><th>Δ</th></tr>` + rows.map(([l, a, b, d]) => { const dd = a - b; return `<tr><td>${l}</td><td>${f(a, d)}</td><td>${f(b, d)}</td><td class="${dd > 0 ? "up" : dd < 0 ? "down" : ""}">${dd > 0 ? "+" : ""}${f(dd, d)}</td></tr>`; }).join("") + `</table>` +
+      `<div class="cmp-diff"><b>Modules</b>: ${diff.length ? diff.map(([d, n]) => `<span class="${d > 0 ? "up" : "down"}">${d > 0 ? "+" : ""}${d} ${n}</span>`).join(", ") : "the same modules, placed differently"}.</div>`;
+  }
+  function openCompare() {
+    const sel = $("cmp-sel"); sel.innerHTML = D.presets.filter(p => p.hull === state.hull).concat(D.presets.filter(p => p.hull !== state.hull)).map(p => `<option value="${p.n}">${docName(p)} · ${p.hull}</option>`).join("");
+    if (state.preset && D.presets.some(p => p.n === state.preset)) sel.value = state.preset;
+    $("cmp-link").value = ""; $("cmpmodal").hidden = false; document.body.style.overflow = "hidden"; renderCompare();
+  }
+
+  // ---------- the shopping list: modules to print, materials summed ----------
+  function shopping() {
+    const c = counts(state.placements), ext = state.exterior, R = D.recipes || {};
+    const rows = [], mats = {}, noRecipe = []; let secs = 0;
+    const all = Object.keys(c).sort().map(n => [n, c[n]]).concat(Object.keys(ext).filter(n => ext[n]).sort().map(n => [n, ext[n]]));
+    for (const [n, k] of all) {
+      const r = R[n];
+      if (!r) { noRecipe.push(`${k}x ${n}`); rows.push({ n, k, fac: "no known recipe" }); continue; }
+      const runs = Math.ceil(k / (r.makes || 1)); rows.push({ n, k, fac: r.facility.replace(" (ship module)", ""), time: (r.time_s || 0) * runs });
+      secs += (r.time_s || 0) * runs;
+      for (const m in r.in) mats[m] = (mats[m] || 0) + r.in[m] * runs;
+    }
+    return { rows, mats, secs, noRecipe };
+  }
+  function shopText() {
+    const s = shopping(), f = n => n.toLocaleString("en-US");
+    let t = `${state.name} (${state.hull}) — shopping list\n\nMODULES TO PRINT\n`;
+    for (const r of s.rows) t += `${r.k}x ${r.n}  (${r.fac})\n`;
+    t += `\nMATERIALS, TOTAL\n`;
+    for (const m of Object.keys(s.mats).sort((a, b) => s.mats[b] - s.mats[a])) t += `${f(s.mats[m])}x ${m}\n`;
+    t += `\nPrint time about ${Math.round(s.secs / 60)} min on the printers. Command Pod and Weapon Receiver come with the ship; salvage spares from wrecks.`;
+    return t;
+  }
+  function openShop() {
+    const s = shopping(), f = n => n.toLocaleString("en-US");
+    $("shop-sub").textContent = `${state.name} · ${s.rows.length} kinds of module · print time about ${Math.round(s.secs / 60)} min`;
+    const mats = Object.keys(s.mats).sort((a, b) => s.mats[b] - s.mats[a]);
+    $("shop-body").innerHTML = `<div><h3>Modules to print</h3><table>${s.rows.map(r => `<tr><td class="n">${r.k}x</td><td>${r.n}</td><td class="f">${r.fac}</td></tr>`).join("")}</table>` +
+      `<div class="note">Command Pod and Weapon Receiver have no printer recipe: they come with the ship, and wrecks drop spares.</div></div>` +
+      `<div><h3>Materials, total</h3><table>${mats.map(m => `<tr><td class="n">${f(s.mats[m])}x</td><td>${m}</td></tr>`).join("")}</table>` +
+      `<div class="note">Recipes as read from the Industry window; the simplest printer that makes each module (the Emergency Printer where it can, else the Mini Printer; the ship Printer makes the same). Refining the raw ore into these is one step further.</div></div>`;
+    $("shopmodal").hidden = false; document.body.style.overflow = "hidden";
+  }
+
+  // ---------- the guided first visit ----------
+  const TOUR = [
+    { at: "#hull-svg", title: "This is your ship", text: "The hull, drawn like the game's fitting window: every coloured block is a module sitting in the cells it needs. Drag a module to move it, R turns it, drag it off the window to remove it." },
+    { at: "#palette", title: "Everything you can fit", text: "Every module in the game, with the cells it takes. Press + to fit one (the forge finds a spot, rearranging if it must), or drag it straight onto the hull." },
+    { at: ".tiles", title: "These numbers decide if you get home", text: "Hold, fuel and how many hours it lasts, capacitor and whether it stays charged with everything running, hull HP, power. The ◀ ▶ arrows add or remove the module behind each one." },
+    { at: "#hints", title: "What should I change?", text: "Red checks are rules the game enforces. Below them, one-line advice a new rider wishes they had known, each with a button that does it." },
+    { at: "#btn-forge", title: "Forge for the role", text: "Set what matters (hold, capacitor, fuel, armour, repair) and press Forge: several searches fill the spare cells at once and stop by themselves when nothing better turns up. Then share the fit with a proposal link." },
+  ];
+  let tourI = -1;
+  function tourSeen() { try { return localStorage.getItem("forge:tour") === "done"; } catch (e) { return true; } }
+  function tourShow(i) {
+    const box = $("tour"); if (!box) return;
+    document.querySelectorAll(".tour-hi").forEach(e => e.classList.remove("tour-hi"));
+    if (i < 0 || i >= TOUR.length) { box.hidden = true; tourI = -1; if ($("tour-never").checked) { try { localStorage.setItem("forge:tour", "done"); } catch (e) {} } return; }
+    tourI = i; const step = TOUR[i]; const el = document.querySelector(step.at);
+    box.hidden = false; $("tour-step").textContent = `${i + 1} / ${TOUR.length}`; $("tour-title").textContent = step.title; $("tour-text").textContent = step.text;
+    $("tour-next").textContent = i === TOUR.length - 1 ? "Done" : "Next";
+    if (el) { el.classList.add("tour-hi"); el.scrollIntoView({ block: "nearest" }); }
+    // place the box beside the highlighted element, inside the viewport
+    const r = el ? el.getBoundingClientRect() : { left: innerWidth / 2 - 190, right: innerWidth / 2 + 190, top: innerHeight / 2, bottom: innerHeight / 2 };
+    const b = box.querySelector(".tour-box"), W = Math.min(380, innerWidth - 32), H = 200;
+    let x = r.right + 16, y = r.top;
+    if (x + W > innerWidth - 16) x = r.left - W - 16;
+    if (x < 16) { x = Math.max(16, Math.min(innerWidth - W - 16, r.left)); y = r.bottom + 16; }
+    if (y + H > innerHeight - 16) y = Math.max(16, innerHeight - H - 16);
+    b.style.left = x + "px"; b.style.top = Math.max(16, y) + "px";
+  }
+  function tourWire() {
+    if (!$("tour")) return;
+    $("tour-next").addEventListener("click", () => tourShow(tourI + 1));
+    $("tour-skip").addEventListener("click", () => tourShow(-1));
+    $("tour-never").addEventListener("change", e => { try { if (e.target.checked) localStorage.setItem("forge:tour", "done"); else localStorage.removeItem("forge:tour"); } catch (x) {} });
+    if ($("tour-open")) $("tour-open").addEventListener("click", () => { $("tour-never").checked = false; tourShow(0); });
+    document.addEventListener("keydown", e => { if (tourI >= 0 && e.key === "Escape") tourShow(-1); });
+    window.addEventListener("resize", () => { if (tourI >= 0) tourShow(tourI); });
+    if (!tourSeen() && !location.hash) setTimeout(() => tourShow(0), 900);
+  }
+
   // ---------- wiring ----------
   function wire() {
+    tourWire();
+    $("btn-shop").addEventListener("click", openShop);
+    $("btn-compare").addEventListener("click", openCompare);
+    $("cmp-close").addEventListener("click", () => { $("cmpmodal").hidden = true; document.body.style.overflow = ""; });
+    $("cmpmodal").addEventListener("click", e => { if (e.target === $("cmpmodal")) { $("cmpmodal").hidden = true; document.body.style.overflow = ""; } });
+    $("cmp-sel").addEventListener("change", () => { $("cmp-link").value = ""; renderCompare(); });
+    $("cmp-link").addEventListener("input", renderCompare);
+    $("shop-close").addEventListener("click", () => { $("shopmodal").hidden = true; document.body.style.overflow = ""; });
+    $("shopmodal").addEventListener("click", e => { if (e.target === $("shopmodal")) { $("shopmodal").hidden = true; document.body.style.overflow = ""; } });
+    $("shop-copy").addEventListener("click", () => copy(shopText(), "Shopping list copied."));
     if ($("btn-card")) {                                   // the public edition (tools/build_forge_public.py) has no cards
       $("btn-card").addEventListener("click", openCard);
       $("card-close").addEventListener("click", closeCard);
@@ -655,6 +848,7 @@
     $("btn-own").addEventListener("click", () => cleanSlate(false));
     $("preset-sel").addEventListener("change", e => { if (e.target.value) loadPreset(e.target.value); e.target.value = ""; });
     $("fit-name").addEventListener("input", e => { state.name = e.target.value; });
+    $("hints").addEventListener("click", e => { const b = e.target.closest("button[data-hint]"); if (b && !running && !pool) applyHint(+b.dataset.hint); });
     document.querySelector(".tiles").addEventListener("click", e => { const b = e.target.closest("button[data-adj]"); if (b) adjust(b.dataset.adj, +b.dataset.d); });
     $("palette").addEventListener("pointerdown", paletteDown);
     document.addEventListener("pointermove", paletteMove, { passive: false });
@@ -695,6 +889,7 @@
     renderSaved();
   }
 
+  if (/[?&]dev=1/.test(location.search)) window.__forge = { state, strip() { const keep = {}; state.placements = state.placements.filter(p => { if (!["Cargo Container", "Emergency Container", "Capacitor"].includes(p[0])) return true; keep[p[0]] = (keep[p[0]] || 0) + 1; return keep[p[0]] <= (D.base_ship.never_removed[p[0]] || 0); }); render(); }, hold: () => hold(state.placements), get pool() { return pool; }, last: null };
   function boot() {
     const sel = $("preset-sel");
     sel.innerHTML = `<option value="">${D.presets.some(p => p.doctrine) ? "Load a doctrine fit…" : "Load a fit…"}</option>` + D.presets.map(p => `<option value="${p.n}">${docName(p)} · ${p.hull} · ${p.role}</option>`).join("");
