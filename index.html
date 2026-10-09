@@ -288,6 +288,15 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .pk-sec { font: 600 10px var(--mono); color: var(--dim); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; }
 .pk-none { padding: 10px 12px; color: var(--dim); font-size: 13px; }
 .toast { position: fixed; right: 18px; bottom: 18px; background: var(--panel); border: 1px solid var(--gold); color: var(--gold); padding: 10px 14px; font: 600 12px var(--mono); z-index: 9; }
+.tribe { display: inline-flex; align-items: center; gap: 8px; margin-left: 6px; }
+.tribe-btn { font: 600 11px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-soft); padding: 7px 10px; text-decoration: none; background: var(--panel); white-space: nowrap;
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
+.tribe-btn:hover { color: var(--title); border-color: var(--gold); }
+.tribe-who { font: 600 11px var(--mono); letter-spacing: 1px; color: var(--gold); }
+.tribe-out { font: 11px var(--mono); color: var(--dim); text-decoration: none; } .tribe-out:hover { color: var(--red); }
+.tribe-note { font: 11px var(--mono); color: var(--dim); }
+.tribe-up { font: 600 10px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-soft); padding: 4px 7px; cursor: pointer; white-space: nowrap; } .tribe-up:hover { color: var(--title); border-color: var(--gold); }
+.tribe-msg { font: 11px var(--mono); color: var(--warn); }
 /* the beginner's guide: section cards with code-drawn art, bigger text */
 .guide-on .topctl, .guide-on .tier { display: none; }           /* the guide page shows no fitting controls */
 .sidenav { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 10px; }
@@ -406,6 +415,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       <input type="text" id="fit-name" aria-label="Fit name" placeholder="Fit name">
       <select id="saved-sel" aria-label="Saved fits"></select>
       <button type="button" id="btn-save">Save</button>
+      <span id="tribe" class="tribe"></span>
     </div>
   </header>
 <section id="tab-about" class="about" hidden aria-labelledby="about-h"><figure class="about-left"><svg class="about-portrait" viewBox="100 80 1200 1110" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The Saints crest, the Crusader, with golden wings">
@@ -556,7 +566,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 </div>
 <script src="data.js?v=9fdcaf3d"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=7dd463a8"></script>
+<script src="app.js?v=f65bb39d"></script>
 <script>
 (function () {
   // pages and their own addresses: thesaintsforge.com/aboutus, /forge, /guide (Cloudflare serves the page at each,
@@ -616,5 +626,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=80944361"></script><script src="lodge-planner.js?v=17966a21"></script><script src="lodge-app.js?v=e2091176"></script>
+<script src="lodge-data.js?v=80944361"></script><script src="lodge-planner.js?v=17966a21"></script><script src="lodge-app.js?v=e2091176"></script><script src="tribe.js?v=f844b4c3"></script>
 </body></html>

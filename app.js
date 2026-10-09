@@ -899,9 +899,15 @@
   }
 
   if (/[?&]dev=1/.test(location.search)) window.__forge = { state, strip() { const keep = {}; state.placements = state.placements.filter(p => { if (!["Cargo Container", "Emergency Container", "Capacitor"].includes(p[0])) return true; keep[p[0]] = (keep[p[0]] || 0) + 1; return keep[p[0]] <= (D.base_ship.never_removed[p[0]] || 0); }); render(); }, hold: () => hold(state.placements), get pool() { return pool; }, last: null };
-  function boot() {
-    const sel = $("preset-sel");
+  function renderPresetSelect() {
+    const sel = $("preset-sel"), cur = sel.value;
     sel.innerHTML = `<option value="">${D.presets.some(p => p.doctrine) ? "Load a doctrine fit…" : "Load a fit…"}</option>` + D.presets.map(p => `<option value="${p.n}">${docName(p)} · ${p.hull} · ${p.role}</option>`).join("");
+    if (cur) sel.value = cur;
+  }
+  // the public site adds the doctrine fits here once a tribe member has logged in (tribe.js)
+  window.__forgeAddPresets = list => { for (const p of list || []) if (!D.presets.some(x => x.n === p.n)) D.presets.push(p); renderPresetSelect(); };
+  function boot() {
+    renderPresetSelect();
     wire();
     const h = location.hash.replace(/^#/, "");
     if (h && decode(h)) { $("min-caps").value = state.minCaps || (counts(state.placements)["Capacitor"] || 1); state.minCaps = +$("min-caps").value; startSolver(); render(); setStatus(`Shared fit "${state.name}" loaded.`, "ok"); }
