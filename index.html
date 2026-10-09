@@ -1,0 +1,211 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="description" content="Saints Forge: an EVE Frontier ship-fitting tool. Fit a Reiver or LAI module by module, see hold, fuel hours, capacitor stability and power, and let the forge fill the spare cells for the role."><link rel="icon" href="favicon.svg" type="image/svg+xml"><style>html{color-scheme:dark}body{margin:0}</style></head><body><title>Saints Forge · EVE Frontier ship fitting</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800;900&family=Cinzel+Decorative:wght@700;900&family=Rajdhani:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* The Saints Forge, dressed like the doctrine ship cards (guides/ships/make_ship_cards.py): black ink, crusader red,
+   heraldic gold, silver text; gothic tracery behind everything, a red band of crosses down the left edge, a gold frame
+   with pattée corners, stat boxes with a cut corner and a red top bar. Layout: a workbench. Palette on the left, the
+   hull in the middle drawn like the game's fitting window on top of the card's section outlines, the ship's numbers
+   and the role forge on the right; everything stacks to one column on a phone. One deliberately dark look. */
+:root {
+  --ink: #07070a; --panel: #121016; --panel-2: #1a171f; --panel-top: #15131a; --panel-bot: #0a090c; --line: #2a2630; --line-strong: #3b3542;
+  --fg: #ebebf0; --title: #f4f1ea; --silver: #b8bcc6; --dim: #868b97; --gold: #d9b24c; --gold-soft: rgba(217,178,76,.45); --red: #e3222c; --crimson: #8f1118; --band: #8f1118; --good: #5bb36a; --warn: #e0a83a;
+  --display: 'Cinzel', Georgia, serif; --deco: 'Cinzel Decorative', 'Cinzel', Georgia, serif; --body: 'IBM Plex Sans', 'Segoe UI', Arial, sans-serif; --mono: 'IBM Plex Mono', Consolas, monospace;
+  --band-w: 36px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--ink); color: var(--fg); font: 14px/1.45 var(--body); margin: 0; min-height: 100%;
+  background-image:
+    radial-gradient(ellipse 60% 50% at 78% 30%, rgba(192,24,32,.22), rgba(42,6,8,.18) 55%, rgba(7,7,10,0) 100%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='96'><path d='M4,96 V40 Q4,8 32,4 Q60,8 60,40 V96 M32,96 V60 Q32,40 46,36 Q60,40 60,60 M4,60 Q4,40 18,36 Q32,40 32,60' fill='none' stroke='%23d9b24c' stroke-opacity='0.07'/><circle cx='32' cy='22' r='6' fill='none' stroke='%23d9b24c' stroke-opacity='0.07'/></svg>");
+  background-attachment: fixed, scroll; }
+/* the red band of crosses down the left edge, as on the cards */
+.band { position: fixed; left: 0; top: 0; bottom: 0; width: var(--band-w); background: var(--band); border-right: 2px solid var(--gold); z-index: 5;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='80'><polygon points='17.5,39.5 16.3,35 19.7,35 18.5,39.5 23,38.3 23,41.7 18.5,40.5 19.7,45 16.3,45 17.5,40.5 13,41.7 13,38.3' fill='%23d9b24c' fill-opacity='0.75'/></svg>"); background-repeat: repeat-y; background-position: 0 40px; }
+.band::before { content: ""; position: absolute; left: 6px; top: 0; bottom: 0; width: 1px; background: var(--gold); opacity: .6; }
+.band::after { content: "✠"; position: absolute; left: 0; right: 0; top: 14px; text-align: center; color: #f4ede8; font: 700 18px var(--display); }
+.wrap { position: relative; max-width: 1560px; margin: 14px auto 28px; padding-inline: 20px; padding-block: 16px 30px; border: 1px solid var(--gold-soft); outline: 1px solid rgba(217,178,76,.18); outline-offset: 5px; }
+.wrap > .corner { position: absolute; width: 14px; height: 14px; color: var(--gold); font: 700 14px/14px var(--display); text-align: center; pointer-events: none; }
+.wrap > .corner.tl { left: -8px; top: -8px; } .wrap > .corner.tr { right: -8px; top: -8px; } .wrap > .corner.bl { left: -8px; bottom: -8px; } .wrap > .corner.br { right: -8px; bottom: -8px; }
+body { padding-left: var(--band-w); }
+@media (max-width: 900px) { .band { display: none; } body { padding-left: 0; } .wrap { margin: 8px; padding-inline: 12px; outline: none; } }
+
+header.top { display: grid; grid-template-columns: auto 1fr auto; gap: 8px 18px; align-items: center; border-bottom: 1px solid var(--gold); padding-bottom: 12px; }
+.crest { width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--gold); box-shadow: 0 0 0 4px rgba(217,178,76,.18), 0 0 22px rgba(217,178,76,.35); background: rgba(156,18,26,.35); object-fit: cover; }
+.brand { display: grid; gap: 2px; min-width: 0; }
+.brand .house { font: 800 15px var(--display); letter-spacing: 6px; color: var(--gold); }
+.brand .eyebrow { font: 600 10px var(--mono); letter-spacing: 4px; color: var(--red); text-transform: uppercase; }
+.brand h1 { font: 900 clamp(26px, 3.6vw, 40px)/1 var(--deco); margin: 2px 0 0; letter-spacing: 2px; color: var(--title);
+  background: linear-gradient(#fff6e0, var(--title) 55%, var(--gold)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 10px rgba(217,178,76,.35)); }
+.tier { justify-self: end; position: relative; padding: 9px 26px; font: 700 11px var(--mono); letter-spacing: 5px; color: var(--gold); background: var(--crimson); border: 1px solid var(--gold);
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 50%, 100% 100%, 10px 100%, 0 50%); white-space: nowrap; }
+@media (max-width: 760px) { header.top { grid-template-columns: auto 1fr; } .tier { grid-column: 1 / -1; justify-self: start; } }
+.topctl { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.topctl .sp { flex: 1 1 auto; }
+select, input[type=text], input[type=number], textarea { background: var(--panel-2); color: var(--fg); border: 1px solid var(--line-strong); padding: 6px 8px; font: 13px var(--body); border-radius: 2px; min-width: 0; }
+input[type=text] { width: 180px; }
+select:focus-visible, input:focus-visible, button:focus-visible, textarea:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; }
+button { font: 600 11px var(--mono); letter-spacing: 2px; text-transform: uppercase; background: var(--panel); color: var(--silver); border: 1px solid var(--gold-soft); padding: 8px 12px; cursor: pointer; border-radius: 0;
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
+button:hover { color: var(--gold); border-color: var(--gold); }
+button.primary { background: var(--crimson); color: #fff; border-color: var(--gold); }
+button.primary:hover { background: var(--red); color: #fff; }
+button[disabled] { opacity: .5; cursor: default; }
+.status { font: 12px var(--mono); color: var(--dim); min-height: 18px; margin-top: 10px; letter-spacing: .3px; }
+.status.ok { color: var(--good); } .status.bad { color: var(--red); } .status.warn { color: var(--warn); } .status.info { color: var(--silver); }
+
+.bench { display: grid; grid-template-columns: 290px minmax(0, 1fr) 340px; gap: 16px; margin-top: 14px; align-items: start; }
+@media (max-width: 1100px) { .bench { grid-template-columns: 280px minmax(0, 1fr); } .bench > .right { grid-column: 1 / -1; } }
+@media (max-width: 760px) { .bench { grid-template-columns: 1fr; } }
+.pane { background: linear-gradient(rgba(21,19,26,.94), rgba(10,9,12,.94)); border: 1px solid var(--gold-soft); min-width: 0; position: relative; }
+.pane::before { content: ""; position: absolute; left: 8px; right: 0; top: 0; height: 3px; background: var(--red); }
+.pane h2 { font: 700 12px var(--mono); letter-spacing: 4px; color: var(--gold); text-transform: uppercase; margin: 0; padding: 14px 12px 10px; border-bottom: 1px solid rgba(217,178,76,.3); display: flex; align-items: center; gap: 10px; }
+.pane h2 .n { margin-left: auto; font: 500 10px var(--mono); color: var(--dim); letter-spacing: 0; text-transform: none; }
+.pgroup h3 { font: 700 10px var(--mono); letter-spacing: 3px; color: var(--red); text-transform: uppercase; margin: 12px 12px 4px; }
+.prow { display: grid; grid-template-columns: 14px 1fr 22px 20px 26px 26px; align-items: center; gap: 6px; padding: 4px 12px; }
+.prow:hover { background: rgba(255,255,255,.03); }
+.prow.has .pname { color: var(--fg); }
+.pname { color: var(--silver); font-size: 12.5px; line-height: 1.15; overflow-wrap: anywhere; }
+.psize, .pcount { font: 11px var(--mono); color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
+.pcount { color: var(--gold); font-weight: 600; }
+.sw { width: 12px; height: 12px; border: 1px solid var(--silver); }
+.sw.ext { background: none; border: 1px dashed var(--gold); }
+.lock { color: var(--gold); font-size: 11px; }
+.prow.core .pname { color: var(--fg); }
+.pbtn { padding: 1px 0; font-size: 13px; line-height: 1.2; letter-spacing: 0; clip-path: none; border-color: var(--line-strong); }
+.gridwrap { padding: 12px; overflow: auto; max-height: calc(100vh - 250px); min-height: 240px; }
+.hullsvg { display: block; margin: 0 auto; user-select: none; touch-action: none; }
+.zoom { display: flex; gap: 4px; align-items: center; }
+.zoom .z { font: 600 11px var(--mono); color: var(--dim); min-width: 42px; text-align: center; }
+.hullsvg .mod { cursor: grab; }
+.hullsvg .mod.sel rect { stroke: #fff; stroke-width: 1.5; }
+.hullsvg .modnum { font: 700 10px 'IBM Plex Mono', Consolas, monospace; fill: #fff; text-anchor: middle; paint-order: stroke; stroke: #07070a; stroke-width: 3px; pointer-events: none; }
+.gridtools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 12px; border-top: 1px solid rgba(217,178,76,.25); }
+.gridtools .hint { font: 11px var(--mono); color: var(--dim); margin-left: auto; }
+#selbox { padding: 8px 12px; border-top: 1px solid rgba(217,178,76,.25); display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+#sel-name { font-weight: 600; color: var(--gold); }
+#sel-detail { font: 11px var(--mono); color: var(--dim); }
+/* stat boxes like the cards: cut corner, red top bar, gold outline */
+.tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 12px; }
+.tile { background: var(--gold-soft); clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px); min-width: 0; }
+.tile .tin { margin: 1px; background: linear-gradient(var(--panel-top), var(--panel-bot)); clip-path: polygon(8.3px 0, 100% 0, 100% calc(100% - 8.3px), calc(100% - 8.3px) 100%, 0 100%, 0 8.3px); padding: 9px 11px 8px; border-top: 3px solid var(--red); min-height: 74px; }
+.tile .l { font: 700 10px var(--mono); letter-spacing: 3px; color: var(--gold); text-transform: uppercase; }
+.tile .v { font: 800 22px/1.2 var(--display); color: var(--title); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tile .s { font: 11px var(--mono); color: var(--silver); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .3px; }
+.tile select { padding: 2px 4px; font: 600 14px var(--display); }
+ul.checks { list-style: none; margin: 0; padding: 4px 12px 8px; display: grid; gap: 4px; border-top: 1px solid rgba(217,178,76,.25); }
+ul.checks li { font-size: 12px; color: var(--silver); display: flex; gap: 8px; align-items: center; }
+ul.checks li .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); flex: none; }
+ul.checks li.bad .dot { background: var(--red); } ul.checks li.bad { color: var(--fg); }
+.forge { padding: 10px 12px; display: grid; gap: 8px; }
+.prio { display: grid; grid-template-columns: 90px 1fr 36px; gap: 8px; align-items: center; font-size: 12px; color: var(--silver); }
+.prio input[type=range] { width: 100%; accent-color: var(--red); }
+.prio .pv { font: 600 11px var(--mono); color: var(--gold); text-align: right; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.row label { font-size: 12px; color: var(--silver); }
+.row input[type=number] { width: 64px; }
+.note { font: 11px var(--mono); color: var(--dim); }
+.share { padding: 10px 12px; display: grid; gap: 8px; border-top: 1px solid rgba(217,178,76,.25); }
+#share-text { width: 100%; height: 110px; font: 12px var(--mono); }
+.intro { font: 13px/1.5 var(--body); color: var(--silver); max-width: 70ch; margin: 10px 0 0; } .intro a { color: var(--gold); }
+footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); letter-spacing: 4px; text-transform: uppercase; }
+@media (prefers-reduced-motion: no-preference) { .hullsvg .mod rect { transition: opacity .15s; } }
+
+/* the card dialog */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 50; overflow: auto; padding: 14px; }
+.mbox { max-width: 1560px; margin: 0 auto; background: var(--panel); border: 1px solid var(--gold); position: relative; }
+.mbox::before { content: ""; position: absolute; left: 8px; right: 0; top: 0; height: 3px; background: var(--red); }
+.mhead { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 14px 10px; border-bottom: 1px solid rgba(217,178,76,.3); }
+.mhead .mt { font: 700 12px var(--mono); letter-spacing: 4px; color: var(--gold); text-transform: uppercase; }
+.mhead .ms { font: 11px var(--mono); color: var(--dim); flex: 1 1 auto; }
+.mbody { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; padding: 14px; }
+@media (max-width: 900px) { .mbody { grid-template-columns: 1fr; } }
+.mform { display: grid; gap: 6px; align-content: start; }
+.mform label { font: 700 10px var(--mono); letter-spacing: 3px; color: var(--red); text-transform: uppercase; margin-top: 4px; }
+.mform input[type=text], .mform textarea { width: 100%; }
+.mform textarea { font: 13px var(--body); resize: vertical; min-height: 54px; }
+.mform .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.mprev { min-width: 0; display: grid; gap: 10px; align-content: start; }
+#card-svg svg { width: 100%; height: auto; display: block; border: 1px solid rgba(217,178,76,.3); }
+#card-png { width: 100%; height: auto; display: block; border: 1px solid var(--gold); }
+.mprev .row { padding: 0; }
+</style>
+<div class="band" aria-hidden="true"></div>
+<div class="wrap">
+  <span class="corner tl" aria-hidden="true">✠</span><span class="corner tr" aria-hidden="true">✠</span><span class="corner bl" aria-hidden="true">✠</span><span class="corner br" aria-hidden="true">✠</span>
+  <header class="top">
+    <img class="crest" id="crest" alt="The Saints" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
+    <div class="brand"><span class="house">THE SAINTS</span><span class="eyebrow">EVE Frontier · Ship Fitting Tool</span><h1>SAINTS FORGE</h1></div>
+    <div class="tier" id="tier">✠ REIVER CLASS · TIER I ✠</div>
+    <div class="topctl">
+      <select id="hull-sel" aria-label="Hull"><option value="Reiver">Reiver hull · 294 cells</option><option value="LAI">LAI hull · 478 cells</option></select>
+      <select id="preset-sel" aria-label="Doctrine fits"></select>
+      <button type="button" id="btn-own">Forge your own</button>
+      <span class="sp"></span>
+      <input type="text" id="fit-name" aria-label="Fit name" placeholder="Fit name">
+      <select id="saved-sel" aria-label="Saved fits"></select>
+      <button type="button" id="btn-save">Save</button>
+    </div>
+  </header>
+  <div class="status info" id="status">Loading…</div>
+  <p class="intro">Will this ship get you there and back? Load the starter Reiver or forge your own: every module in the palette, the hull drawn like the game's fitting window, and the numbers that matter before you undock: hold, fuel hours, whether the capacitor holds up, power. <b>Forge for the role</b> fills the spare cells for what you need. Made by The Saints; proposal links carry the whole fit. <a href="https://github.com/saints-frontier/forge">Source and feedback on GitHub</a>.</p>
+
+  <div class="bench">
+    <section class="pane left" aria-label="Modules">
+      <h2>Modules <span class="n" id="free-count"></span></h2>
+      <div id="palette"></div>
+    </section>
+
+    <section class="pane mid" aria-label="Hull">
+      <h2>Fitting window <span class="n">drag to move · R rotates · Del removes</span></h2>
+      <div class="gridwrap" id="grid"></div>
+      <div id="selbox" hidden><span id="sel-name"></span><span id="sel-detail"></span><button type="button" id="btn-rotate">Rotate</button><button type="button" id="btn-remove">Remove</button></div>
+      <div class="gridtools">
+        <button type="button" id="btn-clear">Clean slate</button>
+        <span class="zoom"><button type="button" id="zoom-out" aria-label="zoom out">−</button><span class="z" id="zoom-v">fit</span><button type="button" id="zoom-in" aria-label="zoom in">+</button><button type="button" id="zoom-fit">Fit</button></span>
+        <span class="hint">+ in the palette finds a spot, rearranging if it must</span>
+      </div>
+    </section>
+
+    <section class="pane right" aria-label="Ship">
+      <h2>The ship</h2>
+      <div class="tiles">
+        <div class="tile"><div class="tin"><div class="l">Cells</div><div class="v" id="st-cells">—</div><div class="s" id="st-cells-sub"></div></div></div>
+        <div class="tile"><div class="tin"><div class="l">Hold m³</div><div class="v" id="st-hold">—</div><div class="s" id="st-hold-sub"></div></div></div>
+        <div class="tile"><div class="tin"><div class="l">Fuel</div><div class="v" id="st-fuel">—</div><div class="s" id="st-fuel-sub"></div></div></div>
+        <div class="tile"><div class="tin"><div class="l">Capacitor GJ</div><div class="v" id="st-cap">—</div><div class="s" id="st-cap-sub"></div></div></div>
+        <div class="tile"><div class="tin"><div class="l">Hull HP</div><div class="v" id="st-hp">—</div><div class="s" id="st-hp-sub"></div></div></div>
+        <div class="tile"><div class="tin"><div class="l">Damage</div><div class="v" id="st-dps">—</div><div class="s" id="st-dps-sub"></div></div></div>
+        <div class="tile"><div class="tin"><div class="l">Power</div><div class="v" id="st-power">—</div><div class="s" id="st-power-sub"></div></div></div>
+        <div class="tile"><div class="tin"><div class="l">Fuel grade</div><div class="v"><select id="fuel-sel" aria-label="Fuel grade"><option>EU-40</option><option>SOF-40</option><option>D1</option><option>D2</option><option>SOF-80</option><option>EU-90</option><option>Unstable</option></select></div><div class="s">for the burn estimate</div></div></div>
+      </div>
+      <ul class="checks" id="checks"></ul>
+      <div class="note" style="padding:0 12px 8px" id="st-caprech-note"></div>
+
+      <h2>Forge for the role</h2>
+      <div class="forge">
+        <div class="note">Every module already fitted stays. The spare cells get filled by these priorities, top first; off = never add.</div>
+        <div class="prio"><span>Hold</span><input type="range" id="prio-hold" min="0" max="3" step="1"><span class="pv" id="prio-hold-v"></span></div>
+        <div class="prio"><span>Capacitor</span><input type="range" id="prio-cap" min="0" max="3" step="1"><span class="pv" id="prio-cap-v"></span></div>
+        <div class="prio"><span>Fuel</span><input type="range" id="prio-fuel" min="0" max="3" step="1"><span class="pv" id="prio-fuel-v"></span></div>
+        <div class="prio"><span>Armour</span><input type="range" id="prio-hp" min="0" max="3" step="1"><span class="pv" id="prio-hp-v"></span></div>
+        <div class="prio"><span>Repair</span><input type="range" id="prio-repair" min="0" max="3" step="1"><span class="pv" id="prio-repair-v"></span></div>
+        <div class="row"><label for="min-caps">Keep at least</label><input type="number" id="min-caps" min="1" value="1"> <label>Capacitors</label><button type="button" id="btn-capstable">cap-stable: <span id="cap-stable-n">—</span></button></div>
+        <div class="row"><label for="forge-secs">Search</label><input type="number" id="forge-secs" min="5" max="600" value="45"> <label>seconds</label><button type="button" class="primary" id="btn-forge">Forge for the role</button></div>
+      </div>
+
+      <div class="share">
+        <div class="row"><button type="button" id="btn-share">Copy proposal link</button><button type="button" id="btn-discord">Copy Discord text</button></div>
+        <div class="note">A proposal link carries the whole fit. Anyone with the page can open it, change it and send their own.</div>
+        <div id="share-out" hidden><textarea id="share-text" aria-label="Share text" readonly></textarea></div>
+      </div>
+    </section>
+  </div>
+  <footer>EVE Frontier · Cycle 7 · Vestiges · <span id="build"></span> · est = measured curves, not the client</footer>
+</div>
+
+<script src="data.js"></script>
+<script src="card.js"></script>
+<script src="app.js"></script>
+</body></html>
