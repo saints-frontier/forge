@@ -472,7 +472,7 @@
     const h = location.hash.replace(/^#/, "");
     if (h && decode(h)) { $("min-caps").value = state.minCaps || (counts(state.placements)["Capacitor"] || 1); state.minCaps = +$("min-caps").value; startSolver(); render(); setStatus(`Shared fit "${state.name}" loaded.`, "ok"); }
     else loadPreset(D.presets.some(p => p.n === 8) ? 8 : D.presets[0].n);
-    $("build").textContent = `client build ${D.client_build} · data ${D.generated}`;
+    $("build").textContent = `client build ${D.client_build} · data of ${D.generated}`;
     if (K && K.logo) $("crest").src = "data:image/png;base64," + K.logo;
   }
   boot();
