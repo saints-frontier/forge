@@ -199,11 +199,11 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
     </section>
 
     <section class="pane mid" aria-label="Hull">
-      <h2>Fitting window <span class="n">drag to move · R rotates · Del removes</span></h2>
+      <h2>Fitting window <span class="n">drag to move · R rotates · F flips · Del removes</span></h2>
       <div class="status info" id="status">Loading…</div>
       <div class="forgebar" id="forgebar" hidden><div class="fb-track"><div class="fb-fill" id="fb-fill"></div></div><div class="fb-text" id="fb-text">Forging…</div></div>
       <div class="gridwrap" id="grid"></div>
-      <div id="selbox" hidden><span id="sel-name"></span><span id="sel-detail"></span><button type="button" id="btn-rotate">Rotate</button><button type="button" id="btn-remove">Remove</button></div>
+      <div id="selbox" hidden><span id="sel-name"></span><span id="sel-detail"></span><button type="button" id="btn-rotate">Rotate</button><button type="button" id="btn-flip">Flip</button><button type="button" id="btn-remove">Remove</button></div>
       <div class="gridtools">
         <button type="button" id="btn-clear">Clean slate</button>
         <span class="zoom"><button type="button" id="zoom-out" aria-label="zoom out">−</button><span class="z" id="zoom-v">fit</span><button type="button" id="zoom-in" aria-label="zoom in">+</button><button type="button" id="zoom-fit">Fit</button></span>
@@ -253,7 +253,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 
 <script src="data.js?v=3abd91c2"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=953ea6bc"></script>
+<script src="app.js?v=aee8e946"></script>
 <script>
 (function () {
   var bf = document.getElementById("nav-forge"), bg = document.getElementById("nav-guide"), forge = document.getElementById("tab-forge"), guide = document.getElementById("tab-guide");

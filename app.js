@@ -240,15 +240,33 @@
     if (canPlace(s, cells, i)) { state.placements[i] = [p[0], s, p[2], cells]; markDirty(); render(); setStatus(`${p[0]} moved to the ${D.hulls[state.hull].sections[s].name} section.`, "ok"); }
     else { render(); setStatus(`${p[0]} does not fit there.`, "bad"); }
   }
+  // Turn the selected module to `rot` degrees, keeping its centre where it was; nudges up to 3 cells, nearest spot first.
+  function turnTo(i, rot) {
+    const p = state.placements[i], shape = rotShape(MOD[p[0]].cells, rot);
+    const cx = p[3].reduce((a, c) => a + c[0], 0) / p[3].length, cy = p[3].reduce((a, c) => a + c[1], 0) / p[3].length;
+    const sx = shape.reduce((a, c) => a + c[0], 0) / shape.length, sy = shape.reduce((a, c) => a + c[1], 0) / shape.length;
+    const bx = Math.round(cx - sx), by = Math.round(cy - sy);
+    const offs = []; for (let dx = -3; dx <= 3; dx++) for (let dy = -3; dy <= 3; dy++) offs.push([dx, dy]);
+    offs.sort((a, b) => (a[0] * a[0] + a[1] * a[1]) - (b[0] * b[0] + b[1] * b[1]));
+    for (const [dx, dy] of offs) {
+      const cells = shape.map(c => [c[0] + bx + dx, c[1] + by + dy]);
+      if (canPlace(p[1], cells, i)) { state.placements[i] = [p[0], p[1], rot, cells]; markDirty(); render(); return true; }
+    }
+    return false;
+  }
+  // R: the next quarter turn that fits (90, then 180, then 270), so a turn that is blocked never stops the next one.
   function rotateSelected() {
     const i = state.selected; if (i < 0) return; const p = state.placements[i];
-    const base = MOD[p[0]].cells; const rot = (p[2] + 90) % 360; const shape = rotShape(base, rot);
-    const minx = Math.min(...p[3].map(c => c[0])), miny = Math.min(...p[3].map(c => c[1]));
-    for (const [dx, dy] of [[0, 0], [-1, 0], [0, -1], [-1, -1], [1, 0], [0, 1]]) {
-      const cells = shape.map(c => [c[0] + minx + dx, c[1] + miny + dy]);
-      if (canPlace(p[1], cells, i)) { state.placements[i] = [p[0], p[1], rot, cells]; markDirty(); render(); return; }
+    for (const step of [90, 180, 270]) {
+      if (turnTo(i, (p[2] + step) % 360)) { setStatus(step === 90 ? `${p[0]} rotated.` : `${p[0]} turned ${step}° (the smaller turn does not fit here).`, step === 90 ? "ok" : "info"); return; }
     }
-    setStatus(`${p[0]} cannot rotate in place.`, "bad");
+    setStatus(`${p[0]} has no room to turn here; drag it somewhere roomier first.`, "bad");
+  }
+  // F: half a turn (upside down). The game rotates modules but never mirrors them (player, 2026-10-05), so this is the
+  // only "flip" a real fit can have.
+  function flipSelected() {
+    const i = state.selected; if (i < 0) return; const p = state.placements[i];
+    if (turnTo(i, (p[2] + 180) % 360)) setStatus(`${p[0]} flipped.`, "ok"); else setStatus(`${p[0]} has no room to flip here.`, "bad");
   }
   function removeSelected() { const i = state.selected; if (i < 0) return; const [l] = state.placements[i]; if (D.base_ship.never_removed[l] && counts(state.placements)[l] <= D.base_ship.never_removed[l]) { setStatus(`${l} cannot be removed (the game keeps it).`, "bad"); return; } state.placements.splice(i, 1); state.selected = -1; markDirty(); render(); }
   function select(i) { state.selected = i; renderGrid(); renderSelection(); }
@@ -537,8 +555,9 @@
       else if (b.dataset.subx) { state.exterior[b.dataset.subx] = Math.max(0, (state.exterior[b.dataset.subx] || 0) - 1); if (!state.exterior[b.dataset.subx]) delete state.exterior[b.dataset.subx]; markDirty(); render(); }
     });
     $("btn-rotate").addEventListener("click", rotateSelected);
+    $("btn-flip").addEventListener("click", flipSelected);
     $("btn-remove").addEventListener("click", removeSelected);
-    document.addEventListener("keydown", e => { if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return; if (e.key === "r" || e.key === "R") rotateSelected(); if (e.key === "Delete" || e.key === "Backspace") removeSelected(); });
+    document.addEventListener("keydown", e => { if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return; if (e.key === "r" || e.key === "R") rotateSelected(); if (e.key === "f" || e.key === "F") flipSelected(); if (e.key === "Delete" || e.key === "Backspace") removeSelected(); });
     ["hold", "cap", "fuel", "hp", "repair"].forEach(k => { const el = $("prio-" + k); el.value = state.prio[k]; el.addEventListener("input", () => { state.prio[k] = +el.value; $("prio-" + k + "-v").textContent = ["off", "low", "mid", "top"][+el.value]; }); $("prio-" + k + "-v").textContent = ["off", "low", "mid", "top"][state.prio[k]]; });
     $("min-caps").addEventListener("input", e => { state.minCaps = +e.target.value || 0; });
     $("btn-capstable").addEventListener("click", () => { const n = +$("cap-stable-n").textContent; state.minCaps = n; $("min-caps").value = n; setStatus(`Minimum Capacitors set to ${n}: estimated recharge covers everything firing at once.`, "ok"); });
