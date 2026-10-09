@@ -12,7 +12,7 @@
   const PRIO_OF = { "Cargo Container": "hold", "Emergency Container": "hold", "Capacitor": "cap", "Fuel Bay": "fuel", "Fuel Blister": "fuel", "Structural Brace": "hp", "Hull Repairer": "repair" };
   const $ = id => document.getElementById(id);
 
-  const state = { hull: "Reiver", name: "Untitled fit", placements: [], exterior: {}, selected: -1, zoom: 1, prio: { hold: 3, cap: 2, fuel: 0, hp: 0, repair: 0 }, minCaps: 0, fuelGrade: "EU-40", preset: null, dirty: false };
+  const state = { hull: "Reiver", name: "Untitled fit", placements: [], exterior: {}, selected: -1, zoom: 1, prio: { hold: 3, cap: 2, fuel: 0, hp: 0, repair: 0 }, minCaps: 0, fuelGrade: "Unstable", preset: null, dirty: false };
   let solver = null, solverReady = false, running = null, pendingResolve = null;
 
   // ---------- solver plumbing ----------
@@ -416,7 +416,7 @@
   }
 
   // ---------- actions ----------
-  async function addModule(name) {
+  async function addModule(name, quiet) {
     const cap = (D.base_ship.max_fit || {})[name];
     if (cap && (counts(state.placements)[name] || 0) >= cap) { setStatus(`${name}: the game allows at most ${cap} per ship.`, "bad"); return; }
     const grp = groupCap(name, counts(state.placements)); if (grp) { setStatus(grp, "bad"); return; }
@@ -424,8 +424,24 @@
     $("btn-forge").disabled = true; setStatus(`Fitting ${name}…`, "info"); progressStart(0, `Finding a spot for ${name}…`);
     const r = await solve({ type: "tryadd", placements: state.placements, add: [name], seconds: 6, seed: Date.now() & 0xffff }, "tryadd");
     $("btn-forge").disabled = false;
-    if (r.missing && r.missing.length) { setStatus(`No room for ${name}, even after rearranging.`, "bad"); return; }
-    state.placements = r.placements; markDirty(); render(); setStatus(`${name} fitted.`, "ok");
+    if (r.missing && r.missing.length) { if (!quiet) setStatus(`No room for ${name}, even after rearranging.`, "bad"); return false; }
+    state.placements = r.placements; markDirty(); render(); setStatus(`${name} fitted.`, "ok"); return true;
+  }
+  // ◀ ▶ on the stat tiles: each stat has the module that raises it, and a smaller one to try when that does not fit
+  const ADJ = { hold: ["Cargo Container", "Emergency Container"], fuel: ["Fuel Bay", "Fuel Blister"], cap: ["Capacitor"], hp: ["Structural Brace"] };
+  async function adjust(key, d) {
+    if (running || pool) return;
+    const mods = ADJ[key], c = counts(state.placements);
+    if (d > 0) {
+      for (let k = 0; k < mods.length; k++) { if (await addModule(mods[k], k < mods.length - 1)) return; }
+      setStatus(`No room for ${mods.join(" or ")}, even after rearranging.`, "bad"); return;
+    }
+    // less: the smaller module first (fine steps), never one the game keeps
+    for (const n of mods.slice().reverse()) {
+      const keep = D.base_ship.never_removed[n] || 0;
+      if ((c[n] || 0) > keep) { subModule(n); setStatus(`${n} removed.`, "ok"); return; }
+    }
+    setStatus(`Nothing left to remove: the game keeps the last ${mods[0]}.`, "info");
   }
   function subModule(name) {
     const idxs = state.placements.map((p, i) => p[0] === name ? i : -1).filter(i => i >= 0);
@@ -639,6 +655,7 @@
     $("btn-own").addEventListener("click", () => cleanSlate(false));
     $("preset-sel").addEventListener("change", e => { if (e.target.value) loadPreset(e.target.value); e.target.value = ""; });
     $("fit-name").addEventListener("input", e => { state.name = e.target.value; });
+    document.querySelector(".tiles").addEventListener("click", e => { const b = e.target.closest("button[data-adj]"); if (b) adjust(b.dataset.adj, +b.dataset.d); });
     $("palette").addEventListener("pointerdown", paletteDown);
     document.addEventListener("pointermove", paletteMove, { passive: false });
     document.addEventListener("pointerup", paletteUp);

@@ -105,7 +105,10 @@ body.pdragging, body.pdragging * { cursor: grabbing !important; }
 .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 12px; }
 .tile { background: var(--gold-soft); clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px); min-width: 0; }
 .tile .tin { margin: 1px; background: linear-gradient(var(--panel-top), var(--panel-bot)); clip-path: polygon(8.3px 0, 100% 0, 100% calc(100% - 8.3px), calc(100% - 8.3px) 100%, 0 100%, 0 8.3px); padding: 9px 11px 8px; border-top: 3px solid var(--red); min-height: 74px; }
-.tile .l { font: 700 10px var(--mono); letter-spacing: 3px; color: var(--gold); text-transform: uppercase; }
+.tile .l { font: 700 10px var(--mono); letter-spacing: 3px; color: var(--gold); text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+.tadj { margin-left: auto; display: flex; gap: 3px; }
+.tadj button { padding: 0 6px; min-width: 22px; height: 20px; font: 700 10px var(--mono); letter-spacing: 0; clip-path: none; border-color: var(--line-strong); line-height: 18px; }
+.tadj button:hover { color: var(--gold); border-color: var(--gold); }
 .tile .v { font: 800 22px/1.2 var(--display); color: var(--title); font-variant-numeric: tabular-nums; margin-top: 2px; }
 .tile .s { font: 11px var(--mono); color: var(--silver); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .3px; }
 .tile select { padding: 2px 4px; font: 600 14px var(--display); }
@@ -223,13 +226,13 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
       <h2>The ship</h2>
       <div class="tiles">
         <div class="tile"><div class="tin"><div class="l">Cells</div><div class="v" id="st-cells">—</div><div class="s" id="st-cells-sub"></div></div></div>
-        <div class="tile"><div class="tin"><div class="l">Hold m³</div><div class="v" id="st-hold">—</div><div class="s" id="st-hold-sub"></div></div></div>
-        <div class="tile"><div class="tin"><div class="l">Fuel</div><div class="v" id="st-fuel">—</div><div class="s" id="st-fuel-sub"></div></div></div>
-        <div class="tile"><div class="tin"><div class="l">Capacitor GJ</div><div class="v" id="st-cap">—</div><div class="s" id="st-cap-sub"></div></div></div>
-        <div class="tile"><div class="tin"><div class="l">Hull HP</div><div class="v" id="st-hp">—</div><div class="s" id="st-hp-sub"></div></div></div>
+        <div class="tile"><div class="tin"><div class="l"><span>Hold m³</span><span class="tadj"><button type="button" data-adj="hold" data-d="-1" aria-label="less Hold m³">◀</button><button type="button" data-adj="hold" data-d="1" aria-label="more Hold m³">▶</button></span></div><div class="v" id="st-hold">—</div><div class="s" id="st-hold-sub"></div></div></div>
+        <div class="tile"><div class="tin"><div class="l"><span>Fuel</span><span class="tadj"><button type="button" data-adj="fuel" data-d="-1" aria-label="less Fuel">◀</button><button type="button" data-adj="fuel" data-d="1" aria-label="more Fuel">▶</button></span></div><div class="v" id="st-fuel">—</div><div class="s" id="st-fuel-sub"></div></div></div>
+        <div class="tile"><div class="tin"><div class="l"><span>Capacitor GJ</span><span class="tadj"><button type="button" data-adj="cap" data-d="-1" aria-label="less Capacitor GJ">◀</button><button type="button" data-adj="cap" data-d="1" aria-label="more Capacitor GJ">▶</button></span></div><div class="v" id="st-cap">—</div><div class="s" id="st-cap-sub"></div></div></div>
+        <div class="tile"><div class="tin"><div class="l"><span>Hull HP</span><span class="tadj"><button type="button" data-adj="hp" data-d="-1" aria-label="less Hull HP">◀</button><button type="button" data-adj="hp" data-d="1" aria-label="more Hull HP">▶</button></span></div><div class="v" id="st-hp">—</div><div class="s" id="st-hp-sub"></div></div></div>
         <div class="tile"><div class="tin"><div class="l">Damage</div><div class="v" id="st-dps">—</div><div class="s" id="st-dps-sub"></div></div></div>
         <div class="tile"><div class="tin"><div class="l">Power</div><div class="v" id="st-power">—</div><div class="s" id="st-power-sub"></div></div></div>
-        <div class="tile"><div class="tin"><div class="l">Fuel grade</div><div class="v"><select id="fuel-sel" aria-label="Fuel grade"><option>EU-40</option><option>SOF-40</option><option>D1</option><option>D2</option><option>SOF-80</option><option>EU-90</option><option>Unstable</option></select></div><div class="s">for the burn estimate</div></div></div>
+        <div class="tile"><div class="tin"><div class="l">Fuel grade</div><div class="v"><select id="fuel-sel" aria-label="Fuel grade"><option>Unstable</option><option>D1</option><option>D2</option><option>EU-40</option><option>SOF-40</option><option>SOF-80</option><option>EU-90</option></select></div><div class="s">for the burn estimate</div></div></div>
       </div>
       <div class="note" style="padding:8px 12px 0;border-top:1px solid rgba(217,178,76,.25)">Checks: the game's own limits (the modules it never lets you remove, an engine, hardpoints, power) and the capacitor estimate.</div>
       <ul class="checks" id="checks" style="border-top:0"></ul>
@@ -261,7 +264,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 
 <script src="data.js?v=3abd91c2"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=4f3855f8"></script>
+<script src="app.js?v=891dedd0"></script>
 <script>
 (function () {
   var bf = document.getElementById("nav-forge"), bg = document.getElementById("nav-guide"), forge = document.getElementById("tab-forge"), guide = document.getElementById("tab-guide");
