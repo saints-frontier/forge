@@ -206,11 +206,11 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
     </section>
 
     <section class="pane mid" aria-label="Hull">
-      <h2>Fitting window <span class="n">drag in from the palette · drag off to remove · R rotates · F flips · Ctrl+Z undoes</span></h2>
+      <h2>Fitting window <span class="n">drag in from the palette · drag off to remove · R / E turn 90° · F 180° · Ctrl+Z undo</span></h2>
       <div class="status info" id="status">Loading…</div>
       <div class="forgebar" id="forgebar" hidden><div class="fb-track"><div class="fb-fill" id="fb-fill"></div></div><div class="fb-text" id="fb-text">Forging…</div></div>
       <div class="gridwrap" id="grid"></div>
-      <div id="selbox" hidden><span id="sel-name"></span><span id="sel-detail"></span><button type="button" id="btn-rotate">Rotate</button><button type="button" id="btn-flip">Flip</button><button type="button" id="btn-remove">Remove</button></div>
+      <div id="selbox" hidden><span id="sel-name"></span><span id="sel-detail"></span><button type="button" id="btn-ccw" title="Turn 90° counter-clockwise (E or Shift+R)">⟲ 90°</button><button type="button" id="btn-cw" title="Turn 90° clockwise (R)">⟳ 90°</button><button type="button" id="btn-180" title="Turn 180° (F)">⟳ 180°</button><button type="button" id="btn-remove">Remove</button></div>
       <div class="gridtools">
         <button type="button" id="btn-undo" title="Undo (Ctrl+Z)" disabled>↶ Undo</button><button type="button" id="btn-redo" title="Redo (Ctrl+Y)" disabled>Redo ↷</button>
         <button type="button" id="btn-clear">Clean slate</button>
@@ -261,7 +261,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 
 <script src="data.js?v=3abd91c2"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=5e7f2974"></script>
+<script src="app.js?v=4f3855f8"></script>
 <script>
 (function () {
   var bf = document.getElementById("nav-forge"), bg = document.getElementById("nav-guide"), forge = document.getElementById("tab-forge"), guide = document.getElementById("tab-guide");

@@ -324,20 +324,16 @@
     }
     return false;
   }
-  // R: the next quarter turn that fits (90, then 180, then 270), so a turn that is blocked never stops the next one.
-  function rotateSelected() {
-    const i = state.selected; if (i < 0) return; const p = state.placements[i];
-    for (const step of [90, 180, 270]) {
-      if (turnTo(i, (p[2] + step) % 360)) { setStatus(step === 90 ? `${p[0]} rotated.` : `${p[0]} turned ${step}° (the smaller turn does not fit here).`, step === 90 ? "ok" : "info"); return; }
-    }
-    setStatus(`${p[0]} has no room to turn here; drag it somewhere roomier first.`, "bad");
+  // Manual turns, each doing exactly what it says (the forge does the automatic fitting). rot counts the game's own
+  // steps: +90 is a quarter turn counter-clockwise on screen, +270 clockwise.
+  const TURNS = { cw: [270, "90° clockwise"], ccw: [90, "90° counter-clockwise"], half: [180, "180°"] };
+  function turnSelected(kind) {
+    const i = state.selected; if (i < 0) { setStatus("Select a module first (click it on the hull).", "info"); return; }
+    const p = state.placements[i], [step, label] = TURNS[kind];
+    if (turnTo(i, (p[2] + step) % 360)) setStatus(`${p[0]} turned ${label}.`, "ok");
+    else setStatus(`${p[0]}: no room to turn ${label} here. Try another turn, or drag it somewhere roomier.`, "bad");
   }
-  // F: half a turn (upside down). The game rotates modules but never mirrors them (player, 2026-10-05), so this is the
-  // only "flip" a real fit can have.
-  function flipSelected() {
-    const i = state.selected; if (i < 0) return; const p = state.placements[i];
-    if (turnTo(i, (p[2] + 180) % 360)) setStatus(`${p[0]} flipped.`, "ok"); else setStatus(`${p[0]} has no room to flip here.`, "bad");
-  }
+  function rotateSelected() { turnSelected("cw"); }
   function locked(l) { return D.base_ship.never_removed[l] && counts(state.placements)[l] <= D.base_ship.never_removed[l]; }
   function offWindow(ev) { const r = $("grid").getBoundingClientRect(); return ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom; }
   function removeAt(i) {
@@ -647,17 +643,18 @@
     document.addEventListener("pointermove", paletteMove, { passive: false });
     document.addEventListener("pointerup", paletteUp);
     document.addEventListener("pointercancel", paletteUp);
-    document.addEventListener("keydown", e => { if (pdrag && pdrag.shown && (e.key === "r" || e.key === "R")) { pdrag.rot = (pdrag.rot + 90) % 360; pdrag.ghost.remove(); pdrag.ghost = ghostFor(pdrag.name, pdrag.rot); e.stopImmediatePropagation(); } }, true);
+    document.addEventListener("keydown", e => { if (pdrag && pdrag.shown && (e.key === "r" || e.key === "R" || e.key === "e" || e.key === "E")) { pdrag.rot = (pdrag.rot + (e.key === "r" ? 270 : 90)) % 360; pdrag.ghost.remove(); pdrag.ghost = ghostFor(pdrag.name, pdrag.rot); e.stopImmediatePropagation(); } }, true);
     $("palette").addEventListener("click", e => {
       const b = e.target.closest("button"); if (!b) return;
       if (b.dataset.add) addModule(b.dataset.add); else if (b.dataset.sub) subModule(b.dataset.sub);
       else if (b.dataset.addx) { state.exterior[b.dataset.addx] = (state.exterior[b.dataset.addx] || 0) + 1; markDirty(); render(); }
       else if (b.dataset.subx) { state.exterior[b.dataset.subx] = Math.max(0, (state.exterior[b.dataset.subx] || 0) - 1); if (!state.exterior[b.dataset.subx]) delete state.exterior[b.dataset.subx]; markDirty(); render(); }
     });
-    $("btn-rotate").addEventListener("click", rotateSelected);
-    $("btn-flip").addEventListener("click", flipSelected);
+    $("btn-ccw").addEventListener("click", () => turnSelected("ccw"));
+    $("btn-cw").addEventListener("click", () => turnSelected("cw"));
+    $("btn-180").addEventListener("click", () => turnSelected("half"));
     $("btn-remove").addEventListener("click", removeSelected);
-    document.addEventListener("keydown", e => { if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return; if (e.key === "r" || e.key === "R") rotateSelected(); if (e.key === "f" || e.key === "F") flipSelected(); if (e.key === "Delete" || e.key === "Backspace") removeSelected(); });
+    document.addEventListener("keydown", e => { if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return; if (e.key === "r") turnSelected("cw"); if (e.key === "R" || e.key === "e" || e.key === "E") turnSelected("ccw"); if (e.key === "f" || e.key === "F") turnSelected("half"); if (e.key === "Delete" || e.key === "Backspace") removeSelected(); });
     document.addEventListener("keydown", e => {
       if (!(e.ctrlKey || e.metaKey) || e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
       const k = e.key.toLowerCase();
