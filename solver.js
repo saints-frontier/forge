@@ -217,7 +217,7 @@ function optimize(msg) {
     // a heartbeat even when nothing is accepted, so the page's re-pack count stays true when it terminates this Worker
     if (Date.now() - lastPost > 1000) { lastPost = Date.now(); emit({ type: "tick", iterations: it, value: curValue }); }
     it++;
-    const k = n === 1 || rnd() < 0.3 ? 1 : 2 + Math.floor(rnd() * Math.min(maxSections || 3, n) - 1 + 0.999);
+    const k = n === 1 || rnd() < 0.3 ? 1 : 2 + Math.floor(rnd() * (Math.min(maxSections || 3, n) - 1));   // 2 .. maxSections (audit 2026-10-09: the old formula gave 4)
     const chosen = new Set(); while (chosen.size < Math.min(k, n)) chosen.add(Math.floor(rnd() * n));
     const keep = cur.filter(p => !chosen.has(p[1])), gone = cur.filter(p => chosen.has(p[1]));
     const mandatory = gone.filter(p => !fillSet.has(p[0])).map(p => p[0]);

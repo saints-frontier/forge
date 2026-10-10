@@ -30,7 +30,7 @@
     const payload = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     try {
       if (solver && solver.terminate) solver.terminate();
-      solver = new Worker("solver.js?v=a819eb16");
+      solver = new Worker("solver.js?v=1e4cd82f");
       solver.onmessage = e => onSolver(e.data);
       solver.onerror = () => { solver = null; fallbackSolver(payload); };
       solver.postMessage(payload);
@@ -38,7 +38,7 @@
   }
   function fallbackSolver(payload) {
     if (!window.ForgeSolver || !window.ForgeSolver.post) {
-      const s = document.createElement("script"); s.src = "solver.js?v=a819eb16"; s.onload = () => fallbackSolver(payload); document.head.appendChild(s); return;
+      const s = document.createElement("script"); s.src = "solver.js?v=1e4cd82f"; s.onload = () => fallbackSolver(payload); document.head.appendChild(s); return;
     }
     window.ForgeSolver.onmessage = onSolver;
     solver = { postMessage: m => setTimeout(() => window.ForgeSolver.post(m), 0), terminate() {} };
@@ -56,6 +56,8 @@
     }
   }
   function solve(msg, kind) { return new Promise(res => { running = kind; pendingResolve = res; solver.postMessage(msg); }); }
+  // while the forge or a fit search runs, the fit belongs to the Workers: every edit waits (audit 2026-10-09)
+  function busy(quiet) { if (pool || running) { if (!quiet) setStatus(pool ? "The forge is running: press Stop first." : "Still fitting the last module…", "warn"); return true; } return false; }
 
   // ---------- the progress bar over the fitting window ----------
   let prog = null;                                           // { t0, secs, timer, iterations, gains } while the solver runs
@@ -241,6 +243,7 @@
     // grabbed (not the module's corner), so the piece lands where it looks. No cell under the pointer = snap back.
     el.addEventListener("pointerdown", ev => {
       const g = ev.target.closest("g.mod"); if (!g) { select(-1); return; }
+      if (busy()) return;
       const i = +g.dataset.i; const p = state.placements[i];
       const under = cellUnder(ev); const minx = Math.min(...p[3].map(c => c[0])), miny = Math.min(...p[3].map(c => c[1]));
       const dx = under && +under.dataset.s === p[1] ? +under.dataset.x - minx : 0, dy = under && +under.dataset.s === p[1] ? +under.dataset.y - miny : 0;
@@ -319,7 +322,7 @@
     else { const shape = rotShape(MOD[name].cells, pdrag.rot); for (const [cx, cy] of shape) { const r = document.querySelector(`#hull-svg rect.cell[data-s="${s}"][data-x="${cx + x}"][data-y="${cy + y}"]`); if (r) r.classList.add("hint-bad"); } }
   }
   function paletteDown(ev) {
-    const row = ev.target.closest(".prow[data-mod]"); if (!row || ev.target.closest("button")) return;
+    const row = ev.target.closest(".prow[data-mod]"); if (!row || ev.target.closest("button") || busy()) return;
     const name = row.dataset.mod; if (!MOD[name]) return;
     pdrag = { name, x0: ev.clientX, y0: ev.clientY, shown: false, ghost: null, spot: null, rot: 0, touch: ev.pointerType === "touch", t0: Date.now() };
     try { row.setPointerCapture(ev.pointerId); } catch (e) {}
@@ -378,6 +381,7 @@
   // steps: +90 is a quarter turn counter-clockwise on screen, +270 clockwise.
   const TURNS = { cw: [270, "90° clockwise"], ccw: [90, "90° counter-clockwise"], half: [180, "180°"] };
   function turnSelected(kind) {
+    if (busy()) return;
     const i = state.selected; if (i < 0) { setStatus("Select a module first (click it on the hull).", "info"); return; }
     const p = state.placements[i], [step, label] = TURNS[kind];
     if (turnTo(i, (p[2] + step) % 360)) setStatus(`${p[0]} turned ${label}.`, "ok");
@@ -391,7 +395,7 @@
     if (locked(l)) { setStatus(`${l} cannot be removed (the game keeps it).`, "bad"); render(); return; }
     state.placements.splice(i, 1); state.selected = -1; keepByHand(l); markDirty(); render(); setStatus(`${l} removed.`, "ok");
   }
-  function removeSelected() { if (state.selected >= 0) removeAt(state.selected); }
+  function removeSelected() { if (state.selected >= 0 && !busy()) removeAt(state.selected); }
   function select(i) { state.selected = i; renderGrid(); renderSelection(); }
   function renderSelection() {
     const i = state.selected; const box = $("selbox");
@@ -484,6 +488,7 @@
   function keepByHand(name) { if (name === "Capacitor") return capsByHand(); if (KEEP_IDS[name]) { state.mins[name] = counts(state.placements)[name] || 0; syncKeepInputs(); } }
   function capsByHand() { const n = counts(state.placements)["Capacitor"] || 0; if (n !== state.minCaps) { state.minCaps = n; $("min-caps").value = n; } }
   async function addModule(name, quiet) {
+    if (busy(quiet)) return false;
     const cap = (D.base_ship.max_fit || {})[name];
     if (cap && (counts(state.placements)[name] || 0) >= cap) { setStatus(`${name}: the game allows at most ${cap} per ship.`, "bad"); return; }
     const grp = groupCap(name, counts(state.placements)); if (grp) { setStatus(grp, "bad"); return; }
@@ -524,13 +529,15 @@
     setStatus(`Nothing left to remove: the game keeps the last ${mods[0]}.`, "info");
   }
   function subModule(name) {
+    if (busy()) return;
     const idxs = state.placements.map((p, i) => p[0] === name ? i : -1).filter(i => i >= 0);
     if (!idxs.length) return;
     if (D.base_ship.never_removed[name] && idxs.length <= D.base_ship.never_removed[name]) { setStatus(`${name} cannot be removed (the game keeps it).`, "bad"); return; }
-    state.placements.splice(idxs[idxs.length - 1], 1); state.selected = -1; keepByHand(name); markDirty(); render();
+    state.placements.splice(idxs[idxs.length - 1], 1); state.selected = -1; keepByHand(name); markDirty(); render(); setStatus(`${name} removed.`, "ok");
   }
   // A clean slate is never empty: the modules the game refuses to remove are fitted first.
   async function cleanSlate(keepExterior) {
+    if (busy()) return;
     state.placements = []; if (!keepExterior) state.exterior = {}; state.preset = null; state.selected = -1; state.name = "Forge your own";
     holdHistory = true; render(); holdHistory = false;
     if (!solverReady) await new Promise(r => { const t = setInterval(() => { if (solverReady) { clearInterval(t); r(); } }, 50); });
@@ -563,7 +570,7 @@
     const init = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     const consider = m => { if (m.value > P.best) { P.best = m.value; P.bestPl = m.placements; P.lastGain = Date.now(); P.gains++; state.placements = m.placements; render(); } };
     const spawn = i => {
-      let w; try { w = new Worker("solver.js?v=a819eb16"); } catch (e) { return null; }
+      let w; try { w = new Worker("solver.js?v=1e4cd82f"); } catch (e) { return null; }
       const launch = () => { P.wBest[i] = P.best; P.wLast[i] = Date.now(); P.restarting[i] = false;
         w.postMessage({ type: "optimize", placements: P.bestPl, fillers, values, keepMin, seconds: FORGE_MAX, seed: (Date.now() + i * 7919 + P.restarts * 104729) & 0xffff || i + 1, maxSections: 3 }); };
       w.onmessage = e => {
@@ -596,15 +603,14 @@
   }
   function forgeStop(P, reason) {
     if (P.stopping) return; P.stopping = true; P.reason = reason;
-    P.workers.forEach(w => w.postMessage({ type: "stop" }));
-    setTimeout(() => forgePolish(P), 2500);                  // a worker that never answers does not hold the page
+    forgePolish(P);                                          // terminate() is the only stop a busy Worker hears
   }
   // after the searches settle (not after a manual Stop): one worker re-packs every section exhaustively, then finish
   function forgePolish(P) {
     if (P.polishing || P.finished) return; P.polishing = true;
     clearInterval(P.timer); P.workers.forEach(w => w.terminate());
     if (P.reason === "stopped") { forgeFinish(P); return; }
-    let w; try { w = new Worker("solver.js?v=a819eb16"); } catch (e) { forgeFinish(P); return; }
+    let w; try { w = new Worker("solver.js?v=1e4cd82f"); } catch (e) { forgeFinish(P); return; }
     $("fb-fill").classList.add("busy"); $("fb-text").textContent = `Polishing · ${hold(P.bestPl)} m³…`;
     const t0 = Date.now(); P.polishWorker = w;
     w.onmessage = e => { const m = e.data;
@@ -648,7 +654,7 @@
     const prioOf = f => capStable && f === "Capacitor" ? 0.5 : state.prio[PRIO_OF[f]];      // 0.5: below rank 4, above empty
     const values = {}; fillers.forEach(f => values[f] = FILL_BASE[f] * Math.pow(1000, prioOf(f) - 1));
     const keepMin = {};
-    if (fillers.includes("Capacitor")) keepMin["Capacitor"] = Math.max(state.minCaps, D.base_ship.never_removed["Capacitor"] || 1);
+    if (fillers.includes("Capacitor")) keepMin["Capacitor"] = Math.max(state.minCaps, D.base_ship.never_removed["Capacitor"] || 1, capStable ? capsFor : 0);
     // every other filler keeps at least what the pilot placed by hand (the base ship's one Fuel Bay, Repairer ...)
     fillers.forEach(f => { if (f !== "Capacitor") keepMin[f] = Math.min(c[f] || 0, D.base_ship.always[f] || 0); });
     // and never below the pilot's own minimums (a filler whose priority is off is not traded at all)
@@ -665,7 +671,7 @@
 
   // ---------- presets, share, save ----------
   function loadPreset(n) {
-    const p = D.presets.find(x => x.n === +n); if (!p) return;
+    const p = D.presets.find(x => x.n === +n); if (!p || busy()) return;
     state.hull = p.hull; state.placements = p.placements.map(x => [x[0], x[1], x[2], x[3].map(c => [c[0], c[1]])]); state.exterior = Object.assign({}, p.exterior);
     state.name = docName(p); state.preset = p.n; state.selected = -1; state.dirty = false;
     state.minCaps = counts(state.placements)["Capacitor"] || 1; setMinsFromFit();
@@ -673,7 +679,7 @@
   }
   function encode() {
     const idx = {}; D.modules.forEach((m, i) => idx[m.name] = i);
-    const obj = { h: state.hull, n: state.name, p: state.placements.map(p => [idx[p[0]], p[1], p[2], Math.min(...p[3].map(c => c[0])), Math.min(...p[3].map(c => c[1]))]), e: state.exterior, r: state.prio, c: state.minCaps, k: state.mins, b: state.preset };
+    const obj = { h: state.hull, n: state.name, p: state.placements.map(p => [idx[p[0]], p[1], p[2], Math.min(...p[3].map(c => c[0])), Math.min(...p[3].map(c => c[1]))]), e: state.exterior, r: state.prio, c: state.minCaps, k: state.mins, b: state.preset, d: state.dirty ? 1 : 0 };
     const s = JSON.stringify(obj);
     return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   }
@@ -691,6 +697,8 @@
       state.hull = o.h; state.name = o.n || "Shared fit"; state.exterior = o.e || {}; state.prio = Object.assign(state.prio, o.r || {}); delete state.prio.repair; orderFromPrio(); renderOrder(); state.minCaps = o.c || 0; state.preset = o.b || null;
       state.placements = o.p.map(([mi, s, rot, x, y]) => { const m = D.modules[mi]; const shape = rotShape(m.cells, rot); return [m.name, s, rot, shape.map(c => [c[0] + x, c[1] + y])]; });
       if (o.k) { state.mins = Object.assign(zeroMins(), o.k); syncKeepInputs(); } else setMinsFromFit();
+      state.dirty = o.d != null ? !!o.d : (!!state.preset && !/^\+.+\+$/.test(state.name));   // old links: a named preset without the +marks+ was changed
+      if (!state.minCaps) { state.minCaps = counts(state.placements)["Capacitor"] || 1; syncKeepInputs(); }
       return true;
     } catch (e) { return false; }
   }
@@ -932,7 +940,7 @@
       $("card-save").addEventListener("click", saveCard);
       $("card-copy").addEventListener("click", copyCard);
     }
-    $("hull-sel").addEventListener("change", e => { state.hull = e.target.value; startSolver(); cleanSlate(false); });
+    $("hull-sel").addEventListener("change", e => { if (busy()) { e.target.value = state.hull; return; } state.hull = e.target.value; startSolver(); cleanSlate(false); });
     $("btn-own").addEventListener("click", () => cleanSlate(false));
     $("preset-sel").addEventListener("change", e => { if (e.target.value) loadPreset(e.target.value); e.target.value = ""; });
     $("fit-name").addEventListener("input", e => { state.name = e.target.value; });
@@ -977,7 +985,7 @@
     $("btn-share").addEventListener("click", shareLink);
     $("btn-discord").addEventListener("click", discordText);
     $("btn-save").addEventListener("click", saveFit);
-    $("saved-sel").addEventListener("change", e => { const x = savedFits()[+e.target.value]; if (x && decode(x.code)) { startSolver(); render(); setStatus(`Loaded "${x.name}".`, "ok"); } e.target.value = ""; });
+    $("saved-sel").addEventListener("change", e => { if (busy()) { e.target.value = ""; return; } const x = savedFits()[+e.target.value]; if (x && decode(x.code)) { startSolver(); render(); setStatus(`Loaded "${x.name}".`, "ok"); } e.target.value = ""; });
     $("btn-clear").addEventListener("click", () => cleanSlate(false));
     $("zoom-in").addEventListener("click", () => { state.zoom = Math.min(3, +(state.zoom * 1.25).toFixed(2)); fitZoom(); });
     $("zoom-out").addEventListener("click", () => { state.zoom = Math.max(0.4, +(state.zoom / 1.25).toFixed(2)); fitZoom(); });
