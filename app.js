@@ -194,6 +194,19 @@
   let drag = null;
   // The hull with a fit on it, like the game's fitting window. opts: id, selected, mark (Set of "s:x:y" cells to light),
   // numbers (true = module numbers). -> { svg, vw, vh }
+  // Where a module's number sits, in cell units from the section's corner: the module's centre of mass when a number
+  // drawn there stays on the module's own cells, else the nearest spot that does (a cell centre, the middle of two
+  // neighbouring cells or of a 2 x 2 block). An L, U or plus shape has its centre of mass on someone else's cell.
+  function numberSpot(cells) {
+    const own = new Set(cells.map(c => c.join(","))), has = (x, y) => own.has(Math.floor(x) + "," + Math.floor(y));
+    const fits = (x, y) => has(x - 0.49, y - 0.4) && has(x + 0.49, y - 0.4) && has(x - 0.49, y + 0.4) && has(x + 0.49, y + 0.4);
+    const mx = cells.reduce((a, c) => a + c[0], 0) / cells.length + 0.5, my = cells.reduce((a, c) => a + c[1], 0) / cells.length + 0.5;
+    if (fits(mx, my)) return [mx, my];
+    let best = null, bd = Infinity;
+    for (const [x, y] of cells) for (const [px, py] of [[x + 0.5, y + 0.5], [x + 1, y + 0.5], [x + 0.5, y + 1], [x + 1, y + 1]]) {
+      if (!fits(px, py)) continue; const d = (px - mx) ** 2 + (py - my) ** 2; if (d < bd - 1e-9) { bd = d; best = [px, py]; } }
+    return best || [cells[0][0] + 0.5, cells[0][1] + 0.5];
+  }
   function hullSvg(hullName, placements, opts) {
     opts = opts || {};
     const hull = D.hulls[hullName], ch = K && K.themes[hullName];
@@ -212,6 +225,7 @@
       sec.cells.forEach(([x, y]) => { svg += `<rect class="cell" data-s="${s}" data-x="${x}" data-y="${y}" x="${padX + sx + x * cell}" y="${padT + sy + y * cell}" width="${cell}" height="${cell}" fill="${th.cellbg}" stroke="${th.cellline}"/>`; });
       svg += `</g>`;
     });
+    const nums = [];
     placements.forEach((p, i) => {
       const [label, s, rot, cells] = p; const [sx, sy] = L.slots[s]; const m = MOD[label] || { color: "#888" };
       const set = new Set(cells.map(c => c.join(",")));
@@ -221,10 +235,11 @@
         [[x, y - 1, X, Y, X + cell, Y, "#fff", 0.35], [x, y + 1, X, Y + cell, X + cell, Y + cell, "#000", 0.45], [x - 1, y, X, Y, X, Y + cell, "#fff", 0.25], [x + 1, y, X + cell, Y, X + cell, Y + cell, "#000", 0.35]].forEach(([nx, ny, a, b, c2, d, colr, op]) => {
           if (set.has(nx + "," + ny)) return;
           svg += `<line x1="${a}" y1="${b}" x2="${c2}" y2="${d}" stroke="${th.ink}" stroke-width="2.4"/><line x1="${a}" y1="${b}" x2="${c2}" y2="${d}" stroke="${colr}" stroke-opacity="${op}" stroke-width="1"/>`; }); });
-      if (opts.numbers !== false) { const mx = cells.reduce((a, c) => a + c[0], 0) / cells.length, my = cells.reduce((a, c) => a + c[1], 0) / cells.length;
-        svg += `<text class="modnum" style="font-size:${lai ? 9 : 10}px" x="${padX + sx + (mx + 0.5) * cell}" y="${padT + sy + (my + 0.5) * cell + 3.5}">${i + 1}</text>`; }
+      if (opts.numbers !== false) { const [nx, ny] = numberSpot(cells), fs = +(cell * 0.82).toFixed(1);   // as large as two digits fit in one cell (Rajdhani 700: two digits = 1.19 em)
+        nums.push(`<text class="modnum" data-i="${i}" style="font-size:${fs}px" x="${(padX + sx + nx * cell).toFixed(1)}" y="${(padT + sy + ny * cell + fs * 0.34).toFixed(1)}">${i + 1}</text>`); }
       svg += `</g>`;
     });
+    if (nums.length) svg += `<g class="modnums" pointer-events="none">${nums.join("")}</g>`;   // above every module: a neighbour never covers a number
     if (opts.mark && opts.mark.size) {                 // cells that differ from the other fit, lit gold
       svg += `<g pointer-events="none">`;
       hull.sections.forEach((sec, s) => { const [sx, sy] = L.slots[s]; sec.cells.forEach(([x, y]) => { if (opts.mark.has(`${s}:${x}:${y}`)) svg += `<rect x="${padX + sx + x * cell + 1}" y="${padT + sy + y * cell + 1}" width="${cell - 2}" height="${cell - 2}" fill="none" stroke="#d9b24c" stroke-width="2"/>`; }); });
@@ -260,12 +275,15 @@
       const k = (+el.dataset.w) / el.getBoundingClientRect().width;               // screen px -> drawing units
       const g = el.querySelector(`g.mod[data-i="${drag.i}"]`);
       const off = offWindow(ev);
-      if (g) { g.setAttribute("transform", `translate(${((pt.x - drag.start.x) * k).toFixed(1)},${((pt.y - drag.start.y) * k).toFixed(1)})`); g.style.opacity = off ? "0.3" : "0.75"; g.style.pointerEvents = "none"; }
+      const t = el.querySelector(`text.modnum[data-i="${drag.i}"]`), tr = `translate(${((pt.x - drag.start.x) * k).toFixed(1)},${((pt.y - drag.start.y) * k).toFixed(1)})`;
+      if (g) { g.setAttribute("transform", tr); g.style.opacity = off ? "0.3" : "0.75"; g.style.pointerEvents = "none"; }
+      if (t) { t.setAttribute("transform", tr); t.style.opacity = off ? "0.3" : "0.75"; }
       if (off !== drag.off) { drag.off = off; const l = state.placements[drag.i][0]; setStatus(off ? (locked(l) ? `${l} cannot be removed (the game keeps it).` : `Release to remove ${l}.`) : "", off ? "warn" : "info"); }
     });
     const endDrag = ev => {
       if (!drag) return; const d = drag; drag = null;
       const g = el.querySelector(`g.mod[data-i="${d.i}"]`); if (g) { g.removeAttribute("transform"); g.style.opacity = ""; g.style.pointerEvents = ""; }
+      const t = el.querySelector(`text.modnum[data-i="${d.i}"]`); if (t) { t.removeAttribute("transform"); t.style.opacity = ""; }
       if (!d.moved || ev.type === "pointercancel") return;
       if (offWindow(ev)) { removeAt(d.i); return; }                // dragged off the fitting window = removed
       const cell = cellUnder(ev);
