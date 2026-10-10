@@ -306,6 +306,12 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .tribe-who { font: 600 11px var(--mono); letter-spacing: 1px; color: var(--gold); }
 .tribe-out { font: 11px var(--mono); color: var(--dim); text-decoration: none; } .tribe-out:hover { color: var(--red); }
 .tribe-note { font: 11px var(--mono); color: var(--dim); }
+.tribe-mbox { max-width: 760px; }
+.tribe-list { padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+.trow { display: grid; grid-template-columns: 1fr 2fr auto auto; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(217,178,76,.18); }
+.trow .tn { font: 700 13px var(--mono); color: var(--gold); letter-spacing: 1px; }
+.trow .th { font: 12px var(--body); color: var(--silver); min-width: 0; }
+@media (max-width: 640px) { .trow { grid-template-columns: 1fr auto auto; } .trow .th { grid-column: 1 / -1; } }
 .tribe-up { font: 600 10px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-soft); padding: 4px 7px; cursor: pointer; white-space: nowrap; } .tribe-up:hover { color: var(--title); border-color: var(--gold); }
 .tribe-msg { font: 11px var(--mono); color: var(--warn); }
 /* the beginner's guide: section cards with code-drawn art, bigger text */
@@ -643,5 +649,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=80944361"></script><script src="lodge-planner.js?v=17966a21"></script><script src="lodge-app.js?v=fb5f3ce2"></script><script src="tribe.js?v=a97d4183"></script>
+<script src="lodge-data.js?v=80944361"></script><script src="lodge-planner.js?v=17966a21"></script><script src="lodge-app.js?v=fb5f3ce2"></script><script src="tribe.js?v=db3221d1"></script>
 </body></html>
