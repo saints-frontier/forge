@@ -119,13 +119,14 @@
     for (const n in c) { const m = MOD[n]; if (!m) continue; const k = c[n];
       fuel += (m.fuel || 0) * k; cap += (m.cap || 0) * k; hp += (m.hp || 0) * k; repair += (m.repair || 0) * k; draw += (m.draw_mw || 0) * k;
       drain += (m.drain || 0) * k; trickle += (m.trickle || 0) * k; power += (m.power || 0) * k; payload += (m.payload || 0) * k; }
-    let dps = 0, dpsRamped = 0, mining = 0;
-    for (const n in ext) { const e = EXT[n]; if (!e) continue; const k = ext[n]; drain += (e.drain || 0) * k; dps += (e.dps || 0) * k; dpsRamped += (e.dps_ramped || e.dps || 0) * k; if (e.mining) mining += k; }
+    let dps = 0, dpsRamped = 0, mining = 0; const hits = [];     // hits: what one weapon lands per hit at full spool-up (the number the logs show)
+    for (const n in ext) { const e = EXT[n]; if (!e) continue; const k = ext[n]; drain += (e.drain || 0) * k; dps += (e.dps || 0) * k; dpsRamped += (e.dps_ramped || e.dps || 0) * k; if (e.mining) mining += k;
+      if (e.dps && e.cycle_s) hits.push({ name: n, k, perHit: Math.round((e.dps_ramped || e.dps) * e.cycle_s), cycle: e.cycle_s, ramps: !!e.dps_ramped }); }
     const nCaps = c["Capacitor"] || 0;
     const rech = recharge(nCaps, trickle);
     const factor = D.models.fuel.factor[state.fuelGrade];
     const burn = draw * 60 / factor;                         // units per minute
-    return { cells, total, free: total - cells, hold: hold(placements), fuel, cap, hp, repair, draw, power: power || D.models.power_mw, drain, rech, nCaps,
+    return { cells, total, free: total - cells, hold: hold(placements), fuel, cap, hp, repair, draw, power: power || D.models.power_mw, drain, rech, nCaps, hits,
              burn, hours: burn > 0 ? fuel / burn / 60 : Infinity, dps, dpsRamped, mining, payload, stable: rech >= drain, lastMin: drain > rech ? cap / (drain - rech) : Infinity };
   }
   function capsNeeded(drain, trickle) { const r = D.models.recharge; if (drain <= trickle) return 0; return Math.ceil(Math.pow((drain - trickle) / r.a, 1 / r.b)); }
@@ -428,7 +429,11 @@
     $("st-fuel").textContent = f(st.fuel); $("st-fuel-sub").textContent = st.burn > 0 ? `${st.burn.toFixed(2)}/min on ${state.fuelGrade} · ${isFinite(st.hours) ? st.hours.toFixed(1) + " h" : "—"}` : "—";
     $("st-cap").textContent = f(st.cap); $("st-cap-sub").textContent = `${st.rech.toFixed(1)} GJ/s est · ${st.drain.toFixed(1)} drain${st.stable ? " · stable" : " · " + (isFinite(st.lastMin) ? Math.round(st.lastMin) + " s" : "")}`;
     $("st-hp").textContent = `~${f(st.hp)}`; $("st-hp-sub").textContent = `${st.repair} HP/s repair`;
-    $("st-dps").textContent = st.dps ? f(st.dps) : (st.mining ? `${st.mining}×` : "—"); $("st-dps-sub").textContent = st.dps ? (st.dpsRamped > st.dps ? `${f(st.dpsRamped)} ramped` : "DPS") : (st.mining ? "mining lasers / extractors" : "no weapons");
+    // the big number is per second at full spool-up; the small line is per hit, as the combat log shows it
+    $("st-dps").textContent = st.dps ? f(Math.round(st.dpsRamped)) : (st.mining ? `${st.mining}×` : "—");
+    $("st-dps-sub").textContent = st.dps
+      ? (st.hits.map(h => `${h.k} × ${h.perHit} a hit every ${h.cycle} s`).join(" · ") + (st.dpsRamped > st.dps ? ` · ${f(st.dpsRamped)}/s spooled, ${f(st.dps)}/s cold` : " per second"))
+      : (st.mining ? "mining lasers / extractors" : "no weapons");
     $("st-power").textContent = `${st.draw.toFixed(1)} / ${st.power}`; $("st-power-sub").textContent = "MW";
     const ch = checks(st);
     $("checks").innerHTML = ch.map(([ok, t]) => `<li class="${ok ? "ok" : "bad"}"><span class="dot"></span>${t}</li>`).join("");
