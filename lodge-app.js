@@ -489,9 +489,9 @@
     const goals = [], skipped = [];
     for (const g of (p && p.goals) || []) {
       const item = ITEMS.find(i => i.toLowerCase() === String(g.item || "").trim().toLowerCase());
-      if (item && g.qty > 0) goals.push({ item, qty: Math.floor(g.qty) }); else skipped.push(`${g.qty}x ${g.item}`);
+      if (item && g.qty > 0) goals.push({ item, qty: Math.floor(g.qty) }); else if (!item) skipped.push(`${g.qty}x ${g.item}`);
     }
-    if (!goals.length) { toast("Nothing in that fit has a recipe here."); return false; }
+    if (!goals.length) { toast(skipped.length ? "Nothing in that fit has a recipe here." : "Nothing to build in that fit."); return false; }
     closePicker(); form.goals = goals; renderGoals(); persistForm(); goalHints();
     store.opts = currentOpts(); save(); build();
     toast(`${p.name ? p.name + ": " : ""}${goals.length} kinds of module to build.` + (skipped.length ? ` No recipe for ${skipped.join(", ")}: they come with the ship.` : ""));
@@ -502,7 +502,7 @@
   const fromLink = /^#build-([A-Za-z0-9_-]+)$/.exec(location.hash); let imported = false;
   if (fromLink) {
     try { imported = importGoals(JSON.parse(decodeURIComponent(escape(atob(fromLink[1].replace(/-/g, "+").replace(/_/g, "/")))))); } catch (e) { toast("That Forge link could not be read."); }
-    history.replaceState(null, "", location.pathname + location.search);
+    history.replaceState(null, "", (window.__siteGo ? "/lodge" : location.pathname) + location.search);   // on the site the Lodge keeps its own address
   }
   if (!imported && store.opts) {                       // saved goals must still be items this data knows
     store.opts.goals = (store.opts.goals || []).filter(g => ITEMS.includes(g.item) && g.qty > 0);

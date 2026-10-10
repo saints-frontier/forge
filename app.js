@@ -470,7 +470,8 @@
   function setStatus(text, tone) { const s = $("status"); s.textContent = text; s.className = "status " + (tone || ""); }
   // Doctrine fits are written +NAME+ (the Saints' mark). The moment one is changed it becomes a proposal and loses the
   // marks, so nobody mistakes a modified fit for the doctrine. Ships outside the doctrine would carry no marks (none at the moment).
-  function docName(p) { return p.doctrine ? "+" + p.name.toUpperCase() + "+" : p.name; }
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  function docName(p) { const n = String(p.name == null ? "" : p.name); return p.doctrine ? "+" + n.toUpperCase() + "+" : n; }
   function markDirty() {
     if (!state.dirty && /^\+.+\+$/.test(state.name)) { const base = D.presets.find(x => x.n === state.preset); state.name = (base ? base.name : state.name.replace(/\+/g, "")) + " proposal"; $("fit-name").value = state.name; }
     state.dirty = true;
@@ -672,6 +673,7 @@
   // ---------- presets, share, save ----------
   function loadPreset(n) {
     const p = D.presets.find(x => x.n === +n); if (!p || busy()) return;
+    if (!D.hulls[p.hull]) { setStatus(`${docName(p)}: unknown hull "${p.hull}".`, "bad"); return; }
     state.hull = p.hull; state.placements = p.placements.map(x => [x[0], x[1], x[2], x[3].map(c => [c[0], c[1]])]); state.exterior = Object.assign({}, p.exterior);
     state.name = docName(p); state.preset = p.n; state.selected = -1; state.dirty = false;
     state.minCaps = counts(state.placements)["Capacitor"] || 1; setMinsFromFit();
@@ -811,9 +813,9 @@
     names.forEach(n => { const d = (ca[n] || 0) - (cb[n] || 0); if (d) diff.push([d, n]); });
     const ea = A.exterior || {}, eb = B.exterior || {}; new Set([...Object.keys(ea), ...Object.keys(eb)]).forEach(n => { const d = (ea[n] || 0) - (eb[n] || 0); if (d) diff.push([d, n + " (exterior)"]); });
     diff.sort((x, y) => y[0] - x[0]);
-    $("cmp-body").innerHTML = `<div class="cmp-hulls"><div><div class="cmp-name">${A.name} <span>(this fit)</span></div>${hullSvg(A.hull, A.placements, { mark: markA, numbers: false }).svg}</div><div><div class="cmp-name">${B.name}</div>${hullSvg(B.hull, B.placements, { mark: markB, numbers: false }).svg}</div></div>` +
+    $("cmp-body").innerHTML = `<div class="cmp-hulls"><div><div class="cmp-name">${esc(A.name)} <span>(this fit)</span></div>${hullSvg(A.hull, A.placements, { mark: markA, numbers: false }).svg}</div><div><div class="cmp-name">${esc(B.name)}</div>${hullSvg(B.hull, B.placements, { mark: markB, numbers: false }).svg}</div></div>` +
       `<div class="note">${same ? `Gold outlines mark the cells that differ: ${markA.size} on this fit, ${markB.size} on the other.` : "Different hulls: no cell-by-cell diff."}</div>` +
-      `<table class="cmp-table"><tr><th></th><th>${A.name}</th><th>${B.name}</th><th>Δ</th></tr>` + rows.map(([l, a, b, d]) => { const dd = a - b; return `<tr><td>${l}</td><td>${f(a, d)}</td><td>${f(b, d)}</td><td class="${dd > 0 ? "up" : dd < 0 ? "down" : ""}">${dd > 0 ? "+" : ""}${f(dd, d)}</td></tr>`; }).join("") + `</table>` +
+      `<table class="cmp-table"><tr><th></th><th>${esc(A.name)}</th><th>${esc(B.name)}</th><th>Δ</th></tr>` + rows.map(([l, a, b, d]) => { const dd = a - b; return `<tr><td>${l}</td><td>${f(a, d)}</td><td>${f(b, d)}</td><td class="${dd > 0 ? "up" : dd < 0 ? "down" : ""}">${dd > 0 ? "+" : ""}${f(dd, d)}</td></tr>`; }).join("") + `</table>` +
       `<div class="cmp-diff"><b>Modules</b>: ${diff.length ? diff.map(([d, n]) => `<span class="${d > 0 ? "up" : "down"}">${d > 0 ? "+" : ""}${d} ${n}</span>`).join(", ") : "the same modules, placed differently"}.</div>`;
   }
   function openCompare() {
@@ -997,13 +999,22 @@
   if (/[?&]dev=1/.test(location.search)) window.__forge = { state, strip() { const keep = {}; state.placements = state.placements.filter(p => { if (!["Cargo Container", "Emergency Container", "Capacitor"].includes(p[0])) return true; keep[p[0]] = (keep[p[0]] || 0) + 1; return keep[p[0]] <= (D.base_ship.never_removed[p[0]] || 0); }); render(); }, hold: () => hold(state.placements), get pool() { return pool; }, last: null };
   function renderPresetSelect() {
     const sel = $("preset-sel"), cur = sel.value;
-    sel.innerHTML = `<option value="">${D.presets.some(p => p.doctrine) ? "Load a doctrine fit…" : "Load a fit…"}</option>` + D.presets.map(p => `<option value="${p.n}">${docName(p)} · ${p.hull} · ${p.role}</option>`).join("");
+    sel.innerHTML = `<option value="">${D.presets.some(p => p.doctrine) ? "Load a doctrine fit…" : "Load a fit…"}</option>` + D.presets.map(p => `<option value="${esc(p.n)}">${esc(docName(p))} · ${esc(p.hull)}${p.role ? " · " + esc(p.role) : ""}</option>`).join("");
     if (cur) sel.value = cur;
   }
   // the public site adds the doctrine fits here once a tribe member has logged in (tribe.js)
   // the fit on screen in the preset shape (tribe.js "Set as doctrine" writes it into the site's doctrine store)
   window.__forgeCurrentFit = () => ({ name: state.name, hull: state.hull, placements: state.placements.map(p => [p[0], p[1], p[2], p[3].map(c => [c[0], c[1]])]), exterior: Object.assign({}, state.exterior), preset: state.preset });
-  window.__forgeAddPresets = list => { for (const p of list || []) if (!D.presets.some(x => x.n === p.n)) D.presets.push(p); renderPresetSelect(); };
+  window.__forgeAddPresets = list => {
+    let next = D.presets.reduce((m, p) => Math.max(m, +p.n || 0), 100) + 1, added = 0;
+    for (const p of list || []) {
+      if (!p || typeof p.name !== "string" || !p.name.trim() || !D.hulls[p.hull] || !Array.isArray(p.placements)) continue;
+      if (D.presets.some(x => x.n === p.n || String(x.name).toLowerCase() === p.name.toLowerCase())) continue;
+      if (!Number.isInteger(p.n)) p.n = next++;
+      D.presets.push(p); added++;
+    }
+    renderPresetSelect(); return added;
+  };
   function boot() {
     renderPresetSelect();
     wire();

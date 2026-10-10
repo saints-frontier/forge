@@ -581,7 +581,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 </div>
 <script src="data.js?v=9fdcaf3d"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=a0d3f7f0"></script>
+<script src="app.js?v=4fb76b00"></script>
 <script>
 (function () {
   // pages and their own addresses: thesaintsforge.com/aboutus, /forge, /guide (Cloudflare serves the page at each,
@@ -607,13 +607,13 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
   window.addEventListener("resize", fitAbout);
 
   function fromUrl() {
+    var h = location.hash.slice(1);
+    if (pages[h]) return h;                             // an old #about / #forge / #guide link wins over the path
+    if (/^build-/.test(h)) return "lodge";              // a fit sent from the Forge to the Lodge
     if (usePaths) {
       var seg = location.pathname.split("/").filter(Boolean).pop() || "";
       for (var k in PATH) if (seg.toLowerCase() === PATH[k]) return k;
     }
-    var h = location.hash.slice(1);
-    if (pages[h]) return h;
-    if (/^build-/.test(h)) return "lodge";              // a fit sent from the Forge to the Lodge
     return h ? "forge" : "about";                       // any other hash is a proposal link; nothing = About us
   }
   function show(name) {
@@ -643,5 +643,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=80944361"></script><script src="lodge-planner.js?v=17966a21"></script><script src="lodge-app.js?v=d0ab06ba"></script><script src="tribe.js?v=6ed528f8"></script>
+<script src="lodge-data.js?v=80944361"></script><script src="lodge-planner.js?v=17966a21"></script><script src="lodge-app.js?v=fb5f3ce2"></script><script src="tribe.js?v=a97d4183"></script>
 </body></html>

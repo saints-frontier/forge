@@ -41,8 +41,12 @@
       var name = window.prompt("Doctrine name for this fit (an existing name replaces that fit):", base);
       if (!name || !name.trim()) return; name = name.trim();
       note("reading the doctrine…");
-      fetch("/api/doctrine", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-        if (!d || !d.presets) d = { presets: [] };
+      fetch("/api/doctrine", { credentials: "same-origin" }).then(function (r) {
+        if (r.ok) return r.json();
+        if (r.status === 503) return { presets: [] };                       // the store is empty: the first fit starts it
+        throw new Error("doctrine store answered " + r.status);          // anything else: do not write over what we could not read
+      }).then(function (d) {
+        if (!d || !Array.isArray(d.presets)) throw new Error("doctrine store returned no list");
         var i = -1; d.presets.forEach(function (p, k) { if (String(p.name).toLowerCase() === name.toLowerCase()) i = k; });
         var old = i >= 0 ? d.presets[i] : null;
         var role = old ? old.role : (window.prompt("Role, as shown in the Load fit list (e.g. Warship · Stealth and Ambush):", "") || "");
@@ -56,10 +60,13 @@
         return fetch("/api/doctrine", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })
           .then(function (r) { return r.json().then(function (x) { return { ok: r.ok, x: x }; }); })
           .then(function (res) { if (res.ok) { note(name + (old ? " replaced" : " added") + ": " + res.x.fits + " doctrine fits. Reloading…"); setTimeout(function () { location.reload(); }, 900); } else note("not saved: " + (res.x && res.x.error || "error")); });
-      }).catch(function () { note("could not reach the doctrine store"); });
+      }).catch(function (e) { note("not saved: " + (e && e.message || "could not reach the doctrine store")); });
     });
     return fetch("/api/doctrine", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-      if (d && d.presets && window.__forgeAddPresets) { window.__forgeAddPresets(d.presets); note(d.presets.length + " doctrine fits loaded"); }
+      if (d && d.presets && window.__forgeAddPresets) {
+        var n = 0; try { n = window.__forgeAddPresets(d.presets); } catch (e) { n = -1; }
+        note(n < 0 ? "the doctrine store holds a broken fit: upload a fresh export" : n + " doctrine fits loaded" + (n < d.presets.length ? " (" + (d.presets.length - n) + " skipped)" : ""));
+      }
       else if (!d) note(knight ? "doctrine store empty: set a fit as doctrine, or upload the export" : "doctrine store not ready");
     });
   }).catch(function () { loggedOut(""); });

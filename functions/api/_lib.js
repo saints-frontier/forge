@@ -8,13 +8,14 @@
 export const CLIENT_ID = "1558205368553705522";
 export const GUILD = "1358498942245142638";
 export const RANKS = ["Squire", "Saint", "Paladin", "Knight"];     // lowest to highest; the leader role carries "Knight"
-const SEVEN_DAYS = 7 * 24 * 3600 * 1000, ONE_DAY = 24 * 3600 * 1000;
+const SEVEN_DAYS = 7 * 24 * 3600 * 1000, ONE_DAY = 24 * 3600 * 1000, THIRTY_DAYS = 30 * ONE_DAY, GRACE = 3 * ONE_DAY;
 const enc = new TextEncoder(), dec = new TextDecoder();
 const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const unb64u = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
 
 async function key(env) {
-  const raw = await crypto.subtle.digest("SHA-256", enc.encode("saints-forge-session:" + (env.DISCORD_CLIENT_SECRET || "")));
+  if (!env.DISCORD_CLIENT_SECRET) throw new Error("DISCORD_CLIENT_SECRET is not set");   // never sign with a known key
+  const raw = await crypto.subtle.digest("SHA-256", enc.encode("saints-forge-session:" + env.DISCORD_CLIENT_SECRET));
   return crypto.subtle.importKey("raw", raw, { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
 }
 export async function sign(env, obj) {
@@ -33,7 +34,7 @@ export async function verify(env, token) {
 }
 export function getCookie(req, name) {
   const m = (req.headers.get("Cookie") || "").match(new RegExp("(?:^|;\\s*)" + name + "=([^;]*)"));
-  return m ? decodeURIComponent(m[1]) : null;
+  try { return m ? decodeURIComponent(m[1]) : null; } catch (e) { return null; }      // a malformed cookie is no cookie
 }
 export const setCookie = (name, value, maxAge) => `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
 export const clearSession = () => setCookie("sf_session", "", 0);
@@ -91,9 +92,11 @@ export const displayName = member => (member && (member.nick || (member.user && 
 export async function session(env, req) {
   const s = await verify(env, getCookie(req, "sf_session"));
   if (!s) return { s: null, cookies: [] };
+  if (s.iat && Date.now() - s.iat > THIRTY_DAYS) return { s: null, cookies: [clearSession()] };   // hard cap: log in again
   if (Date.now() - (s.chk || 0) < ONE_DAY) return { s, cookies: [] };
   const tok = s.rt ? await tokenExchange(env, { grant_type: "refresh_token", refresh_token: s.rt }) : null;
-  if (!tok) return { s: null, cookies: [clearSession()] };
+  // Discord unreachable or the token already rotated by a parallel request: keep a recently checked session for a while
+  if (!tok) return Date.now() - (s.chk || 0) < GRACE ? { s, cookies: [] } : { s: null, cookies: [clearSession()] };
   const member = await memberOf(tok.access_token);
   const rank = member ? rankOf(member, await allowedRoles(env)) : null;
   if (!rank) return { s: null, cookies: [clearSession()] };
@@ -103,5 +106,5 @@ export async function session(env, req) {
 /* who may replace the doctrine fits: Paladins, Knights (incl. the leader) and the Discord user ids listed in DOCTRINE_ADMINS */
 export const canUpload = (env, s) => !!s && (/knight|paladin/i.test(s.r || "") ||
   (env.DOCTRINE_ADMINS || "").split(",").map(x => x.trim()).filter(Boolean).includes(String(s.u || "")));
-export const newSession = (member, rank, tok) => ({ u: member.user && member.user.id, n: displayName(member), r: rank, rt: tok.refresh_token, chk: Date.now(), exp: Date.now() + SEVEN_DAYS });
+export const newSession = (member, rank, tok) => ({ u: member.user && member.user.id, n: displayName(member), r: rank, rt: tok.refresh_token, iat: Date.now(), chk: Date.now(), exp: Date.now() + SEVEN_DAYS });
 export const SESSION_SECONDS = SEVEN_DAYS / 1000;
