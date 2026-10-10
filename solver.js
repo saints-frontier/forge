@@ -63,7 +63,13 @@ function placementsOf(s, name) {
       if (bits.some(b => b === undefined)) continue;
       const mask = new Uint32Array(HULL.words);
       for (const b of bits) mask[b >>> 5] |= (1 << (b & 31)) >>> 0;
-      const p = { s, rot, cells, bits, mask, corner: Math.min(...bits) };
+      // neighbour cells of the placement, once per (cell, side) as waste() counts them: waste() then needs no string keys
+      const own = new Set(bits), nb = [];
+      for (const [x, y] of cells) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const b = idx.get(key(x + dx, y + dy));
+        if (b !== undefined && !own.has(b)) nb.push(b);
+      }
+      const p = { s, rot, cells, bits, mask, nb, corner: Math.min(...bits) };
       list.push(p);
       for (const b of bits) { if (!cover.has(b)) cover.set(b, []); cover.get(b).push(p); }
     }
@@ -82,12 +88,8 @@ function anyFree(f) { for (let w = 0; w < f.length; w++) if (f[w]) return true; 
 
 /* Waste of a placement = free cells touching it after it is taken (fewer = tighter). */
 function waste(s, p, free) {
-  const idx = HULL.index[s]; let w = 0;
-  const own = new Set(p.bits);
-  for (const [x, y] of p.cells) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-    const b = idx.get(key(x + dx, y + dy));
-    if (b !== undefined && !own.has(b) && ((free[b >>> 5] >>> (b & 31)) & 1)) w++;
-  }
+  let w = 0;
+  for (const b of p.nb) if ((free[b >>> 5] >>> (b & 31)) & 1) w++;
   return w;
 }
 
@@ -100,51 +102,59 @@ function pack(free0, mandatory, fillers, values, budget, rnd) {
   const steps = { n: 0 };
   // per-cell bound: best filler value density of any filler placement covering the cell
   const density = {}; for (const f of fillers) density[f] = values[f] / SHAPES[f][0][1].length;
-  const cellBound = active.map(() => new Map());
+  // cellBound[i][bit] = that density (0 = no filler fits there); covers[i][j] = cover map of fillers[j] in section active[i]
+  const cellBound = active.map(s => new Float64Array(HULL.cellList[s].length));
+  const covers = active.map(s => fillers.map(f => placementsOf(s, f).cover));
   for (let i = 0; i < active.length; i++) {
-    const s = active[i];
-    for (const f of fillers) {
-      const { cover } = placementsOf(s, f);
-      for (const [bit, lst] of cover) if (lst.some(p => fits(p.mask, free0[s]))) cellBound[i].set(bit, Math.max(cellBound[i].get(bit) || 0, density[f]));
+    const s = active[i], cb = cellBound[i];
+    for (let j = 0; j < fillers.length; j++) {
+      const d = density[fillers[j]];
+      for (const [bit, lst] of covers[i][j]) if (d > cb[bit] && lst.some(p => fits(p.mask, free0[s]))) cb[bit] = d;
     }
   }
   function bound(free) {
     let t = 0;
     for (let i = 0; i < active.length; i++) {
-      const s = active[i], f = free[s], cb = cellBound[i];
-      for (const [bit, d] of cb) if ((f[bit >>> 5] >>> (bit & 31)) & 1) t += d;
+      const f = free[active[i]], cb = cellBound[i];
+      for (let bit = 0; bit < cb.length; bit++) if (cb[bit] && ((f[bit >>> 5] >>> (bit & 31)) & 1)) t += cb[bit];
     }
     return t;
   }
   const best = { value: -1, placed: null };
-  function fillExact(free, placed, value) {
+  // bnd = bound(free), carried down the search: a placement or a skipped cell takes only its own cells' share off it
+  function fillExact(free, placed, value, bnd) {
     steps.n++;
     if (value > best.value) { best.value = value; best.placed = placed.slice(); }
     if (steps.n > budget) return;
-    let s = -1; for (const a of active) if (anyFree(free[a])) { s = a; break; }
-    if (s < 0) return;
-    if (value + bound(free) <= best.value) return;
-    const low = lowestBit(free[s]);
-    for (const f of fillers) {
-      const lst = placementsOf(s, f).cover.get(low);
+    let i = -1; for (let a = 0; a < active.length; a++) if (anyFree(free[active[a]])) { i = a; break; }
+    if (i < 0) return;
+    if (value + bnd <= best.value) return;
+    const s = active[i], fs = free[s], cb = cellBound[i];
+    const low = lowestBit(fs);
+    for (let j = 0; j < fillers.length; j++) {
+      const lst = covers[i][j].get(low);
       if (!lst) continue;
+      const f = fillers[j], v = value + values[f];
       for (const p of lst) {
-        if (!fits(p.mask, free[s])) continue;
-        take(free[s], p.mask); placed.push([f, s, p.rot, p.cells]);
-        fillExact(free, placed, value + values[f]);
-        placed.pop(); give(free[s], p.mask);
+        if (!fits(p.mask, fs)) continue;
+        let lost = 0; for (const b of p.bits) lost += cb[b];
+        take(fs, p.mask); placed.push([f, s, p.rot, p.cells]);
+        fillExact(free, placed, v, bnd - lost);
+        placed.pop(); give(fs, p.mask);
         if (steps.n > budget) return;
       }
     }
-    free[s][low >>> 5] = (free[s][low >>> 5] & ~((1 << (low & 31)) >>> 0)) >>> 0;
-    fillExact(free, placed, value);
-    free[s][low >>> 5] = (free[s][low >>> 5] | ((1 << (low & 31)) >>> 0)) >>> 0;
+    fs[low >>> 5] = (fs[low >>> 5] & ~((1 << (low & 31)) >>> 0)) >>> 0;
+    fillExact(free, placed, value, bnd - cb[low]);
+    fs[low >>> 5] = (fs[low >>> 5] | ((1 << (low & 31)) >>> 0)) >>> 0;
   }
   const bigFirst = mandatory.slice().sort((a, b) => SHAPES[b][0][1].length - SHAPES[a][0][1].length);
   let restart = 0;
   while (steps.n <= budget && !STOP) {
     restart++;
-    const order = restart === 1 ? bigFirst : mandatory.slice().sort((a, b) => (SHAPES[b][0][1].length - SHAPES[a][0][1].length) + (rnd() - 0.5) * 10);
+    // big first with noise. One random key per module, then a plain sort: a comparator that draws its own random numbers
+    // is not repeatable in V8 (the same seed gave different orders), so seeds never reproduced a run before 2026-10-09.
+    const order = restart === 1 ? bigFirst : mandatory.map(l => [l, SHAPES[l][0][1].length + (rnd() - 0.5) * 10]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
     const free = free0.map(f => Uint32Array.from(f));
     const placed = [];
     let ok = true;
@@ -163,8 +173,9 @@ function pack(free0, mandatory, fillers, values, budget, rnd) {
     }
     steps.n += 50;
     if (!ok) { if (restart > 20 && !best.placed) return null; continue; }
-    if (best.placed && bound(free) <= best.value) continue;
-    fillExact(free, placed, 0);
+    const bnd = bound(free);
+    if (best.placed && bnd <= best.value) continue;
+    fillExact(free, placed, 0, bnd);
   }
   return best.placed ? best : null;
 }
@@ -203,6 +214,8 @@ function optimize(msg) {
   const trace = [[0, curValue]];                     // [ms, value] at every strict gain: how fast the search converges
   const n = HULL.n;
   while (Date.now() - t0 < seconds * 1000 && !STOP) {
+    // a heartbeat even when nothing is accepted, so the page's re-pack count stays true when it terminates this Worker
+    if (Date.now() - lastPost > 1000) { lastPost = Date.now(); emit({ type: "tick", iterations: it, value: curValue }); }
     it++;
     const k = n === 1 || rnd() < 0.3 ? 1 : 2 + Math.floor(rnd() * Math.min(maxSections || 3, n) - 1 + 0.999);
     const chosen = new Set(); while (chosen.size < Math.min(k, n)) chosen.add(Math.floor(rnd() * n));

@@ -9,6 +9,7 @@
   // filler value per unit at weight 1: tuned so every filler has the same value per cell (6/cell); the weight (0-3)
   // then orders them lexicographically (x1000 per step), so "Hold 3, Capacitor 2" means hold first, then capacitors.
   const FILL_BASE = { "Cargo Container": 36, "Emergency Container": 25, "Capacitor": 12, "Fuel Bay": 60, "Fuel Blister": 30, "Structural Brace": 42 };
+  const PRIO_NAME = { hold: "hold", cap: "capacitor", fuel: "fuel", hp: "armour" };
   const PRIO_OF = { "Cargo Container": "hold", "Emergency Container": "hold", "Capacitor": "cap", "Fuel Bay": "fuel", "Fuel Blister": "fuel", "Structural Brace": "hp" };
   const $ = id => document.getElementById(id);
 
@@ -21,7 +22,7 @@
     const payload = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     try {
       if (solver && solver.terminate) solver.terminate();
-      solver = new Worker("solver.js?v=53b0c540");
+      solver = new Worker("solver.js?v=a819eb16");
       solver.onmessage = e => onSolver(e.data);
       solver.onerror = () => { solver = null; fallbackSolver(payload); };
       solver.postMessage(payload);
@@ -29,7 +30,7 @@
   }
   function fallbackSolver(payload) {
     if (!window.ForgeSolver || !window.ForgeSolver.post) {
-      const s = document.createElement("script"); s.src = "solver.js?v=53b0c540"; s.onload = () => fallbackSolver(payload); document.head.appendChild(s); return;
+      const s = document.createElement("script"); s.src = "solver.js?v=a819eb16"; s.onload = () => fallbackSolver(payload); document.head.appendChild(s); return;
     }
     window.ForgeSolver.onmessage = onSolver;
     solver = { postMessage: m => setTimeout(() => window.ForgeSolver.post(m), 0), terminate() {} };
@@ -480,6 +481,19 @@
     if (r.missing && r.missing.length) { if (!quiet) setStatus(`No room for ${name}, even after rearranging.`, "bad"); return false; }
     state.placements = r.placements; keepByHand(name); markDirty(); render(); setStatus(`${name} fitted.`, "ok"); return true;
   }
+  // Make me cap stable: fit the Capacitors the recharge model needs for the fitted drain, one at a time (rearranging
+  // when the hull is tight), and keep that many as the minimum so a later Forge never trades them away.
+  async function makeCapStable() {
+    if (running || pool) return;
+    const st = stats(), have = st.nCaps, need = capsNeeded(st.drain, (counts(state.placements)["Blackstart Cell"] || 0) * 0.3);
+    if (st.stable || need <= have) { state.minCaps = Math.max(state.minCaps, have); syncKeepInputs(); setStatus(`Already cap-stable with ${have} Capacitor${have === 1 ? "" : "s"} (${st.rech.toFixed(1)} GJ/s est ≥ ${st.drain.toFixed(1)} drain).`, "ok"); return; }
+    let added = 0;
+    for (let k = have; k < need; k++) { if (!(await addModule("Capacitor", true))) break; added++; }
+    const now = stats();
+    state.minCaps = now.nCaps; syncKeepInputs();         // addModule moved the minimum with each Capacitor; show it
+    if (now.stable) setStatus(`Cap-stable: ${added} Capacitor${added === 1 ? "" : "s"} added, ${now.nCaps} in all (${now.rech.toFixed(1)} GJ/s est ≥ ${now.drain.toFixed(1)} drain). Keeping ${now.nCaps} as the minimum.`, "ok");
+    else setStatus(`Room for only ${added} of the ${need - have} Capacitors needed. Remove something, or set Capacitor priority high and Forge with "Keep at least ${need}".`, "warn");
+  }
   // ◀ ▶ on the stat tiles: each stat has the module that raises it, and a smaller one to try when that does not fit
   const ADJ = { hold: ["Cargo Container", "Emergency Container"], fuel: ["Fuel Bay", "Fuel Blister"], cap: ["Capacitor"], hp: ["Structural Brace"] };
   async function adjust(key, d) {
@@ -532,12 +546,13 @@
     const init = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     const consider = m => { if (m.value > P.best) { P.best = m.value; P.bestPl = m.placements; P.lastGain = Date.now(); P.gains++; state.placements = m.placements; render(); } };
     const spawn = i => {
-      let w; try { w = new Worker("solver.js?v=53b0c540"); } catch (e) { return null; }
+      let w; try { w = new Worker("solver.js?v=a819eb16"); } catch (e) { return null; }
       const launch = () => { P.wBest[i] = P.best; P.wLast[i] = Date.now(); P.restarting[i] = false;
         w.postMessage({ type: "optimize", placements: P.bestPl, fillers, values, keepMin, seconds: FORGE_MAX, seed: (Date.now() + i * 7919 + P.restarts * 104729) & 0xffff || i + 1, maxSections: 3 }); };
       w.onmessage = e => {
         const m = e.data;
         if (m.type === "ready") launch();
+        else if (m.type === "tick") P.iters[i] = (P.itersBase[i] || 0) + m.iterations;
         else if (m.type === "progress") { P.iters[i] = (P.itersBase[i] || 0) + m.iterations; if (m.value > (P.wBest[i] || 0)) { P.wBest[i] = m.value; P.wLast[i] = Date.now(); } consider(m); }
         else if (m.type === "done") { P.iters[i] = (P.itersBase[i] || 0) + m.iterations; consider(m); if (++P.done >= P.workers.length) forgePolish(P); }
       };
@@ -571,7 +586,7 @@
     if (P.polishing || P.finished) return; P.polishing = true;
     clearInterval(P.timer); P.workers.forEach(w => w.terminate());
     if (P.reason === "stopped") { forgeFinish(P); return; }
-    let w; try { w = new Worker("solver.js?v=53b0c540"); } catch (e) { forgeFinish(P); return; }
+    let w; try { w = new Worker("solver.js?v=a819eb16"); } catch (e) { forgeFinish(P); return; }
     $("fb-fill").classList.add("busy"); $("fb-text").textContent = `Polishing · ${hold(P.bestPl)} m³…`;
     const t0 = Date.now(); P.polishWorker = w;
     w.onmessage = e => { const m = e.data;
@@ -592,7 +607,7 @@
     const extra = (P.restarts ? `, ${P.restarts} restarts from the best` : "") + (P.polishGains ? `, polish +${P.polishGains}` : "");
     if (window.__forge) window.__forge.last = { gains: P.gains, restarts: P.restarts, polishGains: P.polishGains || 0, secs, hold: hold(state.placements), reason: P.reason };
     progressDone(`Forged: ${P.gains} gains from ${P.workers.length} searches${extra}, ${its} re-packs in ${secs} s (${why}) · ${hold(state.placements)} m³ hold`);
-    $("btn-forge").textContent = "Forge for the role"; setStatus("", "info");
+    $("btn-forge").textContent = "Forge for the role"; if (!/^Cap-stable/.test($("status").textContent)) setStatus("", "info");
     shortOfMinimums(P.keepMin);
   }
   // a minimum above what the hull can hold (with the other minimums kept) is never reached: say so instead of staying quiet
@@ -604,17 +619,25 @@
     if (pool) { forgeStop(pool, "stopped"); return; }
     if (running) { solver.postMessage({ type: "stop" }); return; }
     if (!solverReady) { setStatus("Solver still loading…", "warn"); return; }
-    const fillers = FILLERS.filter(f => state.prio[PRIO_OF[f]] > 0);
-    if (!fillers.length) { setStatus("Set at least one priority above 0.", "bad"); return; }
-    const values = {}; fillers.forEach(f => values[f] = FILL_BASE[f] * Math.pow(1000, state.prio[PRIO_OF[f]] - 1));
     const c = counts(state.placements);
+    // Cap-stable rule (user 2026-10-09): once the estimated recharge covers the drain, no more Capacitors. They leave the
+    // filler set (so they stay exactly where they are) and the spare cells go to the other fillers by priority. Asking
+    // for more in "Keep at least" overrides it.
+    const capsNow = c["Capacitor"] || 0, capsFor = +$("cap-stable-n").textContent || 0;
+    const capStable = capsNow >= capsFor && state.minCaps <= capsNow;
+    const fillers = FILLERS.filter(f => state.prio[PRIO_OF[f]] > 0 && !(capStable && f === "Capacitor"));
+    if (!fillers.length) { setStatus(capStable ? "Cap-stable already: set a priority for hold, fuel or armour to use the spare cells." : "Set at least one priority above 0.", "bad"); return; }
+    const values = {}; fillers.forEach(f => values[f] = FILL_BASE[f] * Math.pow(1000, state.prio[PRIO_OF[f]] - 1));
     const keepMin = {};
-    keepMin["Capacitor"] = Math.max(state.minCaps, D.base_ship.never_removed["Capacitor"] || 1);
+    if (fillers.includes("Capacitor")) keepMin["Capacitor"] = Math.max(state.minCaps, D.base_ship.never_removed["Capacitor"] || 1);
     // every other filler keeps at least what the pilot placed by hand (the base ship's one Fuel Bay, Repairer ...)
     fillers.forEach(f => { if (f !== "Capacitor") keepMin[f] = Math.min(c[f] || 0, D.base_ship.always[f] || 0); });
     // and never below the pilot's own minimums (a filler whose priority is off is not traded at all)
     for (const n in KEEP_IDS) if (fillers.includes(n)) keepMin[n] = Math.max(keepMin[n] || 0, state.mins[n] || 0);
-    $("btn-forge").textContent = "Stop"; setStatus("", "info");
+    // the small fillers have no box: what is fitted stays (the forge may add them, never trade them away; remove by hand)
+    for (const n of ["Emergency Container", "Fuel Blister"]) if (fillers.includes(n)) keepMin[n] = Math.max(keepMin[n] || 0, c[n] || 0);
+    $("btn-forge").textContent = "Stop";
+    setStatus(capStable && state.prio.cap > 0 ? `Cap-stable at ${capsNow} Capacitors: none added. Spare cells go to ${[...new Set(fillers.map(f => PRIO_OF[f]))].sort((x, y) => state.prio[y] - state.prio[x]).map(k => PRIO_NAME[k]).join(", then ")}.` : "", "info");
     if (forgeParallel(fillers, values, keepMin)) return;
     // no Workers here (the in-page solver): one search, 60 s
     running = "optimize"; progressStart(60, "Forging");
@@ -921,6 +944,7 @@
     ["hold", "cap", "fuel", "hp"].forEach(k => { const el = $("prio-" + k); el.value = state.prio[k]; el.addEventListener("input", () => { state.prio[k] = +el.value; $("prio-" + k + "-v").textContent = ["off", "low", "mid", "top"][+el.value]; }); $("prio-" + k + "-v").textContent = ["off", "low", "mid", "top"][state.prio[k]]; });
     $("min-caps").addEventListener("input", e => { state.minCaps = +e.target.value || 0; });
     for (const n in KEEP_IDS) $(KEEP_IDS[n]).addEventListener("input", e => { state.mins[n] = Math.max(0, Math.floor(+e.target.value || 0)); });
+    $("btn-makestable").addEventListener("click", makeCapStable);
     $("btn-capstable").addEventListener("click", () => { const n = +$("cap-stable-n").textContent; state.minCaps = n; $("min-caps").value = n; setStatus(`Minimum Capacitors set to ${n}: estimated recharge covers everything firing at once.`, "ok"); });
     $("fuel-sel").addEventListener("change", e => { state.fuelGrade = e.target.value; renderStats(); });
     $("btn-forge").addEventListener("click", forge);
