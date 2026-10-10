@@ -792,7 +792,7 @@
     if (same) { const ma = cellMap(A.placements), mb = cellMap(B.placements); for (const [k, v] of ma) if (mb.get(k) !== v) markA.add(k); for (const [k, v] of mb) if (ma.get(k) !== v) markB.add(k); }
     const f = (n, d) => Number(n).toLocaleString("en-US", { maximumFractionDigits: d === undefined ? 0 : d });
     const rows = [["Cells used", sa.cells, sb.cells, 0], ["Hold m³", sa.hold, sb.hold, 0], ["Fuel", sa.fuel, sb.fuel, 0], ["Fuel hours (" + state.fuelGrade + ")", isFinite(sa.hours) ? sa.hours : 0, isFinite(sb.hours) ? sb.hours : 0, 1],
-                  ["Capacitor GJ", sa.cap, sb.cap, 0], ["Recharge GJ/s est", sa.rech, sb.rech, 1], ["Drain GJ/s", sa.drain, sb.drain, 1], ["Hull HP", sa.hp, sb.hp, 0], ["Repair HP/s", sa.repair, sb.repair, 0], ["Damage", sa.dps, sb.dps, 0], ["Power MW", sa.draw, sb.draw, 1]];
+                  ["Capacitor GJ", sa.cap, sb.cap, 0], ["Recharge GJ/s est", sa.rech, sb.rech, 1], ["Drain GJ/s", sa.drain, sb.drain, 1], ["Hull HP", sa.hp, sb.hp, 0], ["Repair HP/s", sa.repair, sb.repair, 0], ["DPS spooled", sa.dpsRamped, sb.dpsRamped, 0], ["Power MW", sa.draw, sb.draw, 1]];
     const ca = counts(A.placements), cb = counts(B.placements); const names = new Set([...Object.keys(ca), ...Object.keys(cb)]); const diff = [];
     names.forEach(n => { const d = (ca[n] || 0) - (cb[n] || 0); if (d) diff.push([d, n]); });
     const ea = A.exterior || {}, eb = B.exterior || {}; new Set([...Object.keys(ea), ...Object.keys(eb)]).forEach(n => { const d = (ea[n] || 0) - (eb[n] || 0); if (d) diff.push([d, n + " (exterior)"]); });
