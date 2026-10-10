@@ -626,6 +626,10 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     document.documentElement.classList.remove("boot-about");
     for (var k in pages) { var p = el(pages[k]); if (p) p.hidden = k !== name; var b = el("nav-" + k); if (b) b.classList.toggle("on", k === name); }
     document.body.classList.toggle("guide-on", name === "guide"); document.body.classList.toggle("about-on", name === "about"); document.body.classList.toggle("lodge-on", name === "lodge");
+    // Brave/Chromium can leave a stale tile of a hidden page (a guide slab's noise texture) painted over the new page
+    // (seen after Guide -> Forge, user 2026-10-09): give body a compositing layer for one frame so everything repaints
+    document.body.style.willChange = "transform";
+    requestAnimationFrame(function () { requestAnimationFrame(function () { document.body.style.willChange = ""; }); });
     document.title = TITLE[name];
     if (name === "forge") window.dispatchEvent(new Event("resize"));
     window.scrollTo(0, 0);
