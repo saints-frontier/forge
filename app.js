@@ -987,6 +987,8 @@
     if (cur) sel.value = cur;
   }
   // the public site adds the doctrine fits here once a tribe member has logged in (tribe.js)
+  // the fit on screen in the preset shape (tribe.js "Set as doctrine" writes it into the site's doctrine store)
+  window.__forgeCurrentFit = () => ({ name: state.name, hull: state.hull, placements: state.placements.map(p => [p[0], p[1], p[2], p[3].map(c => [c[0], c[1]])]), exterior: Object.assign({}, state.exterior), preset: state.preset });
   window.__forgeAddPresets = list => { for (const p of list || []) if (!D.presets.some(x => x.n === p.n)) D.presets.push(p); renderPresetSelect(); };
   function boot() {
     renderPresetSelect();
