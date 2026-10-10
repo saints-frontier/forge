@@ -545,7 +545,11 @@
   // Bench 2026-10-09 (27 runs, 9 fits x 3 seeds, 180 s): a single search reached only 92-99 % of the best found in 3 min,
   // while the best of three seeds in parallel was at 98.5-100 % within ~45 s; a stop after 30 s without a gain landed at
   // 95-100 % (mean ~99 %). Different seeds land in different layouts, so more searches beat more time.
-  const FORGE_IDLE = 30, FORGE_MAX = 180, RESTART_AFTER = 15, POLISH_SECS = 12;
+  // The forge runs until Stop (user 2026-10-09: "it should be doing it forever, with a clear message that nothing better
+  // was generated for the last N seconds, and an easy button to stop"). SETTLED_HINT: after this long without a gain the
+  // bar turns gold and says so. FORGE_MAX is only the Workers' own budget (10 h), never reached in practice.
+  const SETTLED_HINT = 300, FORGE_MAX = 36000, RESTART_AFTER = 15, POLISH_SECS = 12;
+  const fmtSecs = s => s >= 60 ? `${Math.floor(s / 60)}m ${String(Math.floor(s % 60)).padStart(2, "0")}s` : `${Math.floor(s)}s`;
   let pool = null;
   // one search per logical thread but one (the page keeps one for itself); a 10-core / 20-thread CPU runs 19. Capped at 32
   // so a big workstation does not open hundreds of Workers. (Was min(8, cores - 1) until 2026-10-09.)
@@ -580,9 +584,10 @@
     P.timer = setInterval(() => {
       const now = Date.now(), idle = (now - P.lastGain) / 1000, el = (now - P.t0) / 1000;
       const holdNow = hold(P.bestPl), its = P.iters.reduce((a, b) => a + (b || 0), 0);
-      $("fb-fill").style.width = Math.min(100, idle / FORGE_IDLE * 100).toFixed(1) + "%";
-      $("fb-text").textContent = `Forging · ${P.workers.length} searches · ${el.toFixed(0)} s · ${its} re-packs · ${holdNow} m³ · ${P.gains ? "last gain " + idle.toFixed(0) + " s ago" : "no gain yet"}`;
-      if (!P.stopping && (idle >= FORGE_IDLE || el >= FORGE_MAX)) forgeStop(P, idle >= FORGE_IDLE ? "settled" : "time");
+      const settled = idle >= SETTLED_HINT;
+      $("fb-fill").style.width = Math.min(100, idle / SETTLED_HINT * 100).toFixed(1) + "%"; $("fb-fill").classList.toggle("done", settled);
+      $("fb-text").textContent = `Forging · ${P.workers.length} searches · ${fmtSecs(el)} · ${its.toLocaleString("en-US")} re-packs · ${holdNow} m³ · `
+        + (P.gains ? `nothing better for ${fmtSecs(idle)}` : `no gain yet (${fmtSecs(idle)})`) + (settled ? " · press Stop to keep this fit" : "");
       // searches share their best: one that has gained nothing for a while, while the pool holds better, restarts from it
       if (!P.stopping) P.workers.forEach((w, i) => { if (!P.restarting[i] && P.wLast[i] && (now - P.wLast[i]) / 1000 >= RESTART_AFTER && (P.wBest[i] || 0) < P.best) P.restart(i); });
     }, 250);
@@ -616,10 +621,10 @@
     clearInterval(P.timer); P.workers.forEach(w => w.terminate()); if (P.polishWorker) P.polishWorker.terminate(); if (pool === P) pool = null;
     state.placements = P.bestPl; if (P.gains) markDirty(); render();
     const secs = ((Date.now() - P.t0) / 1000).toFixed(0), its = P.iters.reduce((a, b) => a + (b || 0), 0);
-    const why = P.reason === "settled" ? `nothing better for ${FORGE_IDLE} s` : P.reason === "time" ? "3 min limit" : "stopped";
+    const why = `stopped after ${fmtSecs(secs)}, nothing better for the last ${fmtSecs((Date.now() - P.lastGain) / 1000)}`;
     const extra = (P.restarts ? `, ${P.restarts} restarts from the best` : "") + (P.polishGains ? `, polish +${P.polishGains}` : "");
     if (window.__forge) window.__forge.last = { gains: P.gains, restarts: P.restarts, polishGains: P.polishGains || 0, secs, hold: hold(state.placements), reason: P.reason };
-    progressDone(`Forged: ${P.gains} gains from ${P.workers.length} searches${extra}, ${its} re-packs in ${secs} s (${why}) · ${hold(state.placements)} m³ hold`);
+    progressDone(`Forged: ${P.gains} gains from ${P.workers.length} searches${extra}, ${its.toLocaleString("en-US")} re-packs · ${why} · ${hold(state.placements)} m³ hold`);
     $("btn-forge").textContent = "Forge for the role"; if (!/^Cap-stable/.test($("status").textContent)) setStatus("", "info");
     shortOfMinimums(P.keepMin);
   }

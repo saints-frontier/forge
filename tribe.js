@@ -22,7 +22,7 @@
                 + '<label class="tribe-up" title="Replace every doctrine fit with an exported doctrine-payload.json">upload file<input type="file" accept="application/json,.json" hidden></label>' : "")
       + '<a class="tribe-out" href="/api/logout">log out</a>';
     var who = box.querySelector(".tribe-who");
-    function note(t) { var n = box.querySelector(".tribe-note"); if (!n) { n = document.createElement("span"); n.className = "tribe-note"; who.after(n); } n.textContent = " · " + t; }
+    function note(t) { var n = box.querySelector(".tribe-note"); if (!n) { n = document.createElement("span"); n.className = "tribe-note"; who.after(n); } n.textContent = t ? " · " + t : ""; }
     if (knight) box.querySelector(".tribe-up input").addEventListener("change", function (e) {
       var f = e.target.files && e.target.files[0]; if (!f) return;
       note("uploading " + f.name + "…");

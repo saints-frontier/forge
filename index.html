@@ -544,7 +544,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
         </div>
         <div class="row"><button type="button" id="btn-capstable" title="Set Keep at least to the Capacitors the recharge model needs">cap-stable: <span id="cap-stable-n">—</span></button><button type="button" id="btn-makestable" title="Fit the Capacitors the recharge model needs right now, rearranging if the hull is tight, and keep them as the minimum">Make me cap stable</button></div>
         <div class="row"><button type="button" class="primary" id="btn-forge">Forge for the role</button></div>
-        <div class="note">Runs several searches at once and stops by itself when nothing better has turned up for 30 seconds (3 minutes at most). Stop any time; the best fit found so far stays.</div>
+        <div class="note">Runs several searches at once, for as long as you let it. The line under the bar says how long it has been since anything better turned up; after five minutes without a gain the bar turns gold. Press Stop whenever you are satisfied: the best fit found stays on screen, ready to save or share.</div>
       </div>
 
       <div class="share">
@@ -581,7 +581,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 </div>
 <script src="data.js?v=9fdcaf3d"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=10f07515"></script>
+<script src="app.js?v=d1ebc036"></script>
 <script>
 (function () {
   // pages and their own addresses: thesaintsforge.com/aboutus, /forge, /guide (Cloudflare serves the page at each,
@@ -643,5 +643,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=80944361"></script><script src="lodge-planner.js?v=17966a21"></script><script src="lodge-app.js?v=d0ab06ba"></script><script src="tribe.js?v=41cc99ea"></script>
+<script src="lodge-data.js?v=80944361"></script><script src="lodge-planner.js?v=17966a21"></script><script src="lodge-app.js?v=d0ab06ba"></script><script src="tribe.js?v=6ed528f8"></script>
 </body></html>
