@@ -638,14 +638,15 @@
     if (running) { solver.postMessage({ type: "stop" }); return; }
     if (!solverReady) { setStatus("Solver still loading…", "warn"); return; }
     const c = counts(state.placements);
-    // Cap-stable rule (user 2026-10-09): once the estimated recharge covers the drain, no more Capacitors. They leave the
-    // filler set (so they stay exactly where they are) and the spare cells go to the other fillers by priority. Asking
-    // for more in "Keep at least" overrides it.
+    // Cap-stable rule (user 2026-10-09): once the estimated recharge covers the drain, Capacitors drop to the bottom of
+    // the order, below every ticked row, wherever the pilot ranked them: the spare cells go to the other fillers first,
+    // and Capacitors (the only 2-cell piece) fill what nothing else fits. Asking for more in "Keep at least" overrides it.
     const capsNow = c["Capacitor"] || 0, capsFor = +$("cap-stable-n").textContent || 0;
-    const capStable = capsNow >= capsFor && state.minCaps <= capsNow;
-    const fillers = FILLERS.filter(f => state.prio[PRIO_OF[f]] > 0 && !(capStable && f === "Capacitor"));
-    if (!fillers.length) { setStatus(capStable ? "Cap-stable already: set a priority for hold, fuel or armour to use the spare cells." : "Set at least one priority above 0.", "bad"); return; }
-    const values = {}; fillers.forEach(f => values[f] = FILL_BASE[f] * Math.pow(1000, state.prio[PRIO_OF[f]] - 1));
+    const capStable = capsNow >= capsFor && state.minCaps <= capsNow && state.prio.cap > 0;
+    const fillers = FILLERS.filter(f => state.prio[PRIO_OF[f]] > 0);
+    if (!fillers.length) { setStatus("Tick at least one priority.", "bad"); return; }
+    const prioOf = f => capStable && f === "Capacitor" ? 0.5 : state.prio[PRIO_OF[f]];      // 0.5: below rank 4, above empty
+    const values = {}; fillers.forEach(f => values[f] = FILL_BASE[f] * Math.pow(1000, prioOf(f) - 1));
     const keepMin = {};
     if (fillers.includes("Capacitor")) keepMin["Capacitor"] = Math.max(state.minCaps, D.base_ship.never_removed["Capacitor"] || 1);
     // every other filler keeps at least what the pilot placed by hand (the base ship's one Fuel Bay, Repairer ...)
@@ -655,7 +656,7 @@
     // the small fillers have no box: what is fitted stays (the forge may add them, never trade them away; remove by hand)
     for (const n of ["Emergency Container", "Fuel Blister"]) if (fillers.includes(n)) keepMin[n] = Math.max(keepMin[n] || 0, c[n] || 0);
     $("btn-forge").textContent = "Stop";
-    setStatus(capStable && state.prio.cap > 0 ? `Cap-stable at ${capsNow} Capacitors: none added. Spare cells go to ${[...new Set(fillers.map(f => PRIO_OF[f]))].sort((x, y) => state.prio[y] - state.prio[x]).map(k => PRIO_NAME[k]).join(", then ")}.` : "", "info");
+    setStatus(capStable ? `Cap-stable at ${capsNow} Capacitors: they come last. Spare cells go to ${[...new Set(fillers.map(f => PRIO_OF[f]))].filter(k => k !== "cap").sort((x, y) => state.prio[y] - state.prio[x]).map(k => PRIO_NAME[k]).join(", then ")}, then Capacitors fill what nothing else fits.` : "", "info");
     if (forgeParallel(fillers, values, keepMin)) return;
     // no Workers here (the in-page solver): one search, 60 s
     running = "optimize"; progressStart(60, "Forging");
