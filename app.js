@@ -10,10 +10,18 @@
   // then orders them lexicographically (x1000 per step), so "Hold 3, Capacitor 2" means hold first, then capacitors.
   const FILL_BASE = { "Cargo Container": 36, "Emergency Container": 25, "Capacitor": 12, "Fuel Bay": 60, "Fuel Blister": 30, "Structural Brace": 42 };
   const PRIO_NAME = { hold: "hold", cap: "capacitor", fuel: "fuel", hp: "armour" };
+  const PRIO_LABEL = { hold: "Hold", cap: "Capacitor", fuel: "Fuel", hp: "Armour" };
+  // the ranked list: state.order is the pilot's order, state.prio[k] = 4 - rank (0 = off) so first beats second
+  function prioFromOrder() { let r = 0; for (const k of state.order) state.prio[k] = state.prio[k] > 0 || state.prio[k] === undefined ? 4 - r++ : 0; }
+  function orderFromPrio() { state.order = ["hold", "cap", "fuel", "hp"].sort((x, y) => (state.prio[y] || 0) - (state.prio[x] || 0) || state.order.indexOf(x) - state.order.indexOf(y)); prioFromOrder(); }
+  function renderOrder() {
+    const box = $("order"); if (!box) return; let rank = 0;
+    box.innerHTML = state.order.map(k => { const on = state.prio[k] > 0; return `<div class="orow${on ? "" : " off"}"><span class="rank">${on ? ++rank : "–"}</span><label><input type="checkbox" data-on="${k}"${on ? " checked" : ""}> ${PRIO_LABEL[k]}</label><button type="button" class="pbtn" data-up="${k}" aria-label="move ${PRIO_LABEL[k]} up">▲</button><button type="button" class="pbtn" data-down="${k}" aria-label="move ${PRIO_LABEL[k]} down">▼</button></div>`; }).join("");
+  }
   const PRIO_OF = { "Cargo Container": "hold", "Emergency Container": "hold", "Capacitor": "cap", "Fuel Bay": "fuel", "Fuel Blister": "fuel", "Structural Brace": "hp" };
   const $ = id => document.getElementById(id);
 
-  const state = { hull: "Reiver", name: "Untitled fit", placements: [], exterior: {}, selected: -1, zoom: 1, prio: { hold: 3, cap: 2, fuel: 0, hp: 0 }, minCaps: 0, mins: { "Cargo Container": 0, "Fuel Bay": 0, "Structural Brace": 0 }, fuelGrade: "Unstable", preset: null, dirty: false };
+  const state = { hull: "Reiver", name: "Untitled fit", placements: [], exterior: {}, selected: -1, zoom: 1, prio: { hold: 4, cap: 3, fuel: 0, hp: 0 }, order: ["hold", "cap", "fuel", "hp"], minCaps: 0, mins: { "Cargo Container": 0, "Fuel Bay": 0, "Structural Brace": 0 }, fuelGrade: "Unstable", preset: null, dirty: false };
   let solver = null, solverReady = false, running = null, pendingResolve = null;
 
   // ---------- solver plumbing ----------
@@ -669,7 +677,7 @@
     try {
       const s = decodeURIComponent(escape(atob(h.replace(/-/g, "+").replace(/_/g, "/"))));
       const o = JSON.parse(s); if (!o.h || !D.hulls[o.h]) return false;
-      state.hull = o.h; state.name = o.n || "Shared fit"; state.exterior = o.e || {}; state.prio = Object.assign(state.prio, o.r || {}); delete state.prio.repair; state.minCaps = o.c || 0; state.preset = o.b || null;
+      state.hull = o.h; state.name = o.n || "Shared fit"; state.exterior = o.e || {}; state.prio = Object.assign(state.prio, o.r || {}); delete state.prio.repair; orderFromPrio(); renderOrder(); state.minCaps = o.c || 0; state.preset = o.b || null;
       state.placements = o.p.map(([mi, s, rot, x, y]) => { const m = D.modules[mi]; const shape = rotShape(m.cells, rot); return [m.name, s, rot, shape.map(c => [c[0] + x, c[1] + y])]; });
       if (o.k) { state.mins = Object.assign(zeroMins(), o.k); syncKeepInputs(); } else setMinsFromFit();
       return true;
@@ -941,7 +949,14 @@
       if (k === "z" && !e.shiftKey) { e.preventDefault(); undo(); } else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); redo(); }
     });
     $("btn-undo").addEventListener("click", undo); $("btn-redo").addEventListener("click", redo);
-    ["hold", "cap", "fuel", "hp"].forEach(k => { const el = $("prio-" + k); el.value = state.prio[k]; el.addEventListener("input", () => { state.prio[k] = +el.value; $("prio-" + k + "-v").textContent = ["off", "low", "mid", "top"][+el.value]; }); $("prio-" + k + "-v").textContent = ["off", "low", "mid", "top"][state.prio[k]]; });
+    renderOrder();
+    $("order").addEventListener("click", e => {
+      const b = e.target.closest("button[data-up], button[data-down]"); if (!b) return;
+      const k = b.dataset.up || b.dataset.down, i = state.order.indexOf(k), j = b.dataset.up ? i - 1 : i + 1;
+      if (j < 0 || j >= state.order.length) return;
+      [state.order[i], state.order[j]] = [state.order[j], state.order[i]]; prioFromOrder(); renderOrder();
+    });
+    $("order").addEventListener("change", e => { const c = e.target.closest("input[data-on]"); if (!c) return; state.prio[c.dataset.on] = c.checked ? 1 : 0; prioFromOrder(); renderOrder(); });
     $("min-caps").addEventListener("input", e => { state.minCaps = +e.target.value || 0; });
     for (const n in KEEP_IDS) $(KEEP_IDS[n]).addEventListener("input", e => { state.mins[n] = Math.max(0, Math.floor(+e.target.value || 0)); });
     $("btn-makestable").addEventListener("click", makeCapStable);
