@@ -498,7 +498,7 @@
     $("st-cells").textContent = `${st.cells} / ${st.total}`; $("st-cells-sub").textContent = `${st.free} free`;
     $("st-hold").textContent = f(st.hold); $("st-hold-sub").textContent = st.payload ? `+ ${st.payload} m³ in Launch Bays` : `${Math.floor(st.hold / D.models.field_sentry_m3)} Field Sentries`;
     $("st-fuel").textContent = f(st.fuel); $("st-fuel-sub").textContent = st.burn > 0 ? `${st.burn.toFixed(2)}/min on ${state.fuelGrade} · ${isFinite(st.hours) ? st.hours.toFixed(1) + " h" : "—"}` : "—";
-    $("st-cap").textContent = f(st.cap); $("st-cap-sub").textContent = `${st.rech.toFixed(1)} GJ/s est · ${st.drain.toFixed(1)} drain${st.stable ? " · stable" : " · " + (isFinite(st.lastMin) ? Math.round(st.lastMin) + " s" : "")}`;
+    $("st-cap").textContent = f(st.cap); $("st-cap-sub").textContent = `${st.rech.toFixed(1)} GJ/s est · ${st.drain.toFixed(1)} drain${st.stable ? " · stable" : " · " + (isFinite(st.lastMin) ? "runs dry in " + Math.round(st.lastMin) + " s" : "runs dry")}`;
     $("st-hp").textContent = `~${f(st.hp)}`; $("st-hp-sub").textContent = `${st.repair} HP/s repair`;
     // the big number is per second at full spool-up; the small line is per hit, as the combat log shows it
     $("st-dps").textContent = st.dps ? f(Math.round(st.dpsRamped)) : (st.mining ? `${st.mining}×` : "—");
@@ -507,14 +507,19 @@
       : (st.mining ? "mining lasers / extractors" : "no weapons");
     $("st-power").textContent = `${st.draw.toFixed(1)} / ${st.power}`; $("st-power-sub").textContent = "MW";
     // mass in tonnes (the fitting screen shows kg: 12,456 t = 12,456,000 kg); EM signature as the fitting screen shows it
-    const tip = (id, text) => { $(id).textContent = text; $(id).title = text; };
     const massChecked = state.hull === (D.models.mass || {}).verified_on;        // "~" until the hull's own mass is checked against the game
     $("st-mass").textContent = (massChecked ? "" : "~") + f(Math.round(st.mass / 1000));
     $("st-mass-sub").textContent = `tonnes: hull ${f(Math.round(st.hullMass / 1000))} + fit ${f(Math.round((st.mass - st.hullMass) / 1000))}`;
     $("st-mass-sub").title = `${f(st.mass)} kg, without cargo or ammunition. ` + (massChecked ? "Matches the game's fitting screen." : `The ${state.hull} hull's own mass is the client's number, not yet checked in game.`);
-    const parts = `hull ${st.emHull} + Capacitors ${st.emCaps} + power ${Math.round(st.emPower)}`;
+    // EM signature: the big number is everything on, the second number everything off (user 2026-10-10); on a fit with
+    // EM Scramblers "off" keeps them running, which is how such a ship hides
     $("st-em").textContent = `~${f(Math.round(st.em))}`;
-    tip("st-em-sub", st.scramblers ? `at rest, all on: ${f(Math.round(st.emRaw))} before the ${st.scramblers} EM Scrambler${st.scramblers > 1 ? "s" : ""}` : `at rest, all on: ${parts}`);
+    const es = $("st-em-sub"), nS = st.scramblers, emOff = st.emWith(st.emDark, nS); es.textContent = "";
+    [["", "with everything on"], [`~${f(Math.round(emOff))}`, " with everything off"]].concat(nS ? [["", `(the ${nS > 1 ? nS + " EM Scramblers stay" : "EM Scrambler stays"} on)`]] : []).forEach(([num, text]) => {
+      const d = document.createElement("span"); if (num) { const b = document.createElement("b"); b.textContent = num; d.appendChild(b); } d.appendChild(document.createTextNode(text)); es.appendChild(d); });
+    es.title = `Everything on: hull ${st.emHull} + Capacitors ${st.emCaps} + power ${Math.round(st.emPower)}` + (nS ? ` = ${f(Math.round(st.emRaw))} before the ${nS} EM Scrambler${nS > 1 ? "s" : ""}` : "") + ". Everything off leaves the hull and the Capacitors.";
+    // nothing under a tile's number is ever cut (user 2026-10-10): each part of a caption gets its own line and wraps
+    document.querySelectorAll(".tiles .s[id]").forEach(el => { if (el === es) return; const bits = el.textContent.split(" · "); el.textContent = ""; bits.forEach(t => { const d = document.createElement("span"); d.textContent = t; el.appendChild(d); }); });
     renderHiding(st, f);
     const ch = checks(st);
     $("checks").innerHTML = ch.map(([ok, t]) => `<li class="${ok ? "ok" : "bad"}"><span class="dot"></span>${t}</li>`).join("");
