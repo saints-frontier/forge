@@ -106,7 +106,7 @@
         if (!d || !Array.isArray(d.presets)) throw new Error("doctrine store returned no list");
         var i = -1; d.presets.forEach(function (p, k) { if (String(p.name).toLowerCase() === name.toLowerCase()) i = k; });
         var old = i >= 0 ? d.presets[i] : null;
-        var role = old ? old.role : (window.prompt("Role, as shown in the Load fit list (e.g. Warship · Stealth and Ambush):", "") || "");
+        var role = old ? old.role : (window.prompt("Role, as shown in the Load fit list (e.g. Hauler · Ore and Fuel):", "") || "");
         if (!window.confirm((old ? "Replace the doctrine fit \"" + name + "\"" : "Add \"" + name + "\" as a new doctrine fit") + " with the " + fit.placements.length + " modules on screen (" + fit.hull + ")? Every Saint sees it at their next login.")) { note(""); return; }
         var maxN = 100; d.presets.forEach(function (p) { if (+p.n > maxN) maxN = +p.n; });
         var p = { n: old ? old.n : maxN + 1, name: name, hull: fit.hull, role: role, doctrine: true, placements: fit.placements, exterior: fit.exterior || {}, carried: old && old.carried ? old.carried : {} };

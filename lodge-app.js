@@ -52,7 +52,17 @@
     return { have, unknown };
   }
   delete store.progress;   // v1 counted runs on every line; lines now count items
-  const form = store.form || { goals: [{ item: "Network Node", qty: 1 }], facilities: D.facilities.filter(f => f.on).map(f => f.key), mode: "ore", salvage: "first", inv: "", routes: {} };
+  const FORM0 = () => ({ goals: [{ item: "Network Node", qty: 1 }], facilities: D.facilities.filter(f => f.on).map(f => f.key), mode: "ore", salvage: "first", inv: "", routes: {} });
+  // what the browser kept is laid over the defaults and every field is checked: a form saved by an older version, or a
+  // damaged one, used to stop the page before any button was wired (audit 2026-10-11)
+  const form = Object.assign(FORM0(), store.form && typeof store.form === "object" && !Array.isArray(store.form) ? store.form : {});
+  form.goals = (Array.isArray(form.goals) ? form.goals : []).filter(g => g && typeof g === "object").map(g => ({ item: String(g.item == null ? "" : g.item), qty: Math.max(1, Math.floor(+g.qty || 1)) }));
+  if (!form.goals.length) form.goals = FORM0().goals;
+  if (!Array.isArray(form.facilities)) form.facilities = FORM0().facilities;
+  if (!form.routes || typeof form.routes !== "object" || Array.isArray(form.routes)) form.routes = {};
+  if (typeof form.inv !== "string") form.inv = "";
+  if (form.mode !== "time") form.mode = "ore";
+  if (form.salvage !== "use") form.salvage = "first";
 
   const EMPTY_WORK = $("work").innerHTML;                // the "Nothing laid yet" note, for Clear the Lodge
 
@@ -85,7 +95,7 @@
   $("goals").addEventListener("input", e => {
     const t = e.target;
     if (t.dataset.g != null) { form.goals[+t.dataset.g].item = t.value; openPicker(t); }
-    if (t.dataset.q != null) form.goals[+t.dataset.q].qty = Math.max(0, Math.floor(+t.value || 0));
+    if (t.dataset.q != null) form.goals[+t.dataset.q].qty = Math.min(MAX_QTY, Math.max(1, Math.floor(+t.value || 0)));
     goalHints();
     persistForm();
   });
@@ -167,7 +177,7 @@
   document.querySelectorAll("input[name=salvage]").forEach(r => { r.checked = r.value === form.salvage; r.addEventListener("change", () => { form.salvage = r.value; salvageNote(); persistForm(); goalHints(); }); });
   function salvageNote() {
     $("salvage-note").textContent = form.salvage === "use"
-      ? "Salvage wherever it saves ore (Debris, Cinderwrack, Industrial Waste, Crystalline Refuse), ore for the rest."
+      ? "Salvage wherever it saves ore (Debris, Cinderwrack), ore for the rest."
       : "Ore wherever it can do the job; salvage only where nothing else makes the item.";
   }
   $("inv").value = form.inv || "";
@@ -191,16 +201,24 @@
     const unknown = o.goals.filter(g => !ITEMS.includes(g.item));
     if (!o.goals.length) { toast("Add something to build first."); return; }
     if (unknown.length) { toast(`No recipe makes "${unknown[0].item}". Pick it from the list.`); return; }
-    store.opts = o; save(); build(); document.getElementById("h-work").scrollIntoView({ behavior: "smooth", block: "start" });
+    newJob(o.goals); store.opts = o; save(); build(); document.getElementById("h-work").scrollIntoView({ behavior: "smooth", block: "start" });
   });
+  // Ticks belong to a job. The same things to build (whatever the quantities, facilities or routes) is the same job and
+  // keeps them; a different list starts clean (audit 2026-10-11: ore ticked for one job counted towards the next).
+  const jobKey = goals => (goals || []).map(g => g.item).sort().join("|");
+  function newJob(goals) { if (store.opts && jobKey(store.opts.goals) !== jobKey(goals) && Object.keys(store.own || {}).length) { store.own = {}; toast("A new job: the ticks of the last one are cleared."); } }
   // the exact planner takes a second or two: it runs in a Worker (worker.js), the page waits with a note. Without
   // Workers (file://) it runs in the page.
   let worker = null, seq = 0; const pending = new Map();
-  try { worker = new Worker("lodge-worker.js?v=602e21b7"); } catch (e) { worker = null; }
-  if (worker) {
+  function startWorker() {
+    try { worker = new Worker("lodge-worker.js?v=996cf637"); } catch (e) { worker = null; return; }
     worker.onmessage = e => { const cb = pending.get(e.data.id); pending.delete(e.data.id); if (cb) cb(e.data.error ? null : e.data.result); };
     worker.onerror = () => { worker = null; for (const cb of pending.values()) cb(null); pending.clear(); };
   }
+  startWorker();
+  // a plan still being worked out when a new one is asked for (or the Lodge is cleared) is thrown away with its Worker:
+  // it used to finish first, so a small job waited seconds behind a big one nobody wanted any more
+  function dropPending() { if (worker && pending.size) { worker.terminate(); pending.clear(); startWorker(); } }
   function planAsync(opt) {
     return new Promise(res => {
       if (!worker) { res(P.plan(D, opt)); return; }
@@ -211,11 +229,17 @@
   async function build() {
     if (!store.opts) return;
     const n = ++buildN; recomputeN++;                  // cascade results still in flight belong to the old plan
+    dropPending();
     try {
-    $("work").innerHTML = `<div class="empty"><b>Laying the foundation…</b><span>Working out the plan with the least ore. A second or two.</span></div>`;
+    $("work").innerHTML = `<div class="empty"><b>Laying the foundation…</b><span>Working out the ${store.opts.mode === "time" ? "quickest plan" : "plan with the least ore"}. A few seconds for a big job.</span></div>`;
     $("work-count").textContent = "";
-    const p = await planAsync(store.opts);
+    let p = await planAsync(store.opts);
     if (n !== buildN) return;                      // a newer plan was asked for meanwhile
+    if (store.opts.mode === "time" && p && !p.blocked.length) {      // the search is cut off by the clock: "Fastest" came back slower
+      const q = await planAsync(Object.assign({}, store.opts, { mode: "ore" }));   // AND dearer than "Least ore" for some items (audit 2026-10-11)
+      if (n !== buildN) return;
+      if (q && !q.blocked.length && q.foundUnits <= p.foundUnits && q.secs < p.secs) { q.proven = false; p = q; }
+    }
     plan = p; renderWork();
     } catch (e) {
       if (n !== buildN) return;
@@ -235,17 +259,25 @@
   let lines = [], cover = {};
   if (!store.own) store.own = {};
   delete store.prog;
+  // own = what you have done on the line so far, above what your inventory covered. cover = what the lines below make
+  // unnecessary. They overlap: the ore you mined IS the ore the parts you then printed were made of. So a line stands
+  // at the larger of the two, never their sum (audit 2026-10-11: mine half, print half, and the list said the mining
+  // was finished).
   const own = l => Math.max(0, store.own[l.id] || 0);
-  const base = l => l.floor + (cover[l.id] || 0);                  // what you can't go below
-  function val(l) { return Math.min(l.total, base(l) + own(l)); }
-  function setVal(l, v) { store.own[l.id] = Math.max(0, Math.min(l.total - base(l), Math.round(v - base(l)) || 0)); save(); }
+  const base = l => l.floor + (cover[l.id] || 0);                  // what the line shows at the least
+  function val(l) { return Math.min(l.total, l.floor + Math.max(cover[l.id] || 0, own(l))); }
+  function setVal(l, v) { store.own[l.id] = Math.max(0, Math.min(l.total - l.floor, Math.round(v - l.floor) || 0)); save(); }
   // the cascade: re-plan with what was added counted as held (same recipes), in the background; the lines refresh
   // when it lands. A newer request supersedes an older one.
   let recomputeN = 0;
   async function recompute() {
     const n = ++recomputeN;
-    const credit = {};
+    // what is in hand of each made item: what you made or found so far, less what the runs ticked further down have used
+    // (8 Carbon Weave printed and one Network Node built leaves none in hand: counting both hid 8 that still had to be printed)
+    const credit = {}, usedUp = {};
+    for (const l of lines) if (l.credit && l.step && own(l) > 0) for (const i in l.step.recipe.in) usedUp[i] = (usedUp[i] || 0) + own(l) / l.per * l.step.recipe.in[i];
     for (const l of lines) if (l.credit && own(l) > 0) credit[l.item] = (credit[l.item] || 0) + own(l);
+    for (const i of Object.keys(credit)) { credit[i] = Math.max(0, Math.floor(credit[i] - (usedUp[i] || 0) + 1e-9)); if (!credit[i]) delete credit[i]; }
     if (!plan) return;
     if (!Object.keys(credit).length) { cover = {}; for (const el of [...$("work").querySelectorAll(".line")]) refreshLine(el, true); updateBar(); return; }
     const have = Object.assign({}, store.opts.have || {});
@@ -262,7 +294,7 @@
       let cv = 0;
       if (l.kind === "runs") cv = l.total - (runs1[l.step.id] || 0);
       else if (l.stage === "gather") cv = (l.total - l.floor) - (gather1[l.item] || 0);
-      else cv = ((plan.need || {})[l.item] || 0) - ((p1.need || {})[l.item] || 0);   // demand from the lines below it
+      else if (l.step) cv = (l.step.runs - (runs1[l.step.id] || 0)) * l.per;        // the runs of THIS line that fell away (an item made on two lines got the whole drop on both)
       cover[l.id] = Math.max(0, Math.min(l.total - l.floor, Math.round(cv)));
     }
     for (const el of [...$("work").querySelectorAll(".line")]) refreshLine(el, true);
@@ -341,7 +373,7 @@
     }
     if (l.kind === "items" && l.floor > 0 && !l.held) sub.push(`<span class="heldtxt">${num(l.floor)} from your inventory</span>`);
     if (cover[l.id] > 0) sub.push(`<span class="covtxt">${num(cover[l.id])}${l.kind === "runs" ? " run" + (cover[l.id] > 1 ? "s" : "") : ""} no longer needed: covered by what you added below</span>`);
-    if (l.credit && own(l) > 0) sub.push(`<span class="owntxt">+${num(own(l))} added: the lines above count them</span>`);
+    if (l.credit && own(l) > (cover[l.id] || 0)) sub.push(`<span class="owntxt">${num(own(l))} made so far: the lines above count them</span>`);
     if (l.kind === "items" && l.stage !== "gather" && l.need && l.total > l.need) sub.push(`need ${num(l.need)}, ${num(l.total - l.need)} spare`);
     return `<div class="line${done ? " done" : ""}${l.held ? " heldline" : ""}" data-id="${esc(l.id)}">${counter(l)}<div class="what">${what}<div class="sub">${sub.join(" · ")}</div>${meter(l)}</div></div>`;
   }
@@ -352,10 +384,19 @@
     lines = model(p);
     cover = {}; recompute();
     const alerts = [];
-    if (p.exact && p.proven) alerts.push(`<div class="alert ok"><b>Least ore there is</b> for these goals, facilities and routes: ${num(p.ore)} ore. Nothing better exists.</div>`);
+    const allBlocked = !lines.length && p.blocked.length > 0;      // nothing can be made: "least ore: 0" would be a strange thing to say
+    if (allBlocked) { /* the blocked lines below say why */ }
+    else if (o.mode === "time") alerts.push(p.exact && p.proven      // "Fastest" used to be announced as "Least ore there is"
+      ? `<div class="alert ok"><b>Quickest there is</b> for these goals, facilities and routes: ${dur(p.secs)} of machine time, ${num(p.ore)} ore. Nothing quicker exists.</div>`
+      : `<div class="alert ok"><b>Quickest plan found</b> in the time allowed: ${dur(p.secs)} of machine time, ${num(p.ore)} ore. A slightly quicker one may exist.</div>`);
+    else if (p.exact && p.proven) alerts.push(`<div class="alert ok"><b>Least ore there is</b> for these goals, facilities and routes: ${num(p.ore)} ore. Nothing better exists.</div>`);
     else if (p.exact) alerts.push(`<div class="alert ok"><b>Best plan found</b> in the time allowed: ${num(p.ore)} ore. A slightly better one may exist.</div>`);
     if (p.note) alerts.push(`<div class="alert ok">${esc(p.note)}</div>`);
-    for (const b of p.blocked) alerts.push(`<div class="alert bad"><b>${num(b.qty)}x ${esc(b.item)}</b>: none of your facilities makes it. Tick ${b.facilities.map(f => "<b>" + esc(facLabel(f)) + "</b>").join(" or ")}.</div>`);
+    for (const b of p.blocked) {
+      const missing = b.facilities.filter(f => !o.facilities.includes(f));       // only the ones not ticked yet
+      alerts.push(missing.length ? `<div class="alert bad"><b>${num(b.qty)}x ${esc(b.item)}</b>: none of your facilities makes it. Tick ${missing.map(f => "<b>" + esc(facLabel(f)) + "</b>").join(" or ")}.</div>`
+                                 : `<div class="alert bad"><b>${num(b.qty)}x ${esc(b.item)}</b>: your facilities can make it, but not everything it is made from. A refinery is usually the missing piece.</div>`);
+    }
     for (const g of p.gather.filter(g => g.found || g.cut)) alerts.push(`<div class="alert"><b>This build needs ${num(g.qty)} ${esc(g.item)}</b>, which can't be made, only found. ${esc(g.hint.replace(/^Can't be made, only found[:;]\s*/i, "").replace(/^./, c => c.toUpperCase()))}</div>`);
     const used = Object.entries(p.used || {}).filter(([, q]) => q > 0);
     if (Object.keys(o.have || {}).length) alerts.push(used.length
@@ -381,8 +422,11 @@
       if (!list.length) continue;
       const runs = list.reduce((s, l) => s + (l.step ? l.step.runs : 0), 0);
       html += `<div class="stage"><h3>${STAGE[stage]} <small>${num(runs)} run${runs === 1 ? "" : "s"}</small></h3>`;
-      for (const f of [...new Set(list.map(l => l.group))]) {
-        const g = list.filter(l => l.group === f).sort((a, b) => b.depth - a.depth || a.title.localeCompare(b.title));
+      // Deepest first across the facilities, a facility heading wherever the machine changes. Grouped by facility in order
+      // of first appearance, 626 of 1,044 plans listed a line above the one that makes its input (audit 2026-10-11).
+      const ordered = list.slice().sort((a, b) => b.depth - a.depth || a.group.localeCompare(b.group) || a.title.localeCompare(b.title));
+      const chunks = []; for (const l of ordered) { const c = chunks[chunks.length - 1]; if (c && c.f === l.group) c.g.push(l); else chunks.push({ f: l.group, g: [l] }); }
+      for (const { f, g } of chunks) {
         const secs = g.reduce((s, l) => s + (l.step ? l.step.secs : 0), 0);
         html += `<div class="group"><h4><span>${f === "__held" ? "From your hold" : esc(facLabel(f))}</span><span class="sp"></span><span class="t">${secs ? dur(secs) : ""}</span></h4>${g.map(lineHTML).join("")}</div>`;
       }
@@ -394,7 +438,7 @@
     if (opts.length) {
       html += `<details class="rt"${store.routesOpen ? " open" : ""}><summary>Change how an item is made (${opts.length})</summary><div class="routes">`;
       for (const [item, list] of opts.sort((a, b) => a[0].localeCompare(b[0]))) {
-        html += `<div class="r"><span>${esc(item)}</span><select data-route="${esc(item)}">${list.map(c => {
+        html += `<div class="r"><span>${esc(item)}</span><select data-route="${esc(item)}">${form.routes[item] ? '<option value="">↺ let the Lodge choose again</option>' : ""}${list.map(c => {
           const r = D.recipes.find(x => x.id === c.id);
           const ins = Object.entries(r.in).map(([i, q]) => `${q} ${i}`).join(" + ");
           return `<option value="${esc(c.id)}"${p.routes[item] === c.id ? " selected" : ""}>${esc(facLabel(r.f))}: ${esc(ins)} → ${r.out[item]}${r.t != null ? ` (${r.t}s)` : ""}</option>`;
@@ -441,7 +485,7 @@
     const el = b.closest(".line"); if (!el) return;
     const l = lines.find(x => x.id === el.dataset.id), v = val(l);
     if (b.dataset.d) setVal(l, v + (+b.dataset.d) * l.per);
-    else if (b.dataset.all != null) setVal(l, v >= l.total ? base(l) : l.total);
+    else if (b.dataset.all != null) setVal(l, v >= l.total ? l.floor : l.total);
     refreshAll(l);
   });
   $("work").addEventListener("input", e => {
@@ -457,8 +501,9 @@
   });
   $("work").addEventListener("change", e => {
     const s = e.target.closest("select[data-route]"); if (!s) return;
-    form.routes[s.dataset.route] = s.value; store.opts.routes = Object.assign({}, form.routes); store.routesOpen = true; persistForm(); build();
-    toast(`${s.dataset.route}: route changed.`);
+    if (s.value) form.routes[s.dataset.route] = s.value; else delete form.routes[s.dataset.route];      // a choice used to stay for every later job, with no way back
+    store.opts.routes = Object.assign({}, form.routes); store.routesOpen = true; persistForm(); build();
+    toast(s.value ? `${s.dataset.route}: route changed.` : `${s.dataset.route}: the Lodge chooses again.`);
   });
   $("work").addEventListener("toggle", e => { if (e.target.matches && e.target.matches("details.rt")) { store.routesOpen = e.target.open; save(); } }, true);
 
@@ -493,7 +538,7 @@
       setTimeout(() => { if (clearArmed && Date.now() - clearArmed >= 4000) { clearArmed = 0; rest(); } }, 4100); return;
     }
     clearArmed = 0; rest(); closePicker();
-    buildN++; recomputeN++;                              // a plan still being worked out is dropped when it arrives
+    buildN++; recomputeN++; dropPending();                              // a plan still being worked out is dropped when it arrives
     form.goals = [{ item: "", qty: 1 }]; form.inv = ""; form.routes = {};
     $("inv").value = ""; store.own = {}; store.opts = null; store.routesOpen = false; plan = null; lines = [];
     renderGoals(); invNote(); persistForm(); goalHints();
@@ -506,15 +551,17 @@
   // ---------- a fit from the Forge: "Build it in the Lodge" ----------
   // On the site the Forge calls window.__lodgeImport and switches the page; the stand-alone Lodge gets the fit in the
   // link as #build-<base64url JSON {name, hull, goals: [{item, qty}]}> (only letters, digits, - and _ survive a link).
+  const MAX_QTY = 10000;                                // a typo or a hostile link must not ask for a trillion of something
   function importGoals(p) {
     const goals = [], skipped = [];
     for (const g of (p && p.goals) || []) {
       const item = ITEMS.find(i => i.toLowerCase() === String(g.item || "").trim().toLowerCase());
-      if (item && g.qty > 0) goals.push({ item, qty: Math.floor(g.qty) }); else if (!item) skipped.push(`${g.qty}x ${g.item}`);
+      const q = Number.isFinite(+g.qty) ? Math.min(MAX_QTY, Math.floor(+g.qty)) : 0;
+      if (item && q > 0) goals.push({ item, qty: q }); else if (!item && skipped.length < 12) skipped.push(`${q}x ${String(g.item || "").slice(0, 40)}`);
     }
     if (!goals.length) { toast(skipped.length ? "Nothing in that fit has a recipe here." : "Nothing to build in that fit."); return false; }
     closePicker(); form.goals = goals; renderGoals(); persistForm(); goalHints();
-    store.opts = currentOpts(); save(); build();
+    const o = currentOpts(); newJob(o.goals); store.opts = o; save(); build();
     toast(`${p.name ? p.name + ": " : ""}${goals.length} kinds of module to build.` + (skipped.length ? ` No recipe for ${skipped.join(", ")}: they come with the ship.` : ""));
     setTimeout(() => { const h = document.getElementById("h-work"); if (h) h.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80);
     return true;

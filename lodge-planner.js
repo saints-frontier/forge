@@ -131,8 +131,12 @@
         changed = false;
         for (const [id, n] of [...runs].sort((a, b) => b[1] - a[1])) {
           if (!n) continue;
-          let k = n;
-          while (k > 0) { runs.set(id, k - 1); if (ok()) { k--; changed = true; } else { runs.set(id, k); break; } }
+          // the fewest runs that still balance, by halving (fewer runs only ever shorten this recipe's own outputs, so "still
+          // fine" does not come back once lost). One run at a time took minutes at a quantity of thousands (audit 2026-10-11).
+          runs.set(id, n - 1); if (!ok()) { runs.set(id, n); continue; }
+          let lo = 0, hi = n - 1;
+          while (lo < hi) { const mid = (lo + hi) >> 1; runs.set(id, mid); if (ok()) hi = mid; else lo = mid + 1; }
+          runs.set(id, hi); changed = true;
         }
       }
     }
@@ -434,6 +438,15 @@
       }
       out.sideMineSkipped = [...forbid];
       if (forbid.size) proven = false;                   // a cheaper plan with one more ore type was set aside on purpose
+    }
+    // drop the runs nothing uses: every output of the run is spare by at least a whole run's worth (91 of 1,360 plans had
+    // some, "Nothing better exists" included; audit 2026-10-11). Dropping one frees its inputs, so look again.
+    for (let guard = 0, again = true; again && guard < 60; guard++) {
+      again = false;
+      for (const s of out.steps) {
+        const k = Math.min(s.runs, ...Object.keys(s.recipe.out).map(o => Math.floor(((out.spare[o] || 0) + 1e-9) / s.recipe.out[o])));
+        if (k > 0) { if (s.runs - k > 0) runs.set(s.id, s.runs - k); else runs.delete(s.id); out = report(D, opt, runs, pool); again = true; break; }   // a step with no runs left is gone, not listed with 0
+      }
     }
     out.proven = proven; out.exact = true; out.debug = debug;
     return out;

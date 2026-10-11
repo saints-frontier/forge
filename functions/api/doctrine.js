@@ -16,6 +16,9 @@ function checkPayload(d) {
     const at = `preset ${i + 1}`;
     if (!p || typeof p !== "object") return `${at}: not an object.`;
     if (typeof p.name !== "string" || !p.name.trim() || p.name.length > MAX_NAME) return `${at}: name must be a string of 1-${MAX_NAME} characters.`;
+    // names are shown on every Saint's page: no markup characters in any of them (audit 2026-10-11; the page escapes too)
+    const texts = [p.name, p.role || ""].concat((Array.isArray(p.placements) ? p.placements : []).map(q => Array.isArray(q) ? q[0] : ""), Object.keys(p.exterior && typeof p.exterior === "object" ? p.exterior : {}), Object.keys(p.carried && typeof p.carried === "object" ? p.carried : {}));
+    if (texts.some(t => typeof t === "string" && /[<>]/.test(t))) return `${at}: names may not contain < or >.`;
     if (seenName.has(p.name.toLowerCase())) return `${at}: the name "${p.name}" appears twice.`;
     seenName.add(p.name.toLowerCase());
     if (!HULLS.includes(p.hull)) return `${at} (${p.name}): hull must be one of ${HULLS.join(", ")}.`;
@@ -24,7 +27,7 @@ function checkPayload(d) {
     if (p.role != null && (typeof p.role !== "string" || p.role.length > MAX_ROLE)) return `${at} (${p.name}): role must be a short string.`;
     if (!Array.isArray(p.placements) || p.placements.length > MAX_PLACEMENTS) return `${at} (${p.name}): placements must be a list of at most ${MAX_PLACEMENTS}.`;
     for (const q of p.placements) {
-      if (!Array.isArray(q) || q.length !== 4 || typeof q[0] !== "string" || !Number.isInteger(q[1]) || !Number.isInteger(q[2])
+      if (!Array.isArray(q) || q.length !== 4 || typeof q[0] !== "string" || q[0].length > MAX_NAME || !Number.isInteger(q[1]) || !Number.isInteger(q[2])
           || !Array.isArray(q[3]) || !q[3].length || !q[3].every(c => Array.isArray(c) && c.length === 2 && Number.isInteger(c[0]) && Number.isInteger(c[1])))
         return `${at} (${p.name}): a placement must be [module, section, rotation, [[x, y], ...]].`;
     }

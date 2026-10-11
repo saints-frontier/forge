@@ -30,15 +30,21 @@
     const payload = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     try {
       if (solver && solver.terminate) solver.terminate();
-      solver = new Worker("solver.js?v=1e4cd82f");
+      solver = new Worker("solver.js?v=51701ad1");
       solver.onmessage = e => onSolver(e.data);
-      solver.onerror = () => { solver = null; fallbackSolver(payload); };
+      solver.onerror = () => {                           // a dead Worker: free whatever waited on it, then carry on in the page
+        solver = null; const waiting = pendingResolve, was = running; pendingResolve = null; running = null;
+        if (was) { progressStop(); $("btn-forge").disabled = false; $("btn-forge").textContent = "Forge for the role"; }
+        fallbackSolver(payload);
+        if (waiting) waiting({ placements: state.placements, missing: ["?"] });
+        if (was) setStatus("The solver stopped unexpectedly and was restarted. Try that again.", "warn");
+      };
       solver.postMessage(payload);
     } catch (e) { solver = null; fallbackSolver(payload); }
   }
   function fallbackSolver(payload) {
     if (!window.ForgeSolver || !window.ForgeSolver.post) {
-      const s = document.createElement("script"); s.src = "solver.js?v=1e4cd82f"; s.onload = () => fallbackSolver(payload); document.head.appendChild(s); return;
+      const s = document.createElement("script"); s.src = "solver.js?v=51701ad1"; s.onload = () => fallbackSolver(payload); document.head.appendChild(s); return;
     }
     window.ForgeSolver.onmessage = onSolver;
     solver = { postMessage: m => setTimeout(() => window.ForgeSolver.post(m), 0), terminate() {} };
@@ -50,7 +56,7 @@
     if (m.type === "progress") { if (prog) { prog.iterations = m.iterations; prog.gains = m.gains; progressTick(); } if (running === "optimize") { state.placements = m.placements; render(); } return; }
     if (m.type === "done") {
       const kind = running; running = null; $("btn-forge").textContent = "Forge for the role"; $("btn-forge").disabled = false;
-      if (kind === "optimize") { state.placements = m.placements; markDirty(); render(); progressDone(`Forged: ${m.iterations} re-packs in ${m.seconds.toFixed(0)} s, ${m.gains} gains · ${hold(state.placements)} m³ hold`); setStatus("", "info"); }
+      if (kind === "optimize") { if (m.gains > 0) { state.placements = m.placements; markDirty(); } render(); progressDone(`Forged: ${m.iterations} re-packs in ${m.seconds.toFixed(0)} s, ${m.gains} gains · ${hold(state.placements)} m³ hold`); setStatus("", "info"); }
       else progressStop();
       if (kind === "tryadd") { if (pendingResolve) { const r = pendingResolve; pendingResolve = null; r(m); } }
     }
@@ -93,6 +99,34 @@
     const minx = Math.min(...cur.map(c => c[0])), miny = Math.min(...cur.map(c => c[1]));
     return cur.map(c => [c[0] - minx, c[1] - miny]);
   }
+  const ROTS = [0, 90, 180, 270];
+  // The turn whose footprint matches these cells. Stored labels are not trusted: the doctrine export carried 42 wrong
+  // ones (audit 2026-10-11), so proposal links of several fits came back overlapping.
+  function rotOf(name, cells, hint) {
+    const m = MOD[name]; if (!m || !cells.length) return ROTS.includes(hint) ? hint : 0;
+    const minx = Math.min(...cells.map(c => c[0])), miny = Math.min(...cells.map(c => c[1]));
+    const key = cells.map(c => (c[0] - minx) + "," + (c[1] - miny)).sort().join("|");
+    const fits = r => rotShape(m.cells, r).map(c => c.join(",")).sort().join("|") === key;
+    if (ROTS.includes(hint) && fits(hint)) return hint;
+    for (const r of ROTS) if (fits(r)) return r;
+    return null;                                          // not this module's shape in any turn
+  }
+  // A fit from outside (a link, the tribe store) is checked before it is shown: known modules, their own shape, inside
+  // the hull, on nothing else. Returns the placements with true turn labels, or null.
+  function soundPlacements(hullName, list) {
+    const hull = D.hulls[hullName]; if (!hull || !Array.isArray(list) || list.length > 600) return null;
+    const sets = hull.sections.map(s => new Set(s.cells.map(c => c.join(",")))), used = hull.sections.map(() => new Set()), out = [];
+    for (const t of list) {
+      if (!Array.isArray(t) || !MOD[t[0]] || !Number.isInteger(t[1]) || !sets[t[1]] || !Array.isArray(t[3]) || t[3].length !== MOD[t[0]].cells.length) return null;
+      const cells = [];
+      for (const c of t[3]) { if (!Array.isArray(c) || !Number.isInteger(c[0]) || !Number.isInteger(c[1])) return null; const k = c[0] + "," + c[1]; if (!sets[t[1]].has(k) || used[t[1]].has(k)) return null; used[t[1]].add(k); cells.push([c[0], c[1]]); }
+      const rot = rotOf(t[0], cells, t[2]); if (rot === null) return null;
+      out.push([t[0], t[1], rot, cells]);
+    }
+    return out;
+  }
+  // hardpoint modules: known names, whole counts
+  function soundExterior(e) { const out = {}; if (e && typeof e === "object") for (const n in EXT) { const k = e[n]; if (Number.isInteger(k) && k > 0) out[n] = Math.min(k, 24); } return out; }
   function sectionSet(s) { return new Set(D.hulls[state.hull].sections[s].cells.map(c => c.join(","))); }
   function occupiedMap() {
     const occ = D.hulls[state.hull].sections.map(() => new Map());
@@ -140,46 +174,60 @@
     let dps = 0, dpsRamped = 0, mining = 0; const hits = [];     // hits: what one weapon lands per hit at full spool-up (the number the logs show)
     for (const n in ext) { const e = EXT[n]; if (!e) continue; const k = ext[n]; mass += (e.mass || 0) * k; drain += (e.drain || 0) * k; dps += (e.dps || 0) * k; dpsRamped += (e.dps_ramped || e.dps || 0) * k; if (e.mining) mining += k;
       if (e.dps && e.cycle_s) hits.push({ name: n, k, perHit: Math.round((e.dps_ramped || e.dps) * e.cycle_s), cycle: e.cycle_s, ramps: !!e.dps_ramped }); }
-    const nCaps = c["Capacitor"] || 0;
-    const rech = recharge(nCaps, trickle);
+    const nCaps = c["Capacitor"] || 0, nCells = c["Blackstart Cell"] || 0;
+    const rech = recharge(nCaps + nCells, trickle);
     const factor = D.models.fuel.factor[state.fuelGrade];
     const burn = draw * 60 / factor;                         // units per minute
-    // EM signature at rest (measured model, data.js models.em): hull + Capacitors + power drawn by everything but the
-    // EM Scramblers; each Scrambler online adds a little of its own and the total is multiplied (measured for 1-3).
-    const E = D.models.em || { per_mw: 0, per_capacitor: 0 }, emHull = D.hulls[hullName].em || 100, scramblers = c[E.scrambler] || 0;
-    const emOther = E.per_mw * (draw - scramblers * ((MOD[E.scrambler] || {}).draw_mw || 0)), emDark = emHull + E.per_capacitor * nCaps;
+    // EM signature at rest (measured model, data.js models.em): hull + Power Generator + each Capacitor + each module that
+    // is switched on. A module counts once whatever it draws (a Transponder at 1.0 MW adds what a Docking Clamp does);
+    // the Gravity Sensor and the engine have their own, larger numbers. Each EM Scrambler online adds a little of its
+    // own and the total is multiplied (measured for 1-3). The Blackstart Cell is counted as a Capacitor (not measured).
+    const E = D.models.em || {}, emHull = D.hulls[hullName].em || 100, scramblers = c[E.scrambler] || 0, emSpecial = E.special || {};
+    const emOne = n => n === E.scrambler ? (E.scrambler_own || 0) : n in emSpecial ? emSpecial[n] : (E.per_module || 0);
+    const emStore = (E.per_capacitor || 0) * (nCaps + nCells), emDark = emHull + emStore;   // only the Capacitors on
     const emWith = (base, n) => (base + (E.scrambler_own || 0) * n) * emMult(n);          // n Scramblers online on top of `base`
+    const emParts = [["Hull", emHull], [`${nCaps} Capacitor${nCaps === 1 ? "" : "s"}${nCells ? " + Blackstart Cell" : ""}`, emStore]]; let emOther = 0;
+    if (c["Power Generator"]) { emOther += E.generator || 0; emParts.push(["Power Generator", E.generator || 0]); }
+    for (const n in c) { const m = MOD[n]; if (!m || !m.draw_mw) continue; const v = emOne(n) * c[n]; if (n !== E.scrambler) emOther += v; emParts.push([c[n] > 1 ? `${c[n]} ${n}s` : n, v]); }
     const emRaw = emDark + emOther, em = emWith(emRaw, scramblers);
-    const emParts = [["Hull", emHull], [`${nCaps} Capacitor${nCaps === 1 ? "" : "s"}`, E.per_capacitor * nCaps]];
-    for (const n in c) { const m = MOD[n]; if (!m || !m.draw_mw) continue; emParts.push([c[n] > 1 ? `${c[n]} ${n}s` : n, n === E.scrambler ? (E.scrambler_own || 0) * c[n] : E.per_mw * m.draw_mw * c[n]]); }
+    // fuel: recharging the capacitor burns fuel too, 1 MW for every GJ/s that flows back in (measured). So with every
+    // drain running the burn is the draw plus what the Capacitors can put back (the drain itself, or the recharge if smaller)
+    const burnBusy = (draw + Math.min(drain, rech)) * 60 / factor;
     emParts.sort((a, b) => b[1] - a[1]);
     return { cells, total, free: total - cells, hold: hold(placements), fuel, cap, hp, repair, draw, power: power || D.models.power_mw, drain, rech, nCaps, hits,
-             mass, hullMass, em, emHull, emRaw, emDark, emWith, emParts: emParts.filter(p => p[1] > 0), emCaps: E.per_capacitor * nCaps, emPower: emOther, scramblers,
+             mass, hullMass, em, emHull, emRaw, emDark, emWith, emParts: emParts.filter(p => p[1] > 0), emCaps: emStore, emPower: emOther, scramblers, burnBusy, refill: cap / factor,
              burn, hours: burn > 0 ? fuel / burn / 60 : Infinity, dps, dpsRamped, mining, payload, stable: rech >= drain, lastMin: drain > rech ? cap / (drain - rech) : Infinity };
   }
   function capsNeeded(drain, trickle) { const r = D.models.recharge; if (drain <= trickle) return 0; return Math.ceil(Math.pow((drain - trickle) / r.a, 1 / r.b)); }
+  // Capacitors a fit needs for this drain, given its Blackstart Cells (each recharges like a Capacitor, plus its trickle)
+  function capsWanted(drain, c) { const cells = c["Blackstart Cell"] || 0; return Math.max(0, capsNeeded(drain, cells * 0.3) - cells); }
+  const f1 = x => (Math.round(x * 10 + 1e-6) / 10).toFixed(1);     // one decimal, halves up: the tile, the checks and Compare agree (5.05 read 5.0 here and 5.1 there)
+  const overPower = st => Math.round(st.draw * 100) > Math.round(st.power * 100);    // 15.000000000000002 MW is not over 15
   // What should I change? One line per thing a new rider wishes they had known, with the fix as a button.
   // [{text, add: [module, ...] | null, label}]
   function hints(st) {
     const c = counts(state.placements), ext = state.exterior, out = [];
     const has = n => (c[n] || 0) > 0;
-    if (!st.stable) { const need = Math.max(1, capsNeeded(st.drain, (c["Blackstart Cell"] || 0) * 0.3) - st.nCaps);
+    if (!st.stable) { const need = Math.max(1, capsWanted(st.drain, c) - st.nCaps);
       out.push({ text: `Capacitor runs dry in ${isFinite(st.lastMin) ? Math.round(st.lastMin) + " s" : "no time"} with everything on. Run it empty and you cannot warp away.`, add: Array(need).fill("Capacitor"), label: `Add ${need} Capacitor${need > 1 ? "s" : ""}` }); }
     if (!engineCount(c) && (D.base_ship.engines || []).length) out.push({ text: "No engine: the ship cannot fly.", add: [D.base_ship.engines[0]], label: "Add an engine" });
     if (!has("Hull Repairer")) out.push({ text: "No Hull Repairer: nothing heals you in the field. One repairs ~25 HP/s, your best survival module.", add: ["Hull Repairer"], label: "Add one" });
-    if (!has("Leap")) out.push({ text: "No Leap: you cannot jump to another system on your own.", add: ["Leap"], label: "Add a Leap" });
+    if (!has("Leap")) out.push({ text: "No Leap: no burst of speed to hop between nearby sites or to break away.", add: ["Leap"], label: "Add a Leap" });
     if (!has("Docking Clamp")) out.push({ text: "No Docking Clamp: no docking at Fueling Docks, so no free Unstable Fuel.", add: ["Docking Clamp"], label: "Add one" });
     if (!has("Transponder")) out.push({ text: "No Transponder: a tribe's catapults and gates stay invisible to you.", add: ["Transponder"], label: "Add one" });
     if (!has("Gravity Sensor") && !has("Ion Sensor")) out.push({ text: "No sensor: you cannot find rocks, sites or ships.", add: ["Gravity Sensor"], label: "Add a Gravity Sensor" });
+    else if (!scannerSlots(c)) out.push({ text: "No Gravity Sensor: the Directional Scanner mounts only on that one.", add: ["Gravity Sensor"], label: "Add a Gravity Sensor" });
     else if (!ext["Directional Scanner"]) out.push({ text: "No Directional Scanner on the sensor: no scanning for what is out there.", ext: "Directional Scanner", label: "Add one" });
     if (!(c["Weapon Receiver"] || 0)) out.push({ text: "No Weapon Receiver: nothing to mine or shoot with.", add: ["Weapon Receiver"], label: "Add one" });
     else if (!Object.keys(ext).some(n => EXT[n] && EXT[n].hardpoint === "weapon" && ext[n])) out.push({ text: "Empty Weapon Receiver: mount a Cutting Laser to mine and defend.", ext: "Cutting Laser", label: "Add a Cutting Laser" });
     if (st.burn > 0 && isFinite(st.hours) && st.hours < 2) out.push({ text: `Fuel for ${st.hours.toFixed(1)} h at this burn on ${state.fuelGrade}: a long trip ends in the dark.`, add: ["Fuel Bay"], label: "Add a Fuel Bay" });
     if (!st.fuel) out.push({ text: "No fuel tank: the ship cannot move.", add: ["Fuel Bay"], label: "Add a Fuel Bay" });
-    if (st.draw > st.power) out.push({ text: `Over the power grid (${st.draw.toFixed(1)} of ${st.power} MW): switch modules off or remove some.`, add: null });
+    if (overPower(st)) out.push({ text: `Over the power grid (${st.draw.toFixed(1)} of ${st.power} MW): switch modules off or remove some.`, add: null });
     if (st.hp <= D.models.hull_hp && (c["Weapon Receiver"] || 0) >= 2) out.push({ text: "A fighting fit with no Structural Brace: each adds +375 HP.", add: ["Structural Brace"], label: "Add a Brace" });
     return out;
   }
+  // sensors that carry a Directional Scanner (in game only the Gravity Sensor does; data.js marks them)
+  function scannerSlots(c) { return D.modules.reduce((a, m) => a + (m.hardpoint === "scanner" ? (c[m.name] || 0) : 0), 0); }
   async function applyHint(i) {
     const h = hints(stats())[i]; if (!h) return;
     if (h.ext) { state.exterior[h.ext] = (state.exterior[h.ext] || 0) + 1; markDirty(); render(); setStatus(`${h.ext} added.`, "ok"); return; }
@@ -195,15 +243,15 @@
     const weapons = Object.keys(ext).filter(n => EXT[n] && EXT[n].hardpoint === "weapon").reduce((a, n) => a + ext[n], 0);
     const receivers = c["Weapon Receiver"] || 0;
     out.push([weapons <= receivers, `weapons on receivers (${weapons} of ${receivers})`]);
-    if (receivers >= 2) out.push([(c["Repeater"] || 0) >= 1, "Repeater with two Weapon Receivers"]);
+    if (receivers >= 2 && (D.base_ship.with_two_weapons || {}).Repeater) out.push([(c["Repeater"] || 0) >= 1, "Repeater with two Weapon Receivers"]);   // a tribe rule: the public edition carries none
     const combat = D.base_ship.combat_weapons.some(w => ext[w]);
     if (combat) out.push([(c["Ion Sensor"] || 0) >= 1, "Ion Sensor on a combat fit"]);
-    const scanners = (c["Gravity Sensor"] || 0) + (c["Ion Sensor"] || 0);
+    const scanners = scannerSlots(c);
     out.push([(ext["Directional Scanner"] || 0) <= scanners, "Directional Scanner on a sensor"]);
     const engines = D.base_ship.engines.reduce((a, e) => a + (c[e] || 0), 0);
     out.push([(ext["External Thruster"] || 0) <= 6 * engines, `External Thrusters (${ext["External Thruster"] || 0} of ${6 * engines})`]);
-    out.push([st.draw <= st.power, `power ${st.draw.toFixed(1)} of ${st.power} MW`]);
-    out.push([st.stable, st.stable ? `cap-stable (${st.rech.toFixed(1)} GJ/s ≥ ${st.drain.toFixed(1)} drain)` : `cap runs dry in ${isFinite(st.lastMin) ? Math.round(st.lastMin) + " s" : "—"} with everything on`]);
+    out.push([!overPower(st), `power ${st.draw.toFixed(1)} of ${st.power} MW`]);
+    out.push([st.stable, st.stable ? `cap-stable (${f1(st.rech)} GJ/s ≥ ${f1(st.drain)} drain)` : `cap runs dry in ${isFinite(st.lastMin) ? Math.round(st.lastMin) + " s" : "—"} with everything on`]);
     return out;
   }
 
@@ -276,6 +324,8 @@
     return { svg, vw, vh };
   }
   function renderGrid() {
+    drag = null;                                           // a redraw (Delete, R, Undo mid-drag) ends the drag: its index may be gone
+    if (!state.placements[state.selected]) state.selected = -1;
     const { svg, vw, vh } = hullSvg(state.hull, state.placements, { id: "hull-svg", selected: state.selected });
     $("grid").innerHTML = svg;
     const el = $("hull-svg");
@@ -284,6 +334,7 @@
     // Drag: the module follows the pointer as a ghost; on release the cell under the pointer receives the cell that was
     // grabbed (not the module's corner), so the piece lands where it looks. No cell under the pointer = snap back.
     el.addEventListener("pointerdown", ev => {
+      if (ev.button) return;                               // only the main button selects and drags
       const g = ev.target.closest("g.mod"); if (!g) { select(-1); return; }
       if (busy()) return;
       const i = +g.dataset.i; const p = state.placements[i];
@@ -429,8 +480,8 @@
   function turnSelected(kind) {
     if (busy()) return;
     const i = state.selected; if (i < 0) { setStatus("Select a module first (click it on the hull).", "info"); return; }
-    const p = state.placements[i], [step, label] = TURNS[kind];
-    if (turnTo(i, (p[2] + step) % 360)) setStatus(`${p[0]} turned ${label}.`, "ok");
+    const p = state.placements[i], [step, label] = TURNS[kind]; if (!p) return;
+    if (turnTo(i, ((rotOf(p[0], p[3], p[2]) || 0) + step) % 360)) setStatus(`${p[0]} turned ${label}.`, "ok");
     else setStatus(`${p[0]}: no room to turn ${label} here. Try another turn, or drag it somewhere roomier.`, "bad");
   }
   function rotateSelected() { turnSelected("cw"); }
@@ -445,7 +496,7 @@
   function select(i) { state.selected = i; renderGrid(); renderSelection(); }
   function renderSelection() {
     const i = state.selected; const box = $("selbox");
-    if (i < 0) { box.hidden = true; return; }
+    if (i < 0 || !state.placements[i]) { state.selected = -1; box.hidden = true; return; }
     const p = state.placements[i]; const m = MOD[p[0]]; box.hidden = false;
     $("sel-name").textContent = `#${i + 1} ${p[0]}`;
     $("sel-detail").textContent = `${m.size} cells · ${D.hulls[state.hull].sections[p[1]].name} · rotation ${p[2]}°` + (m.draw_mw ? ` · ${m.draw_mw} MW` : "") + (m.drain ? ` · ${m.drain} GJ/s active` : "");
@@ -483,10 +534,12 @@
     let html = `<div class="hh">Hiding: your EM signature</div>` +
       `<div class="eparts">${top.map(([name, v]) => `${esc(name)} ${r(v)}`).join(" · ")}${rest ? ` · the rest ${r(rest)}` : ""}${n ? ` · then ×${emMult(n).toFixed(2)} (${n} ${scr}${n > 1 ? "s" : ""})` : ""}</div>` +
       `<div class="erow"><span>Everything on</span><b>~${r(st.em)}</b></div>`;
-    if (n) html += `<div class="erow"><span>Everything off, the Capacitors stay</span><b>~${r(st.emDark)}</b></div>` +
-      `<div class="erow best"><span>Everything off but the ${n > 1 ? n + " " + scr + "s" : scr}</span><b>~${r(dark)}</b></div>`;
-    else html += `<div class="erow best"><span>Everything off, the Capacitors stay</span><b>~${r(st.emDark)}</b></div>`;
-    html += `<div class="enote">Lowest this fit can sit at: <b>~${r(Math.min(dark, st.emDark))}</b>. It cannot reach zero: the hull alone is ${st.emHull}, each Capacitor adds ${E.per_capacitor}, and Scramblers only take a share: one leaves ${pct(1)}%, two ${pct(2)}%, three ${pct(3)}%.` +
+    if (n) html += `<div class="erow"><span>Only the Capacitors on</span><b>~${r(st.emDark)}</b></div>` +
+      `<div class="erow best"><span>Only the Capacitors and the ${n > 1 ? n + " " + scr + "s" : scr} on</span><b>~${r(dark)}</b></div>`;
+    else html += `<div class="erow best"><span>Only the Capacitors on</span><b>~${r(st.emDark)}</b></div>`;
+    html += `<div class="erow"><span>Emergency Shutoff: the Capacitors off as well</span><b>0</b></div>`;
+    html += `<div class="enote">Lowest with the ship still alive: <b>~${r(Math.min(dark, st.emDark))}</b> (hull ${st.emHull}, each Capacitor ${E.per_capacitor}; Scramblers only take a share: one leaves ${pct(1)}%, two ${pct(2)}%, three ${pct(3)}%). ` +
+      `With the Emergency Shutoff on the Power Management screen everything goes dark, the Capacitors too, and that screen reads <b>0</b>. The price: the ship cannot move, the capacitor empties, and filling it again burns about ${r(st.refill)} units of ${esc(state.fuelGrade)} fuel. Read once, on a starter ship; what another pilot's scan shows then is not tested.` +
       (n > measured ? ` More than ${measured} Scramblers has not been measured: the figure assumes each extra one helps as little as the last.` : "") + `</div>`;
     if (MOD[scr] && n < measured) { const to = Math.min(measured, n + (measured - n));
       html += `<div class="hint"><span>${n ? "More " : ""}${scr}s: with ${to} you hide at ~${r(st.emWith(st.emDark, to))} and fly at ~${r(st.emWith(st.emRaw, to))}.</span><button type="button" data-emadd="${to - n}">Fit ${to - n}${n ? " more" : ""}</button></div>`; }
@@ -497,8 +550,9 @@
     const f = (n, d) => n.toLocaleString(undefined, { maximumFractionDigits: d === undefined ? 0 : d });
     $("st-cells").textContent = `${st.cells} / ${st.total}`; $("st-cells-sub").textContent = `${st.free} free`;
     $("st-hold").textContent = f(st.hold); $("st-hold-sub").textContent = st.payload ? `+ ${st.payload} m³ in Launch Bays` : `${Math.floor(st.hold / D.models.field_sentry_m3)} Field Sentries`;
-    $("st-fuel").textContent = f(st.fuel); $("st-fuel-sub").textContent = st.burn > 0 ? `${st.burn.toFixed(2)}/min on ${state.fuelGrade} · ${isFinite(st.hours) ? st.hours.toFixed(1) + " h" : "—"}` : "—";
-    $("st-cap").textContent = f(st.cap); $("st-cap-sub").textContent = `${st.rech.toFixed(1)} GJ/s est · ${st.drain.toFixed(1)} drain${st.stable ? " · stable" : " · " + (isFinite(st.lastMin) ? "runs dry in " + Math.round(st.lastMin) + " s" : "runs dry")}`;
+    $("st-fuel").textContent = f(st.fuel); $("st-fuel-sub").textContent = st.burn > 0 ? `${st.burn.toFixed(2)}/min on ${state.fuelGrade} · ${isFinite(st.hours) ? st.hours.toFixed(1) + " h" : "—"}` + (st.burnBusy > st.burn + 0.005 ? ` · ${st.burnBusy.toFixed(2)}/min with everything running` : "") : "—";
+    $("st-fuel-sub").title = "At rest the burn is the power drawn. Recharging the capacitor burns fuel as well: 1 MW for every GJ/s that flows back in, so weapons, repairers and a refill from empty all cost fuel.";
+    $("st-cap").textContent = f(st.cap); $("st-cap-sub").textContent = `${f1(st.rech)} GJ/s est · ${f1(st.drain)} drain${st.stable ? " · stable" : " · " + (isFinite(st.lastMin) ? "runs dry in " + Math.round(st.lastMin) + " s" : "runs dry")}`;
     $("st-hp").textContent = `~${f(st.hp)}`; $("st-hp-sub").textContent = `${st.repair} HP/s repair`;
     // the big number is per second at full spool-up; the small line is per hit, as the combat log shows it
     $("st-dps").textContent = st.dps ? f(Math.round(st.dpsRamped)) : (st.mining ? `${st.mining}×` : "—");
@@ -515,19 +569,19 @@
     // EM Scramblers "off" keeps them running, which is how such a ship hides
     $("st-em").textContent = `~${f(Math.round(st.em))}`;
     const es = $("st-em-sub"), nS = st.scramblers, emOff = st.emWith(st.emDark, nS); es.textContent = "";
-    [["", "with everything on"], [`~${f(Math.round(emOff))}`, " with everything off"]].concat(nS ? [["", `(the ${nS > 1 ? nS + " EM Scramblers stay" : "EM Scrambler stays"} on)`]] : []).forEach(([num, text]) => {
+    [["", "with everything on"], [`~${f(Math.round(emOff))}`, " with only the Capacitors on"]].concat(nS ? [["", `(the ${nS > 1 ? nS + " EM Scramblers stay" : "EM Scrambler stays"} on)`]] : []).forEach(([num, text]) => {
       const d = document.createElement("span"); if (num) { const b = document.createElement("b"); b.textContent = num; d.appendChild(b); } d.appendChild(document.createTextNode(text)); es.appendChild(d); });
-    es.title = `Everything on: hull ${st.emHull} + Capacitors ${st.emCaps} + power ${Math.round(st.emPower)}` + (nS ? ` = ${f(Math.round(st.emRaw))} before the ${nS} EM Scrambler${nS > 1 ? "s" : ""}` : "") + ". Everything off leaves the hull and the Capacitors.";
+    es.title = `Everything on: hull ${st.emHull} + Capacitors ${Math.round(st.emCaps)} + switched-on modules ${Math.round(st.emPower)}` + (nS ? ` = ${f(Math.round(st.emRaw))} before the ${nS} EM Scrambler${nS > 1 ? "s" : ""}` : "") + ". With every module and the Power Generator off, the hull and the Capacitors are left; the Emergency Shutoff reads 0.";
     // nothing under a tile's number is ever cut (user 2026-10-10): each part of a caption gets its own line and wraps
     document.querySelectorAll(".tiles .s[id]").forEach(el => { if (el === es) return; const bits = el.textContent.split(" · "); el.textContent = ""; bits.forEach(t => { const d = document.createElement("span"); d.textContent = t; el.appendChild(d); }); });
     renderHiding(st, f);
     const ch = checks(st);
-    $("checks").innerHTML = ch.map(([ok, t]) => `<li class="${ok ? "ok" : "bad"}"><span class="dot"></span>${t}</li>`).join("");
+    $("checks").innerHTML = ch.map(([ok, t]) => `<li class="${ok ? "ok" : "bad"}"><span class="dot"></span>${esc(t)}</li>`).join("");
     const hs = hints(st), hb = $("hints");
-    if (hb) hb.innerHTML = hs.length ? `<div class="hh">What should I change?</div>` + hs.map((h, i) => `<div class="hint"><span>${h.text}</span>${h.add || h.ext ? `<button type="button" data-hint="${i}">${h.label}</button>` : ""}</div>`).join("")
+    if (hb) hb.innerHTML = hs.length ? `<div class="hh">What should I change?</div>` + hs.map((h, i) => `<div class="hint"><span>${esc(h.text)}</span>${h.add || h.ext ? `<button type="button" data-hint="${i}">${esc(h.label)}</button>` : ""}</div>`).join("")
                              : `<div class="hh">What should I change?</div><div class="hint ok"><span>Nothing stands out: this ship can travel, dock, refuel, see and defend itself.</span></div>`;
-    $("cap-stable-n").textContent = capsNeeded(st.drain, (counts(state.placements)["Blackstart Cell"] || 0) * 0.3);
-    $("st-caprech-note").textContent = `recharge model: ${D.models.recharge.a}·n^${D.models.recharge.b}, measured at 2, 5 and 13 Capacitors`;
+    $("cap-stable-n").textContent = capsWanted(st.drain, counts(state.placements));
+    $("st-caprech-note").textContent = `recharge model: ${D.models.recharge.a}·n^${D.models.recharge.b}, fitted to in-game readings at 2, 5 and 13 units (a Blackstart Cell counts as one)`;
   }
   function renderHeader() { if (!K) return; const th = K.themes[state.hull].theme; $("tier").textContent = `✠ ${th.name} · ${th.tier} ✠`; }
   function render() { renderGrid(); renderPalette(); renderStats(); renderSelection(); renderHeader(); $("fit-name").value = state.name; $("hull-sel").value = state.hull; $("free-count").textContent = ""; syncKeepInputs(); record(); }
@@ -581,19 +635,19 @@
     const r = await solve({ type: "tryadd", placements: state.placements, add: [name], seconds: 6, seed: Date.now() & 0xffff }, "tryadd");
     $("btn-forge").disabled = false;
     if (r.missing && r.missing.length) { if (!quiet) setStatus(`No room for ${name}, even after rearranging.`, "bad"); return false; }
-    state.placements = r.placements; keepByHand(name); markDirty(); render(); setStatus(`${name} fitted.`, "ok"); return true;
+    state.placements = r.placements; state.selected = -1; keepByHand(name); markDirty(); render(); setStatus(`${name} fitted.`, "ok"); return true;
   }
   // Make me cap stable: fit the Capacitors the recharge model needs for the fitted drain, one at a time (rearranging
   // when the hull is tight), and keep that many as the minimum so a later Forge never trades them away.
   async function makeCapStable() {
     if (running || pool) return;
-    const st = stats(), have = st.nCaps, need = capsNeeded(st.drain, (counts(state.placements)["Blackstart Cell"] || 0) * 0.3);
-    if (st.stable || need <= have) { state.minCaps = Math.max(state.minCaps, have); syncKeepInputs(); setStatus(`Already cap-stable with ${have} Capacitor${have === 1 ? "" : "s"} (${st.rech.toFixed(1)} GJ/s est ≥ ${st.drain.toFixed(1)} drain).`, "ok"); return; }
+    const st = stats(), have = st.nCaps, need = capsWanted(st.drain, counts(state.placements));
+    if (st.stable || need <= have) { state.minCaps = Math.max(state.minCaps, have); syncKeepInputs(); setStatus(`Already cap-stable with ${have} Capacitor${have === 1 ? "" : "s"} (${f1(st.rech)} GJ/s est ≥ ${f1(st.drain)} drain).`, "ok"); return; }
     let added = 0;
     for (let k = have; k < need; k++) { if (!(await addModule("Capacitor", true))) break; added++; }
     const now = stats();
     state.minCaps = now.nCaps; syncKeepInputs();         // addModule moved the minimum with each Capacitor; show it
-    if (now.stable) setStatus(`Cap-stable: ${added} Capacitor${added === 1 ? "" : "s"} added, ${now.nCaps} in all (${now.rech.toFixed(1)} GJ/s est ≥ ${now.drain.toFixed(1)} drain). Keeping ${now.nCaps} as the minimum.`, "ok");
+    if (now.stable) setStatus(`Cap-stable: ${added} Capacitor${added === 1 ? "" : "s"} added, ${now.nCaps} in all (${f1(now.rech)} GJ/s est ≥ ${f1(now.drain)} drain). Keeping ${now.nCaps} as the minimum.`, "ok");
     else setStatus(`Room for only ${added} of the ${need - have} Capacitors needed. Remove something, or set Capacitor priority high and Forge with "Keep at least ${need}".`, "warn");
   }
   // ◀ ▶ on the stat tiles: each stat has the module that raises it, and a smaller one to try when that does not fit
@@ -625,6 +679,7 @@
     const engine = (state.placements.find(p => isEngine(p[0])) || [])[0] || (D.base_ship.engines || [])[0];
     state.placements = []; if (!keepExterior) state.exterior = {}; state.preset = null; state.selected = -1; state.name = "Forge your own";
     holdHistory = true; render(); holdHistory = false;
+    running = "tryadd";
     if (!solverReady) await new Promise(r => { const t = setInterval(() => { if (solverReady) { clearInterval(t); r(); } }, 50); });
     const core = []; for (const n in D.base_ship.never_removed) for (let i = 0; i < D.base_ship.never_removed[n]; i++) core.push(n);
     const kept = core.length; if (engine) core.push(engine);
@@ -656,7 +711,7 @@
     const init = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     const consider = m => { if (m.value > P.best) { P.best = m.value; P.bestPl = m.placements; P.lastGain = Date.now(); P.gains++; state.placements = m.placements; render(); } };
     const spawn = i => {
-      let w; try { w = new Worker("solver.js?v=1e4cd82f"); } catch (e) { return null; }
+      let w; try { w = new Worker("solver.js?v=51701ad1"); } catch (e) { return null; }
       const launch = () => { P.wBest[i] = P.best; P.wLast[i] = Date.now(); P.restarting[i] = false;
         w.postMessage({ type: "optimize", placements: P.bestPl, fillers, values, keepMin, seconds: FORGE_MAX, seed: (Date.now() + i * 7919 + P.restarts * 104729) & 0xffff || i + 1, maxSections: 3 }); };
       w.onmessage = e => {
@@ -696,7 +751,7 @@
     if (P.polishing || P.finished) return; P.polishing = true;
     clearInterval(P.timer); P.workers.forEach(w => w.terminate());
     if (P.reason === "stopped") { forgeFinish(P); return; }
-    let w; try { w = new Worker("solver.js?v=1e4cd82f"); } catch (e) { forgeFinish(P); return; }
+    let w; try { w = new Worker("solver.js?v=51701ad1"); } catch (e) { forgeFinish(P); return; }
     $("fb-fill").classList.add("busy"); $("fb-text").textContent = `Polishing · ${hold(P.bestPl)} m³…`;
     const t0 = Date.now(); P.polishWorker = w;
     w.onmessage = e => { const m = e.data;
@@ -738,7 +793,9 @@
     const fillers = FILLERS.filter(f => state.prio[PRIO_OF[f]] > 0);
     if (!fillers.length) { setStatus("Tick at least one priority.", "bad"); return; }
     const prioOf = f => capStable && f === "Capacitor" ? 0.5 : state.prio[PRIO_OF[f]];      // 0.5: below rank 4, above empty
-    const values = {}; fillers.forEach(f => values[f] = FILL_BASE[f] * Math.pow(1000, prioOf(f) - 1));
+    // whole numbers only: the cap-stable Capacitor used to be worth 12 x 1000^-0.5 = 0.379..., and summing that in another
+    // order differed in the last bits, so equal fits were counted as gains (audit 2026-10-11). 1 is still below every filler.
+    const values = {}; fillers.forEach(f => values[f] = prioOf(f) < 1 ? 1 : FILL_BASE[f] * Math.pow(1000, prioOf(f) - 1));
     const keepMin = {};
     if (fillers.includes("Capacitor")) keepMin["Capacitor"] = Math.max(state.minCaps, D.base_ship.never_removed["Capacitor"] || 1, capStable ? capsFor : 0);
     // every other filler keeps at least what the pilot placed by hand (the base ship's one Fuel Bay, Repairer ...)
@@ -747,47 +804,65 @@
     for (const n in KEEP_IDS) if (fillers.includes(n)) keepMin[n] = Math.max(keepMin[n] || 0, state.mins[n] || 0);
     // the small fillers have no box: what is fitted stays (the forge may add them, never trade them away; remove by hand)
     for (const n of ["Emergency Container", "Fuel Blister"]) if (fillers.includes(n)) keepMin[n] = Math.max(keepMin[n] || 0, c[n] || 0);
-    $("btn-forge").textContent = "Stop";
+    $("btn-forge").textContent = "Stop"; state.selected = -1;          // the searches reorder the modules: an index kept from before would point elsewhere
     setStatus(capStable ? `Cap-stable at ${capsNow} Capacitors: they come last. Spare cells go to ${[...new Set(fillers.map(f => PRIO_OF[f]))].filter(k => k !== "cap").sort((x, y) => state.prio[y] - state.prio[x]).map(k => PRIO_NAME[k]).join(", then ")}, then Capacitors fill what nothing else fits.` : "", "info");
     if (forgeParallel(fillers, values, keepMin)) return;
     // no Workers here (the in-page solver): one search, 60 s
-    running = "optimize"; progressStart(60, "Forging");
-    solver.postMessage({ type: "optimize", placements: state.placements, fillers, values, keepMin, seconds: 60, seed: Date.now() & 0xffff, maxSections: 3 });
+    running = "optimize"; progressStart(15, "Forging");            // in the page itself the search blocks everything: keep it short
+    solver.postMessage({ type: "optimize", placements: state.placements, fillers, values, keepMin, seconds: 15, seed: Date.now() & 0xffff, maxSections: 3 });
   }
 
   // ---------- presets, share, save ----------
   function loadPreset(n) {
     const p = D.presets.find(x => x.n === +n); if (!p || busy()) return;
     if (!D.hulls[p.hull]) { setStatus(`${docName(p)}: unknown hull "${p.hull}".`, "bad"); return; }
-    state.hull = p.hull; state.placements = p.placements.map(x => [x[0], x[1], x[2], x[3].map(c => [c[0], c[1]])]); state.exterior = Object.assign({}, p.exterior);
+    state.hull = p.hull; state.placements = p.placements.map(x => [x[0], x[1], rotOf(x[0], x[3], x[2]) || 0, x[3].map(c => [c[0], c[1]])]); state.exterior = soundExterior(p.exterior);
     state.name = docName(p); state.preset = p.n; state.selected = -1; state.dirty = false;
     state.minCaps = counts(state.placements)["Capacitor"] || 1; setMinsFromFit();
     startSolver(); render(); setStatus(`${p.name} loaded (${p.role}). Keeping its ${state.minCaps} Capacitors, ${state.mins["Cargo Container"]} Cargo Containers, ${state.mins["Fuel Bay"]} Fuel Bays and ${state.mins["Structural Brace"]} Braces unless you lower the minimums.`, "ok");
   }
+  // Links store a module as its place in a name table. The table's fingerprint travels with the link (f), and data.js
+  // keeps every table ever used (link_tables), so a link made before a patch added a module still reads right.
+  const NAMES = D.modules.map(m => m.name), LINK_FP = D.link_fp || null, LINK_TABLES = D.link_tables || {};
+  function linkTable(f) { if (f == null) return LINK_TABLES.legacy || NAMES; if (f === LINK_FP) return NAMES; return LINK_TABLES[f] || null; }
   function encode() {
-    const idx = {}; D.modules.forEach((m, i) => idx[m.name] = i);
-    const obj = { h: state.hull, n: state.name, p: state.placements.map(p => [idx[p[0]], p[1], p[2], Math.min(...p[3].map(c => c[0])), Math.min(...p[3].map(c => c[1]))]), e: state.exterior, r: state.prio, c: state.minCaps, k: state.mins, b: state.preset, d: state.dirty ? 1 : 0 };
+    const idx = {}; NAMES.forEach((n, i) => idx[n] = i);
+    const obj = { h: state.hull, n: String(state.name).slice(0, 60), p: state.placements.map(p => [idx[p[0]], p[1], rotOf(p[0], p[3], p[2]) || 0, Math.min(...p[3].map(c => c[0])), Math.min(...p[3].map(c => c[1]))]), e: state.exterior, r: state.prio, c: state.minCaps, k: state.mins, b: state.preset, d: state.dirty ? 1 : 0 };
+    if (LINK_FP) obj.f = LINK_FP;
     const s = JSON.stringify(obj);
     return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   }
-  function decodeFit(h) {
-    try {
-      const o = JSON.parse(decodeURIComponent(escape(atob(h.replace(/-/g, "+").replace(/_/g, "/")))));
-      if (!o.h || !D.hulls[o.h]) return null;
-      return { hull: o.h, name: o.n || "Shared fit", exterior: o.e || {}, placements: o.p.map(([mi, sec, rot, x, y]) => { const m = D.modules[mi]; const shape = rotShape(m.cells, rot); return [m.name, sec, rot, shape.map(c => [c[0] + x, c[1] + y])]; }) };
-    } catch (e) { return null; }
+  const looksLikeFit = h => /^eyJ[A-Za-z0-9_-]{20,}$/.test(h);          // base64 of a JSON object: the only kind of hash that is a fit
+  // A link is somebody else's text (audit 2026-10-11: a crafted one ran script, froze the tab or loaded modules on top of
+  // each other). Read into a fresh object, every field checked; one fault rejects the whole link and nothing is touched.
+  function readLink(h) {
+    let o; try { o = JSON.parse(decodeURIComponent(escape(atob(String(h).replace(/-/g, "+").replace(/_/g, "/"))))); } catch (e) { return null; }
+    if (!o || typeof o !== "object" || typeof o.h !== "string" || !D.hulls[o.h] || !Array.isArray(o.p) || o.p.length > 600) return null;
+    const table = linkTable(o.f); if (!table) return null;
+    const list = [];
+    for (const t of o.p) {
+      if (!Array.isArray(t)) return null;
+      const [mi, sec, rot, x, y] = t, m = Number.isInteger(mi) ? MOD[table[mi]] : null;
+      if (!m || !ROTS.includes(rot) || !Number.isInteger(x) || !Number.isInteger(y) || Math.abs(x) > 99 || Math.abs(y) > 99) return null;
+      list.push([m.name, sec, rot, rotShape(m.cells, rot).map(c => [c[0] + x, c[1] + y])]);
+    }
+    const placements = soundPlacements(o.h, list); if (!placements) return null;
+    const whole = (v, max) => Number.isInteger(v) ? Math.max(0, Math.min(max, v)) : 0;
+    let prio = null; if (o.r && typeof o.r === "object") { prio = {}; for (const k of ["hold", "cap", "fuel", "hp"]) if (Number.isFinite(o.r[k])) prio[k] = Math.max(0, Math.min(4, Math.round(o.r[k]))); }
+    let mins = null; if (o.k && typeof o.k === "object") { mins = zeroMins(); for (const n in mins) mins[n] = whole(o.k[n], 400); }
+    return { hull: o.h, name: (typeof o.n === "string" && o.n.trim() ? o.n.trim() : "Shared fit").slice(0, 60), placements, exterior: soundExterior(o.e), prio, minCaps: whole(o.c, 400), mins,
+             preset: Number.isInteger(o.b) ? o.b : null, dirty: o.d != null ? !!o.d : null };
   }
+  function decodeFit(h) { const L = readLink(h); return L && { hull: L.hull, name: L.name, exterior: L.exterior, placements: L.placements }; }
   function decode(h) {
-    try {
-      const s = decodeURIComponent(escape(atob(h.replace(/-/g, "+").replace(/_/g, "/"))));
-      const o = JSON.parse(s); if (!o.h || !D.hulls[o.h]) return false;
-      state.hull = o.h; state.name = o.n || "Shared fit"; state.exterior = o.e || {}; state.prio = Object.assign(state.prio, o.r || {}); delete state.prio.repair; orderFromPrio(); renderOrder(); state.minCaps = o.c || 0; state.preset = o.b || null;
-      state.placements = o.p.map(([mi, s, rot, x, y]) => { const m = D.modules[mi]; const shape = rotShape(m.cells, rot); return [m.name, s, rot, shape.map(c => [c[0] + x, c[1] + y])]; });
-      if (o.k) { state.mins = Object.assign(zeroMins(), o.k); syncKeepInputs(); } else setMinsFromFit();
-      state.dirty = o.d != null ? !!o.d : (!!state.preset && !/^\+.+\+$/.test(state.name));   // old links: a named preset without the +marks+ was changed
-      if (!state.minCaps) { state.minCaps = counts(state.placements)["Capacitor"] || 1; syncKeepInputs(); }
-      return true;
-    } catch (e) { return false; }
+    const L = readLink(h); if (!L) return false;
+    state.hull = L.hull; state.name = L.name; state.exterior = L.exterior; state.placements = L.placements; state.selected = -1;
+    if (L.prio) Object.assign(state.prio, L.prio);
+    orderFromPrio(); renderOrder(); state.minCaps = L.minCaps; state.preset = L.preset;
+    if (L.mins) { state.mins = L.mins; syncKeepInputs(); } else setMinsFromFit();
+    state.dirty = L.dirty != null ? L.dirty : (!!state.preset && !/^\+.+\+$/.test(state.name));   // old links: a named preset without the +marks+ was changed
+    if (!state.minCaps) { state.minCaps = counts(state.placements)["Capacitor"] || 1; syncKeepInputs(); }
+    return true;
   }
   function shareLink() {
     const url = location.href.split("#")[0] + "#" + encode();
@@ -803,12 +878,16 @@
     const st = stats(); const c = counts(state.placements);
     const base = state.preset ? D.presets.find(p => p.n === state.preset) : null;
     let t = `**${state.name}** (${state.hull})` + (base && state.dirty ? ` — proposal vs ${docName(base)}` : "") + "\n";
-    t += `Hold ${st.hold} m³ · Fuel ${st.fuel} · Capacitor ${st.cap} GJ (${st.rech.toFixed(1)} GJ/s est, drain ${st.drain.toFixed(1)}) · Hull ~${st.hp} HP, ${st.repair} HP/s · ${st.draw.toFixed(1)} / ${st.power} MW\n`;
+    t += `Hold ${st.hold} m³ · Fuel ${st.fuel} · Capacitor ${st.cap} GJ (${f1(st.rech)} GJ/s est, drain ${f1(st.drain)}) · Hull ~${st.hp} HP, ${st.repair} HP/s · ${st.draw.toFixed(1)} / ${st.power} MW\n`;
     const lines = Object.keys(c).sort().map(n => `${c[n]}x ${n}`); const ext = Object.keys(state.exterior).filter(n => state.exterior[n]).map(n => `${state.exterior[n]}x ${n}`);
     t += lines.join(", ") + (ext.length ? " · exterior: " + ext.join(", ") : "") + "\n";
     if (base) { const diff = diffVsBase(base); t += diff.length ? "Changes: " + diff.join(", ") + "\n" : "Same modules as the doctrine fit, re-packed.\n"; }
-    t += location.href.split("#")[0] + "#" + encode();
-    copy(t, "Discord text copied.");
+    const link = location.href.split("#")[0] + "#" + encode();
+    if (t.length + link.length > 1950) {                    // a Discord message holds 2,000 characters: the module list goes first, the link carries it anyway
+      const head = t.split("\n"); t = head.slice(0, 2).join("\n") + "\n" + (head.length > 4 ? head[3] + "\n" : "") + "Full module list: open the link.\n";
+    }
+    t += link;
+    copy(t, t.length > 2000 ? "Discord text copied. It is over 2,000 characters: Discord will send it as a file." : "Discord text copied.");
   }
   function copy(text, okMsg) {
     const done = () => setStatus(okMsg, "ok");
@@ -817,13 +896,14 @@
   }
   function savedFits() { try { return JSON.parse(localStorage.getItem("forge:saved") || "[]"); } catch (e) { return []; } }
   function saveFit() {
+    const had = savedFits().some(x => x.name === state.name);
     const list = savedFits().filter(x => x.name !== state.name); list.unshift({ name: state.name, hull: state.hull, code: encode(), when: new Date().toISOString() });
     try { localStorage.setItem("forge:saved", JSON.stringify(list.slice(0, 30))); } catch (e) { setStatus("Could not save in this browser.", "bad"); return; }
-    renderSaved(); setStatus(`Saved "${state.name}" in this browser.`, "ok");
+    renderSaved(); setStatus(`Saved "${state.name}" in this browser${had ? " (it replaced the earlier fit of that name)" : ""}.`, "ok");
   }
   function renderSaved() {
     const list = savedFits(); const sel = $("saved-sel");
-    sel.innerHTML = `<option value="">Saved fits (this browser)…</option>` + list.map((x, i) => `<option value="${i}">${x.name} · ${x.hull}</option>`).join("");
+    sel.innerHTML = `<option value="">Saved fits (this browser)…</option>` + list.map((x, i) => `<option value="${i}">${esc(x.name)} · ${esc(x.hull)}</option>`).join("");
   }
 
   // ---------- the card dialog: the fit drawn in the doctrine-card design (cardgen.js), rendered to a PNG for Discord ----------
@@ -882,7 +962,7 @@
     const link = $("cmp-link").value.trim();
     if (link) { const h = link.includes("#") ? link.split("#")[1] : link; const f = decodeFit(h); if (!f) { $("cmp-body").innerHTML = `<div class="note">That is not a proposal link from this page.</div>`; return null; } return f; }
     const n = +$("cmp-sel").value; const p = D.presets.find(x => x.n === n); if (!p) return null;
-    return { hull: p.hull, name: docName(p), placements: p.placements, exterior: p.exterior || {} };
+    return { hull: p.hull, name: docName(p), placements: p.placements, exterior: soundExterior(p.exterior) };
   }
   function renderCompare() {
     const B = otherFit(); if (!B) { if (!$("cmp-link").value.trim()) $("cmp-body").innerHTML = `<div class="note">Pick a fit to compare with.</div>`; return; }
@@ -902,10 +982,10 @@
     $("cmp-body").innerHTML = `<div class="cmp-hulls"><div><div class="cmp-name">${esc(A.name)} <span>(this fit)</span></div>${hullSvg(A.hull, A.placements, { mark: markA, numbers: false }).svg}</div><div><div class="cmp-name">${esc(B.name)}</div>${hullSvg(B.hull, B.placements, { mark: markB, numbers: false }).svg}</div></div>` +
       `<div class="note">${same ? `Gold outlines mark the cells that differ: ${markA.size} on this fit, ${markB.size} on the other.` : "Different hulls: no cell-by-cell diff."}</div>` +
       `<table class="cmp-table"><tr><th></th><th>${esc(A.name)}</th><th>${esc(B.name)}</th><th>Δ</th></tr>` + rows.map(([l, a, b, d]) => { const dd = a - b; return `<tr><td>${l}</td><td>${f(a, d)}</td><td>${f(b, d)}</td><td class="${dd > 0 ? "up" : dd < 0 ? "down" : ""}">${dd > 0 ? "+" : ""}${f(dd, d)}</td></tr>`; }).join("") + `</table>` +
-      `<div class="cmp-diff"><b>Modules</b>: ${diff.length ? diff.map(([d, n]) => `<span class="${d > 0 ? "up" : "down"}">${d > 0 ? "+" : ""}${d} ${n}</span>`).join(", ") : "the same modules, placed differently"}.</div>`;
+      `<div class="cmp-diff"><b>Modules</b>: ${diff.length ? diff.map(([d, n]) => `<span class="${d > 0 ? "up" : "down"}">${d > 0 ? "+" : ""}${+d} ${esc(n)}</span>`).join(", ") : "the same modules, placed differently"}.</div>`;
   }
   function openCompare() {
-    const sel = $("cmp-sel"); sel.innerHTML = D.presets.filter(p => p.hull === state.hull).concat(D.presets.filter(p => p.hull !== state.hull)).map(p => `<option value="${p.n}">${docName(p)} · ${p.hull}</option>`).join("");
+    const sel = $("cmp-sel"); sel.innerHTML = D.presets.filter(p => p.hull === state.hull).concat(D.presets.filter(p => p.hull !== state.hull)).map(p => `<option value="${esc(p.n)}">${esc(docName(p))} · ${esc(p.hull)}</option>`).join("");
     if (state.preset && D.presets.some(p => p.n === state.preset)) sel.value = state.preset;
     $("cmp-link").value = ""; $("cmpmodal").hidden = false; document.body.style.overflow = "hidden"; renderCompare();
   }
@@ -937,9 +1017,9 @@
     const s = shopping(), f = n => n.toLocaleString("en-US");
     $("shop-sub").textContent = `${state.name} · ${s.rows.length} kinds of module · print time about ${Math.round(s.secs / 60)} min`;
     const mats = Object.keys(s.mats).sort((a, b) => s.mats[b] - s.mats[a]);
-    $("shop-body").innerHTML = `<div><h3>Modules to print</h3><table>${s.rows.map(r => `<tr><td class="n">${r.k}x</td><td>${r.n}</td><td class="f">${r.fac}</td></tr>`).join("")}</table>` +
+    $("shop-body").innerHTML = `<div><h3>Modules to print</h3><table>${s.rows.map(r => `<tr><td class="n">${+r.k}x</td><td>${esc(r.n)}</td><td class="f">${esc(r.fac)}</td></tr>`).join("")}</table>` +
       `<div class="note">Command Pod and Weapon Receiver have no printer recipe: they come with the ship, and wrecks drop spares.</div></div>` +
-      `<div><h3>Materials, total</h3><table>${mats.map(m => `<tr><td class="n">${f(s.mats[m])}x</td><td>${m}</td></tr>`).join("")}</table>` +
+      `<div><h3>Materials, total</h3><table>${mats.map(m => `<tr><td class="n">${f(s.mats[m])}x</td><td>${esc(m)}</td></tr>`).join("")}</table>` +
       `<div class="note">Recipes as read from the Industry window; the simplest printer that makes each module (the Emergency Printer where it can, else the Mini Printer; the ship Printer makes the same). Refining the raw ore into these is one step further.</div></div>`;
     $("shopmodal").hidden = false; document.body.style.overflow = "hidden";
   }
@@ -959,7 +1039,7 @@
     { at: "#palette", title: "Everything you can fit", text: "Every module in the game, with the cells it takes. Press + to fit one (the forge finds a spot, rearranging if it must), or drag it straight onto the hull." },
     { at: ".tiles", title: "These numbers decide if you get home", text: "Hold, fuel and how many hours it lasts, capacitor and whether it stays charged with everything running, hull HP, power. The ◀ ▶ arrows add or remove the module behind each one." },
     { at: "#hints", title: "What should I change?", text: "Red checks are rules the game enforces. Below them, one-line advice a new rider wishes they had known, each with a button that does it." },
-    { at: "#btn-forge", title: "Forge for the role", text: "Set what matters (hold, capacitor, fuel, armour) and press Forge: several searches fill the spare cells at once and stop by themselves when nothing better turns up. Then share the fit with a proposal link." },
+    { at: "#btn-forge", title: "Forge for the role", text: "Set what matters (hold, capacitor, fuel, armour) and press Forge: several searches fill the spare cells at once and keep looking until you press Stop. The bar says how long it has been since anything better turned up. Then share the fit with a proposal link." },
   ];
   let tourI = -1;
   function tourSeen() { try { return localStorage.getItem("forge:tour") === "done"; } catch (e) { return true; } }
@@ -1050,6 +1130,7 @@
     $("palette").addEventListener("click", e => {
       const b = e.target.closest("button"); if (!b) return;
       if (b.dataset.add) addModule(b.dataset.add); else if (b.dataset.sub) subModule(b.dataset.sub);
+      else if ((b.dataset.addx || b.dataset.subx) && busy()) return;
       else if (b.dataset.addx) { state.exterior[b.dataset.addx] = (state.exterior[b.dataset.addx] || 0) + 1; markDirty(); render(); }
       else if (b.dataset.subx) { state.exterior[b.dataset.subx] = Math.max(0, (state.exterior[b.dataset.subx] || 0) - 1); if (!state.exterior[b.dataset.subx]) delete state.exterior[b.dataset.subx]; markDirty(); render(); }
     });
@@ -1057,9 +1138,10 @@
     $("btn-cw").addEventListener("click", () => turnSelected("cw"));
     $("btn-180").addEventListener("click", () => turnSelected("half"));
     $("btn-remove").addEventListener("click", removeSelected);
-    document.addEventListener("keydown", e => { if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return; if (e.key === "r") turnSelected("cw"); if (e.key === "R" || e.key === "e" || e.key === "E") turnSelected("ccw"); if (e.key === "f" || e.key === "F") turnSelected("half"); if (e.key === "Delete" || e.key === "Backspace") removeSelected(); });
+    const keysOff = e => e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT" || !!document.querySelector(".modal:not([hidden])") || !$("grid").offsetParent;   // offsetParent: the Forge is not the page on screen
+    document.addEventListener("keydown", e => { if (keysOff(e) || e.ctrlKey || e.metaKey || e.altKey) return; if (e.key === "r") turnSelected("cw"); if (e.key === "R" || e.key === "e" || e.key === "E") turnSelected("ccw"); if (e.key === "f" || e.key === "F") turnSelected("half"); if (e.key === "Delete" || e.key === "Backspace") removeSelected(); });
     document.addEventListener("keydown", e => {
-      if (!(e.ctrlKey || e.metaKey) || e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      if (!(e.ctrlKey || e.metaKey) || keysOff(e)) return;
       const k = e.key.toLowerCase();
       if (k === "z" && !e.shiftKey) { e.preventDefault(); undo(); } else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); redo(); }
     });
@@ -1081,13 +1163,14 @@
     $("btn-share").addEventListener("click", shareLink);
     $("btn-discord").addEventListener("click", discordText);
     $("btn-save").addEventListener("click", saveFit);
-    $("saved-sel").addEventListener("change", e => { if (busy()) { e.target.value = ""; return; } const x = savedFits()[+e.target.value]; if (x && decode(x.code)) { startSolver(); render(); setStatus(`Loaded "${x.name}".`, "ok"); } e.target.value = ""; });
+    $("saved-sel").addEventListener("change", e => { if (busy()) { e.target.value = ""; return; } const x = savedFits()[+e.target.value]; if (x && decode(x.code)) { startSolver(); render(); setStatus(`Loaded "${x.name}".`, "ok"); } else if (x) setStatus(`"${x.name}" could not be read: it was saved by a different version of the Forge.`, "bad"); e.target.value = ""; });
     $("btn-clear").addEventListener("click", () => cleanSlate(false));
-    $("zoom-in").addEventListener("click", () => { state.zoom = Math.min(3, +(state.zoom * 1.25).toFixed(2)); fitZoom(); });
-    $("zoom-out").addEventListener("click", () => { state.zoom = Math.max(0.4, +(state.zoom / 1.25).toFixed(2)); fitZoom(); });
+    const ZOOMS = [0.4, 0.5, 0.63, 0.8, 1, 1.25, 1.6, 2, 2.5, 3];
+    $("zoom-in").addEventListener("click", () => { state.zoom = ZOOMS.find(z => z > state.zoom + 0.005) || 3; fitZoom(); });
+    $("zoom-out").addEventListener("click", () => { state.zoom = ZOOMS.slice().reverse().find(z => z < state.zoom - 0.005) || 0.4; fitZoom(); });
     $("zoom-fit").addEventListener("click", () => { state.zoom = 1; fitZoom(); });
-    // Ctrl + wheel over the fitting window zooms it (a touchpad pinch arrives the same way); a plain wheel still scrolls the page
-    $("grid").addEventListener("wheel", e => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); state.zoom = Math.max(0.4, Math.min(3, +(state.zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1)).toFixed(2))); fitZoom(); }, { passive: false });
+    // Ctrl + wheel over the fitting window zooms it (a touchpad pinch arrives the same way, in many small steps); a plain wheel still scrolls the page
+    $("grid").addEventListener("wheel", e => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); const d = Math.max(-50, Math.min(50, e.deltaY)); state.zoom = Math.max(0.4, Math.min(3, +(state.zoom * Math.exp(-d * 0.004)).toFixed(3))); fitZoom(); }, { passive: false });
     window.addEventListener("resize", fitZoom);
     renderSaved();
   }
@@ -1100,23 +1183,31 @@
   }
   // the public site adds the doctrine fits here once a tribe member has logged in (tribe.js)
   // the fit on screen in the preset shape (tribe.js "Set as doctrine" writes it into the site's doctrine store)
-  window.__forgeCurrentFit = () => ({ name: state.name, hull: state.hull, placements: state.placements.map(p => [p[0], p[1], p[2], p[3].map(c => [c[0], c[1]])]), exterior: Object.assign({}, state.exterior), preset: state.preset });
+  window.__forgeCurrentFit = () => ({ name: state.name, hull: state.hull, placements: state.placements.map(p => [p[0], p[1], rotOf(p[0], p[3], p[2]) || 0, p[3].map(c => [c[0], c[1]])]), exterior: Object.assign({}, state.exterior), preset: state.preset });
   window.__forgeAddPresets = list => {
-    let next = D.presets.reduce((m, p) => Math.max(m, +p.n || 0), 100) + 1, added = 0;
+    let next = D.presets.reduce((m, p) => Math.max(m, +p.n || 0), 100) + 1, added = 0; const skipped = [];
     for (const p of list || []) {
       if (!p || typeof p.name !== "string" || !p.name.trim() || !D.hulls[p.hull] || !Array.isArray(p.placements)) continue;
+      const sound = soundPlacements(p.hull, p.placements); if (!sound) { skipped.push(p.name.slice(0, 40)); continue; }   // unknown module, overlap, outside the hull
+      p.placements = sound; p.exterior = soundExterior(p.exterior);
       if (D.presets.some(x => x.n === p.n || String(x.name).toLowerCase() === p.name.toLowerCase())) continue;
       if (!Number.isInteger(p.n)) p.n = next++;
       D.presets.push(p); added++;
     }
-    renderPresetSelect(); return added;
+    renderPresetSelect(); if (skipped.length) setStatus(`Not loaded, the layout is not valid: ${skipped.join(", ")}.`, "warn"); return added;
   };
+  const BAD_LINK = "That link does not hold a fit this page can read: it is damaged, or was made by a newer Forge (reload the page).";
   function boot() {
     renderPresetSelect();
     wire();
     const h = location.hash.replace(/^#/, "");
     if (h && decode(h)) { $("min-caps").value = state.minCaps || (counts(state.placements)["Capacitor"] || 1); state.minCaps = +$("min-caps").value; startSolver(); render(); setStatus(`Shared fit "${state.name}" loaded.`, "ok"); }
-    else loadPreset(D.presets.some(p => p.n === 8) ? 8 : D.presets[0].n);
+    else { loadPreset(D.presets.some(p => p.n === 8) ? 8 : D.presets[0].n); if (looksLikeFit(h)) setStatus(BAD_LINK, "bad"); }
+    window.addEventListener("hashchange", () => {            // a proposal link pasted into the address bar of an open Forge
+      const x = location.hash.replace(/^#/, ""); if (!looksLikeFit(x)) return;
+      if (busy()) return;
+      if (decode(x)) { startSolver(); render(); setStatus(`Shared fit "${state.name}" loaded.`, "ok"); } else setStatus(BAD_LINK, "bad");
+    });
     $("build").textContent = `client build ${D.client_build} · data of ${D.generated}`;
     if (K && K.logo) $("crest").src = "data:image/png;base64," + K.logo;
   }

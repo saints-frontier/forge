@@ -57,7 +57,11 @@ function placementsOf(s, name) {
   if (PLACE.has(k)) return PLACE.get(k);
   const idx = HULL.index[s], list = [], cover = new Map();
   for (const [rot, shape] of SHAPES[name]) {
-    for (const [ax, ay] of HULL.cellList[s]) {
+    // Anchor on the shape's first CELL, not on its bounding-box corner: a shape with no cell at (0,0) lost every spot whose
+    // corner fell off the hull (523 of 28,544 placements; "No room for X" with its own hole empty; audit 2026-10-11).
+    const x0 = shape[0][0], y0 = shape[0][1];
+    for (const [cx, cy] of HULL.cellList[s]) {
+      const ax = cx - x0, ay = cy - y0;
       const cells = shape.map(c => [c[0] + ax, c[1] + ay]);
       const bits = cells.map(c => idx.get(key(c[0], c[1])));
       if (bits.some(b => b === undefined)) continue;
@@ -99,9 +103,12 @@ function pack(free0, mandatory, fillers, values, budget, rnd) {
   const n = HULL.n;
   const active = [];
   for (let s = 0; s < n; s++) if (anyFree(free0[s])) active.push(s);
-  const steps = { n: 0 };
+  const steps = { n: 0 }; let limit = budget;
   // per-cell bound: best filler value density of any filler placement covering the cell
   const density = {}; for (const f of fillers) density[f] = values[f] / SHAPES[f][0][1].length;
+  // dive into the most valuable filler first: in the page's fixed order (cargo first) an Armour- or Fuel-first forge
+  // spent its budget on containers and found a fraction of the Braces that fit (audit 2026-10-11)
+  fillers = fillers.slice().sort((a, b) => density[b] - density[a]);
   // cellBound[i][bit] = that density (0 = no filler fits there); covers[i][j] = cover map of fillers[j] in section active[i]
   const cellBound = active.map(s => new Float64Array(HULL.cellList[s].length));
   const covers = active.map(s => fillers.map(f => placementsOf(s, f).cover));
@@ -125,7 +132,7 @@ function pack(free0, mandatory, fillers, values, budget, rnd) {
   function fillExact(free, placed, value, bnd) {
     steps.n++;
     if (value > best.value) { best.value = value; best.placed = placed.slice(); }
-    if (steps.n > budget) return;
+    if (steps.n > limit) return;
     let i = -1; for (let a = 0; a < active.length; a++) if (anyFree(free[active[a]])) { i = a; break; }
     if (i < 0) return;
     if (value + bnd <= best.value) return;
@@ -141,7 +148,7 @@ function pack(free0, mandatory, fillers, values, budget, rnd) {
         take(fs, p.mask); placed.push([f, s, p.rot, p.cells]);
         fillExact(free, placed, v, bnd - lost);
         placed.pop(); give(fs, p.mask);
-        if (steps.n > budget) return;
+        if (steps.n > limit) return;
       }
     }
     fs[low >>> 5] = (fs[low >>> 5] & ~((1 << (low & 31)) >>> 0)) >>> 0;
@@ -172,9 +179,12 @@ function pack(free0, mandatory, fillers, values, budget, rnd) {
       take(free[bestOpt.s], bestOpt.mask); placed.push([l, bestOpt.s, bestOpt.rot, bestOpt.cells]);
     }
     steps.n += 50;
-    if (!ok) { if (restart > 20 && !best.placed) return null; continue; }
+    if (!ok) { if (restart > 60 && !best.placed) return null; continue; }
     const bnd = bound(free);
     if (best.placed && bnd <= best.value) continue;
+    // one arrangement gets a sixth of the budget, so the randomized ones get their turn (the first used to eat it all and
+    // two seeds returned the same re-pack); with nothing to arrange there is only one arrangement: it keeps the whole budget
+    limit = mandatory.length ? Math.min(budget, steps.n + Math.ceil(budget / 6)) : budget;
     fillExact(free, placed, 0, bnd);
   }
   return best.placed ? best : null;
