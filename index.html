@@ -215,6 +215,9 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #tab-lodge button.primary { background: var(--crimson); color: #fff; border-color: var(--gold); font-size: 12px; padding: 11px 16px; }
 #tab-lodge button.primary:hover { background: var(--red); }
 #tab-lodge button.ghost { background: none; border-color: var(--line-strong); padding: 4px 8px; }
+#tab-lodge .layrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+#tab-lodge #clear-all { padding: 8px 12px; }
+#tab-lodge button.ghost.armed { border-color: var(--red); color: var(--red); }
 #tab-lodge button[disabled] { opacity: .45; cursor: default; }
 #tab-lodge input[type=text], #tab-lodge input[type=number], #tab-lodge textarea, #tab-lodge select { background: var(--panel-2); color: var(--fg); border: 1px solid var(--line-strong); padding: 7px 9px; font: 14px var(--body); border-radius: 2px; min-width: 0; }
 #tab-lodge textarea { width: 100%; min-height: 120px; font: 12px/1.4 var(--mono); resize: vertical; }
@@ -498,7 +501,8 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
         </details>
       </div>
       <div class="sec">
-        <button class="primary" id="lay">✠ Lay the foundation</button>
+        <div class="layrow"><button class="primary" id="lay">✠ Lay the foundation</button>
+        <button class="ghost" id="clear-all" title="Empties the goals, the pasted inventory, the plan and every tick. Your facilities and plan settings stay.">Clear the Lodge</button></div>
       </div>
     </section>
 
@@ -667,5 +671,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=80944361"></script><script src="lodge-planner.js?v=17966a21"></script><script src="lodge-app.js?v=fb5f3ce2"></script><script src="tribe.js?v=db3221d1"></script>
+<script src="lodge-data.js?v=80944361"></script><script src="lodge-planner.js?v=17966a21"></script><script src="lodge-app.js?v=6ef29d6d"></script><script src="tribe.js?v=db3221d1"></script>
 </body></html>

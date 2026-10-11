@@ -54,6 +54,8 @@
   delete store.progress;   // v1 counted runs on every line; lines now count items
   const form = store.form || { goals: [{ item: "Network Node", qty: 1 }], facilities: D.facilities.filter(f => f.on).map(f => f.key), mode: "ore", salvage: "first", inv: "", routes: {} };
 
+  const EMPTY_WORK = $("work").innerHTML;                // the "Nothing laid yet" note, for Clear the Lodge
+
   // ---------- the form ----------
   function renderGoals() {
     $("goals").innerHTML = `<div class="goal ghead"><span>Item</span><span>How many items</span><span></span></div>` + form.goals.map((g, i) => `<div class="goalrow"><div class="goal">
@@ -479,6 +481,25 @@
     const fallback = () => { const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); toast("Copied."); } catch (e) { toast("Select and copy the text."); } ta.remove(); };
     try { navigator.clipboard.writeText(text).then(() => toast("Copied."), fallback); } catch (e) { fallback(); }
   }
+
+  // Clear the Lodge (user 2026-10-11): goals, pasted inventory, the plan, route choices and every tick go; the
+  // facilities and the two plan settings stay (they describe the pilot, not the job). Two clicks within four seconds
+  // instead of a dialog: a confirm() never opens inside an artifact.
+  let clearArmed = 0;
+  $("clear-all").addEventListener("click", () => {
+    const b = $("clear-all"), rest = () => { b.textContent = "Clear the Lodge"; b.classList.remove("armed"); };
+    if (Date.now() - clearArmed > 4000) {
+      clearArmed = Date.now(); b.textContent = "Click again to clear everything"; b.classList.add("armed");
+      setTimeout(() => { if (clearArmed && Date.now() - clearArmed >= 4000) { clearArmed = 0; rest(); } }, 4100); return;
+    }
+    clearArmed = 0; rest(); closePicker();
+    buildN++; recomputeN++;                              // a plan still being worked out is dropped when it arrives
+    form.goals = [{ item: "", qty: 1 }]; form.inv = ""; form.routes = {};
+    $("inv").value = ""; store.own = {}; store.opts = null; store.routesOpen = false; plan = null; lines = [];
+    renderGoals(); invNote(); persistForm(); goalHints();
+    $("work").innerHTML = EMPTY_WORK; $("work-count").textContent = "";
+    toast("The Lodge is cleared.");
+  });
 
   renderGoals(); salvageNote(); invNote();
   $("foot-data").textContent = `DATA OF ${D.generated.toUpperCase()} · ${D.recipes.length} RECIPES`;
