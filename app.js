@@ -108,27 +108,53 @@
     for (const g in (D.base_ship.max_group || {})) { const G = D.base_ship.max_group[g]; if (G.names.includes(name) && G.names.reduce((a, n) => a + (c[n] || 0), 0) >= G.max) return `${name}: the game allows at most ${G.max} ${g} per ship.`; }
     return null;
   }
+  // The engine (user 2026-10-10): a ship cannot fly without one, so the last engine is never removed. Another class is
+  // swapped in place: the three classes share one footprint, so the swap is a relabel and nothing else moves.
+  const isEngine = n => (D.base_ship.engines || []).includes(n);
+  const engineCount = c => (D.base_ship.engines || []).reduce((a, n) => a + (c[n] || 0), 0);
+  const lastEngine = l => isEngine(l) && engineCount(counts(state.placements)) <= 1;
+  const keptMsg = l => isEngine(l) ? "A ship cannot fly without an engine: press + on another engine to switch." : `${l} cannot be removed (the game keeps it).`;
+  function swapEngine(name) {
+    const i = state.placements.findIndex(p => isEngine(p[0])); if (i < 0) return false;
+    const old = state.placements[i][0]; if (old === name) return true;
+    if (JSON.stringify(MOD[old].cells) !== JSON.stringify(MOD[name].cells)) return false;     // never the case today: the caller then fits it the long way
+    state.placements = state.placements.map((p, k) => k === i ? [name, p[1], p[2], p[3]] : p);
+    markDirty(); render(); setStatus(`Engine switched: ${old} → ${name}.`, "ok"); return true;
+  }
   function hold(pl) { let m = 0; pl.forEach(p => { const e = MOD[p[0]]; if (e && e.hold) m += e.hold; }); return m; }
   function counts(pl) { const c = {}; pl.forEach(p => c[p[0]] = (c[p[0]] || 0) + 1); return c; }
 
   // ---------- stats ----------
   function recharge(nCaps, trickle) { const r = D.models.recharge; return (nCaps > 0 ? r.a * Math.pow(nCaps, r.b) : 0) + trickle; }
   function stats() { return statsOf(state.hull, state.placements, state.exterior); }
+  // what n EM Scramblers online leave of the signature: measured for 1-3, each one past the table helps as little as the last step
+  function emMult(n) { const t = (D.models.em || {}).scrambler_mult || [1]; if (n < t.length) return t[n]; const last = t[t.length - 1], step = t.length > 1 ? last / t[t.length - 2] : 1; return last * Math.pow(Math.max(step, 0.85), n - t.length + 1); }
   function statsOf(hullName, placements, exterior) {
     const c = counts(placements), ext = exterior;
     const cells = placements.reduce((a, p) => a + p[3].length, 0), total = D.hulls[hullName].cells_total;
     let fuel = 0, cap = 0, hp = D.models.hull_hp, repair = 0, draw = 0, drain = 0, trickle = 0, power = 0, payload = 0;
+    const hullMass = D.hulls[hullName].mass || 0; let mass = hullMass;                 // kg: the hull plus every fitted module (as the fitting screen counts it)
     for (const n in c) { const m = MOD[n]; if (!m) continue; const k = c[n];
       fuel += (m.fuel || 0) * k; cap += (m.cap || 0) * k; hp += (m.hp || 0) * k; repair += (m.repair || 0) * k; draw += (m.draw_mw || 0) * k;
-      drain += (m.drain || 0) * k; trickle += (m.trickle || 0) * k; power += (m.power || 0) * k; payload += (m.payload || 0) * k; }
+      drain += (m.drain || 0) * k; trickle += (m.trickle || 0) * k; power += (m.power || 0) * k; payload += (m.payload || 0) * k; mass += (m.mass || 0) * k; }
     let dps = 0, dpsRamped = 0, mining = 0; const hits = [];     // hits: what one weapon lands per hit at full spool-up (the number the logs show)
-    for (const n in ext) { const e = EXT[n]; if (!e) continue; const k = ext[n]; drain += (e.drain || 0) * k; dps += (e.dps || 0) * k; dpsRamped += (e.dps_ramped || e.dps || 0) * k; if (e.mining) mining += k;
+    for (const n in ext) { const e = EXT[n]; if (!e) continue; const k = ext[n]; mass += (e.mass || 0) * k; drain += (e.drain || 0) * k; dps += (e.dps || 0) * k; dpsRamped += (e.dps_ramped || e.dps || 0) * k; if (e.mining) mining += k;
       if (e.dps && e.cycle_s) hits.push({ name: n, k, perHit: Math.round((e.dps_ramped || e.dps) * e.cycle_s), cycle: e.cycle_s, ramps: !!e.dps_ramped }); }
     const nCaps = c["Capacitor"] || 0;
     const rech = recharge(nCaps, trickle);
     const factor = D.models.fuel.factor[state.fuelGrade];
     const burn = draw * 60 / factor;                         // units per minute
+    // EM signature at rest (measured model, data.js models.em): hull + Capacitors + power drawn by everything but the
+    // EM Scramblers; each Scrambler online adds a little of its own and the total is multiplied (measured for 1-3).
+    const E = D.models.em || { per_mw: 0, per_capacitor: 0 }, emHull = D.hulls[hullName].em || 100, scramblers = c[E.scrambler] || 0;
+    const emOther = E.per_mw * (draw - scramblers * ((MOD[E.scrambler] || {}).draw_mw || 0)), emDark = emHull + E.per_capacitor * nCaps;
+    const emWith = (base, n) => (base + (E.scrambler_own || 0) * n) * emMult(n);          // n Scramblers online on top of `base`
+    const emRaw = emDark + emOther, em = emWith(emRaw, scramblers);
+    const emParts = [["Hull", emHull], [`${nCaps} Capacitor${nCaps === 1 ? "" : "s"}`, E.per_capacitor * nCaps]];
+    for (const n in c) { const m = MOD[n]; if (!m || !m.draw_mw) continue; emParts.push([c[n] > 1 ? `${c[n]} ${n}s` : n, n === E.scrambler ? (E.scrambler_own || 0) * c[n] : E.per_mw * m.draw_mw * c[n]]); }
+    emParts.sort((a, b) => b[1] - a[1]);
     return { cells, total, free: total - cells, hold: hold(placements), fuel, cap, hp, repair, draw, power: power || D.models.power_mw, drain, rech, nCaps, hits,
+             mass, hullMass, em, emHull, emRaw, emDark, emWith, emParts: emParts.filter(p => p[1] > 0), emCaps: E.per_capacitor * nCaps, emPower: emOther, scramblers,
              burn, hours: burn > 0 ? fuel / burn / 60 : Infinity, dps, dpsRamped, mining, payload, stable: rech >= drain, lastMin: drain > rech ? cap / (drain - rech) : Infinity };
   }
   function capsNeeded(drain, trickle) { const r = D.models.recharge; if (drain <= trickle) return 0; return Math.ceil(Math.pow((drain - trickle) / r.a, 1 / r.b)); }
@@ -139,9 +165,10 @@
     const has = n => (c[n] || 0) > 0;
     if (!st.stable) { const need = Math.max(1, capsNeeded(st.drain, (c["Blackstart Cell"] || 0) * 0.3) - st.nCaps);
       out.push({ text: `Capacitor runs dry in ${isFinite(st.lastMin) ? Math.round(st.lastMin) + " s" : "no time"} with everything on. Run it empty and you cannot warp away.`, add: Array(need).fill("Capacitor"), label: `Add ${need} Capacitor${need > 1 ? "s" : ""}` }); }
+    if (!engineCount(c) && (D.base_ship.engines || []).length) out.push({ text: "No engine: the ship cannot fly.", add: [D.base_ship.engines[0]], label: "Add an engine" });
     if (!has("Hull Repairer")) out.push({ text: "No Hull Repairer: nothing heals you in the field. One repairs ~25 HP/s, your best survival module.", add: ["Hull Repairer"], label: "Add one" });
     if (!has("Leap")) out.push({ text: "No Leap: you cannot jump to another system on your own.", add: ["Leap"], label: "Add a Leap" });
-    if (!has("Docking Clamp")) out.push({ text: "No Docking Clamp: no docking at Fueling Quays, so no free Unstable Fuel.", add: ["Docking Clamp"], label: "Add one" });
+    if (!has("Docking Clamp")) out.push({ text: "No Docking Clamp: no docking at Fueling Docks, so no free Unstable Fuel.", add: ["Docking Clamp"], label: "Add one" });
     if (!has("Transponder")) out.push({ text: "No Transponder: a tribe's catapults and gates stay invisible to you.", add: ["Transponder"], label: "Add one" });
     if (!has("Gravity Sensor") && !has("Ion Sensor")) out.push({ text: "No sensor: you cannot find rocks, sites or ships.", add: ["Gravity Sensor"], label: "Add a Gravity Sensor" });
     else if (!ext["Directional Scanner"]) out.push({ text: "No Directional Scanner on the sensor: no scanning for what is out there.", ext: "Directional Scanner", label: "Add one" });
@@ -278,7 +305,7 @@
       const t = el.querySelector(`text.modnum[data-i="${drag.i}"]`), tr = `translate(${((pt.x - drag.start.x) * k).toFixed(1)},${((pt.y - drag.start.y) * k).toFixed(1)})`;
       if (g) { g.setAttribute("transform", tr); g.style.opacity = off ? "0.3" : "0.75"; g.style.pointerEvents = "none"; }
       if (t) { t.setAttribute("transform", tr); t.style.opacity = off ? "0.3" : "0.75"; }
-      if (off !== drag.off) { drag.off = off; const l = state.placements[drag.i][0]; setStatus(off ? (locked(l) ? `${l} cannot be removed (the game keeps it).` : `Release to remove ${l}.`) : "", off ? "warn" : "info"); }
+      if (off !== drag.off) { drag.off = off; const l = state.placements[drag.i][0]; setStatus(off ? (locked(l) ? keptMsg(l) : `Release to remove ${l}.`) : "", off ? "warn" : "info"); }
     });
     const endDrag = ev => {
       if (!drag) return; const d = drag; drag = null;
@@ -308,6 +335,7 @@
   function capMessage(name) {
     const c = counts(state.placements), cap = (D.base_ship.max_fit || {})[name];
     if (cap && (c[name] || 0) >= cap) return `${name}: the game allows at most ${cap} per ship.`;
+    if (isEngine(name) && !c[name] && engineCount(c) > 0) return `One engine per ship: press + on ${name} to switch to it.`;
     return groupCap(name, c);
   }
   // where `name` would go if dropped on cell (s, x, y): the module's centre on that cell, the turn the drag is using
@@ -406,11 +434,11 @@
     else setStatus(`${p[0]}: no room to turn ${label} here. Try another turn, or drag it somewhere roomier.`, "bad");
   }
   function rotateSelected() { turnSelected("cw"); }
-  function locked(l) { return D.base_ship.never_removed[l] && counts(state.placements)[l] <= D.base_ship.never_removed[l]; }
+  function locked(l) { return (D.base_ship.never_removed[l] && counts(state.placements)[l] <= D.base_ship.never_removed[l]) || lastEngine(l); }
   function offWindow(ev) { const r = $("grid").getBoundingClientRect(); return ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom; }
   function removeAt(i) {
     const [l] = state.placements[i];
-    if (locked(l)) { setStatus(`${l} cannot be removed (the game keeps it).`, "bad"); render(); return; }
+    if (locked(l)) { setStatus(keptMsg(l), "bad"); render(); return; }
     state.placements.splice(i, 1); state.selected = -1; keepByHand(l); markDirty(); render(); setStatus(`${l} removed.`, "ok");
   }
   function removeSelected() { if (state.selected >= 0 && !busy()) removeAt(state.selected); }
@@ -431,9 +459,11 @@
       if (!groups[g]) continue;
       html += `<div class="pgroup"><h3>${g}</h3>`;
       groups[g].forEach(m => { const k = c[m.name] || 0;
-        const lockMin = D.base_ship.never_removed[m.name] || 0, locked = k <= lockMin, full = ((D.base_ship.max_fit || {})[m.name] && k >= D.base_ship.max_fit[m.name]) || !!groupCap(m.name, c);
-        html += `<div class="prow${k ? " has" : ""}${lockMin ? " core" : ""}" data-mod="${m.name}" title="drag onto the hull, or press +"><span class="sw" style="background:${m.color}"></span><span class="pname">${m.name}${lockMin ? ' <span class="lock" title="the game never lets this be removed">✠</span>' : ""}</span><span class="psize">${m.size}</span>` +
-                `<span class="pcount">${k || ""}</span><button class="pbtn" data-add="${m.name}" title="${full ? "the game allows no more of these" : "add one"}" aria-label="add ${m.name}"${full ? " disabled" : ""}>+</button><button class="pbtn" data-sub="${m.name}" title="${lockMin ? "the game keeps " + lockMin : "remove one"}" aria-label="remove ${m.name}"${locked ? " disabled" : ""}>−</button></div>`; });
+        const eng = isEngine(m.name), swap = eng && !k && engineCount(c) > 0, onlyEngine = eng && k > 0 && engineCount(c) <= 1;
+        const lockMin = D.base_ship.never_removed[m.name] || 0, locked = k <= lockMin || onlyEngine, full = !swap && (((D.base_ship.max_fit || {})[m.name] && k >= D.base_ship.max_fit[m.name]) || !!groupCap(m.name, c));
+        const mark = lockMin || onlyEngine;
+        html += `<div class="prow${k ? " has" : ""}${mark ? " core" : ""}" data-mod="${m.name}" title="${swap ? "press + to switch to this engine" : "drag onto the hull, or press +"}"><span class="sw" style="background:${m.color}"></span><span class="pname">${m.name}${mark ? ` <span class="lock" title="${onlyEngine ? "a ship cannot fly without an engine: press + on another to switch" : "the game never lets this be removed"}">✠</span>` : ""}</span><span class="psize">${m.size}</span>` +
+                `<span class="pcount">${k || ""}</span><button class="pbtn" data-add="${m.name}" title="${swap ? "switch to this engine" : full ? "the game allows no more of these" : "add one"}" aria-label="${swap ? "switch to" : "add"} ${m.name}"${full ? " disabled" : ""}>+</button><button class="pbtn" data-sub="${m.name}" title="${onlyEngine ? "a ship needs an engine: press + on another to switch" : lockMin ? "the game keeps " + lockMin : "remove one"}" aria-label="remove ${m.name}"${locked ? " disabled" : ""}>−</button></div>`; });
       html += `</div>`;
     }
     html += `<div class="pgroup"><h3>Exterior (hardpoints)</h3>`;
@@ -442,6 +472,25 @@
               `<span class="pcount">${k || ""}</span><button class="pbtn" data-addx="${e.name}" aria-label="add ${e.name}">+</button><button class="pbtn" data-subx="${e.name}" aria-label="remove ${e.name}"${k ? "" : " disabled"}>−</button></div>`; });
     html += `</div>`;
     $("palette").innerHTML = html;
+  }
+  // Hiding (a fleet commander's question, 2026-10-10: "make my signature zero, if it is possible at all"): it is not,
+  // so the page shows where the signature comes from and the lowest this fit can sit at, with the one fix that helps.
+  function renderHiding(st, f) {
+    const el = $("emwhy"); if (!el) return;
+    const E = D.models.em || {}, r = n => f(Math.round(n)), scr = E.scrambler, n = st.scramblers, measured = (E.scrambler_mult || [1]).length - 1;
+    const top = st.emParts.slice(0, 6), rest = st.emParts.slice(6).reduce((a, p) => a + p[1], 0);
+    const dark = st.emWith(st.emDark, n), pct = k => Math.round(emMult(k) * 100);
+    let html = `<div class="hh">Hiding: your EM signature</div>` +
+      `<div class="eparts">${top.map(([name, v]) => `${esc(name)} ${r(v)}`).join(" · ")}${rest ? ` · the rest ${r(rest)}` : ""}${n ? ` · then ×${emMult(n).toFixed(2)} (${n} ${scr}${n > 1 ? "s" : ""})` : ""}</div>` +
+      `<div class="erow"><span>Everything on</span><b>~${r(st.em)}</b></div>`;
+    if (n) html += `<div class="erow"><span>Everything off, the Capacitors stay</span><b>~${r(st.emDark)}</b></div>` +
+      `<div class="erow best"><span>Everything off but the ${n > 1 ? n + " " + scr + "s" : scr}</span><b>~${r(dark)}</b></div>`;
+    else html += `<div class="erow best"><span>Everything off, the Capacitors stay</span><b>~${r(st.emDark)}</b></div>`;
+    html += `<div class="enote">Lowest this fit can sit at: <b>~${r(Math.min(dark, st.emDark))}</b>. It cannot reach zero: the hull alone is ${st.emHull}, each Capacitor adds ${E.per_capacitor}, and Scramblers only take a share: one leaves ${pct(1)}%, two ${pct(2)}%, three ${pct(3)}%.` +
+      (n > measured ? ` More than ${measured} Scramblers has not been measured: the figure assumes each extra one helps as little as the last.` : "") + `</div>`;
+    if (MOD[scr] && n < measured) { const to = Math.min(measured, n + (measured - n));
+      html += `<div class="hint"><span>${n ? "More " : ""}${scr}s: with ${to} you hide at ~${r(st.emWith(st.emDark, to))} and fly at ~${r(st.emWith(st.emRaw, to))}.</span><button type="button" data-emadd="${to - n}">Fit ${to - n}${n ? " more" : ""}</button></div>`; }
+    el.innerHTML = html;
   }
   function renderStats() {
     const st = stats();
@@ -457,6 +506,16 @@
       ? (st.hits.map(h => `${h.k} × ${h.perHit} a hit every ${h.cycle} s`).join(" · ") + (st.dpsRamped > st.dps ? ` · ${f(st.dpsRamped)}/s spooled, ${f(st.dps)}/s cold` : " per second"))
       : (st.mining ? "mining lasers / extractors" : "no weapons");
     $("st-power").textContent = `${st.draw.toFixed(1)} / ${st.power}`; $("st-power-sub").textContent = "MW";
+    // mass in tonnes (the fitting screen shows kg: 12,456 t = 12,456,000 kg); EM signature as the fitting screen shows it
+    const tip = (id, text) => { $(id).textContent = text; $(id).title = text; };
+    const massChecked = state.hull === (D.models.mass || {}).verified_on;        // "~" until the hull's own mass is checked against the game
+    $("st-mass").textContent = (massChecked ? "" : "~") + f(Math.round(st.mass / 1000));
+    $("st-mass-sub").textContent = `tonnes: hull ${f(Math.round(st.hullMass / 1000))} + fit ${f(Math.round((st.mass - st.hullMass) / 1000))}`;
+    $("st-mass-sub").title = `${f(st.mass)} kg, without cargo or ammunition. ` + (massChecked ? "Matches the game's fitting screen." : `The ${state.hull} hull's own mass is the client's number, not yet checked in game.`);
+    const parts = `hull ${st.emHull} + Capacitors ${st.emCaps} + power ${Math.round(st.emPower)}`;
+    $("st-em").textContent = `~${f(Math.round(st.em))}`;
+    tip("st-em-sub", st.scramblers ? `at rest, all on: ${f(Math.round(st.emRaw))} before the ${st.scramblers} EM Scrambler${st.scramblers > 1 ? "s" : ""}` : `at rest, all on: ${parts}`);
+    renderHiding(st, f);
     const ch = checks(st);
     $("checks").innerHTML = ch.map(([ok, t]) => `<li class="${ok ? "ok" : "bad"}"><span class="dot"></span>${t}</li>`).join("");
     const hs = hints(st), hb = $("hints");
@@ -510,6 +569,7 @@
     if (busy(quiet)) return false;
     const cap = (D.base_ship.max_fit || {})[name];
     if (cap && (counts(state.placements)[name] || 0) >= cap) { setStatus(`${name}: the game allows at most ${cap} per ship.`, "bad"); return; }
+    if (isEngine(name) && !(counts(state.placements)[name]) && engineCount(counts(state.placements)) > 0 && swapEngine(name)) return true;
     const grp = groupCap(name, counts(state.placements)); if (grp) { setStatus(grp, "bad"); return; }
     if (!solverReady) { setStatus("Solver still loading…", "warn"); return; }
     $("btn-forge").disabled = true; setStatus(`Fitting ${name}…`, "info"); progressStart(0, `Finding a spot for ${name}…`);
@@ -551,20 +611,22 @@
     if (busy()) return;
     const idxs = state.placements.map((p, i) => p[0] === name ? i : -1).filter(i => i >= 0);
     if (!idxs.length) return;
-    if (D.base_ship.never_removed[name] && idxs.length <= D.base_ship.never_removed[name]) { setStatus(`${name} cannot be removed (the game keeps it).`, "bad"); return; }
+    if (locked(name)) { setStatus(keptMsg(name), "bad"); return; }
     state.placements.splice(idxs[idxs.length - 1], 1); state.selected = -1; keepByHand(name); markDirty(); render(); setStatus(`${name} removed.`, "ok");
   }
   // A clean slate is never empty: the modules the game refuses to remove are fitted first.
   async function cleanSlate(keepExterior) {
     if (busy()) return;
+    const engine = (state.placements.find(p => isEngine(p[0])) || [])[0] || (D.base_ship.engines || [])[0];
     state.placements = []; if (!keepExterior) state.exterior = {}; state.preset = null; state.selected = -1; state.name = "Forge your own";
     holdHistory = true; render(); holdHistory = false;
     if (!solverReady) await new Promise(r => { const t = setInterval(() => { if (solverReady) { clearInterval(t); r(); } }, 50); });
     const core = []; for (const n in D.base_ship.never_removed) for (let i = 0; i < D.base_ship.never_removed[n]; i++) core.push(n);
+    const kept = core.length; if (engine) core.push(engine);
     progressStart(0, "Laying the keel…");
     const r = await solve({ type: "tryadd", placements: [], add: core, seconds: 5, seed: 7 }, "tryadd");
     state.placements = r.placements; state.minCaps = D.base_ship.never_removed["Capacitor"] || 1; setMinsFromFit(); markDirty(); render();
-    setStatus(`${state.hull}: clean slate with the ${core.length} modules the game never removes (${[...new Set(core)].join(", ")}). Add the rest from the palette, then forge for the role.`, "info");
+    setStatus(`${state.hull}: clean slate with the ${kept} modules the game never removes (${[...new Set(core.slice(0, kept))].join(", ")})` + (engine ? ` and an engine (${engine}; + on another class switches it)` : "") + `. Add the rest from the palette, then forge for the role.`, "info");
   }
 
   // ---------- Forge for the role: parallel searches until nothing better turns up ----------
@@ -826,7 +888,8 @@
     if (same) { const ma = cellMap(A.placements), mb = cellMap(B.placements); for (const [k, v] of ma) if (mb.get(k) !== v) markA.add(k); for (const [k, v] of mb) if (ma.get(k) !== v) markB.add(k); }
     const f = (n, d) => Number(n).toLocaleString("en-US", { maximumFractionDigits: d === undefined ? 0 : d });
     const rows = [["Cells used", sa.cells, sb.cells, 0], ["Hold m³", sa.hold, sb.hold, 0], ["Fuel", sa.fuel, sb.fuel, 0], ["Fuel hours (" + state.fuelGrade + ")", isFinite(sa.hours) ? sa.hours : 0, isFinite(sb.hours) ? sb.hours : 0, 1],
-                  ["Capacitor GJ", sa.cap, sb.cap, 0], ["Recharge GJ/s est", sa.rech, sb.rech, 1], ["Drain GJ/s", sa.drain, sb.drain, 1], ["Hull HP", sa.hp, sb.hp, 0], ["Repair HP/s", sa.repair, sb.repair, 0], ["DPS spooled", sa.dpsRamped, sb.dpsRamped, 0], ["Power MW", sa.draw, sb.draw, 1]];
+                  ["Capacitor GJ", sa.cap, sb.cap, 0], ["Recharge GJ/s est", sa.rech, sb.rech, 1], ["Drain GJ/s", sa.drain, sb.drain, 1], ["Hull HP", sa.hp, sb.hp, 0], ["Repair HP/s", sa.repair, sb.repair, 0], ["DPS spooled", sa.dpsRamped, sb.dpsRamped, 0], ["Power MW", sa.draw, sb.draw, 1],
+                  ["Mass t", sa.mass / 1000, sb.mass / 1000, 0], ["EM signature est", sa.em, sb.em, 0]];
     const ca = counts(A.placements), cb = counts(B.placements); const names = new Set([...Object.keys(ca), ...Object.keys(cb)]); const diff = [];
     names.forEach(n => { const d = (ca[n] || 0) - (cb[n] || 0); if (d) diff.push([d, n]); });
     const ea = A.exterior || {}, eb = B.exterior || {}; new Set([...Object.keys(ea), ...Object.keys(eb)]).forEach(n => { const d = (ea[n] || 0) - (eb[n] || 0); if (d) diff.push([d, n + " (exterior)"]); });
@@ -965,6 +1028,14 @@
     $("preset-sel").addEventListener("change", e => { if (e.target.value) loadPreset(e.target.value); e.target.value = ""; });
     $("fit-name").addEventListener("input", e => { state.name = e.target.value; });
     $("hints").addEventListener("click", e => { const b = e.target.closest("button[data-hint]"); if (b && !running && !pool) applyHint(+b.dataset.hint); });
+    if ($("emwhy")) $("emwhy").addEventListener("click", async e => {
+      const b = e.target.closest("button[data-emadd]"); if (!b || busy()) return;
+      const scr = (D.models.em || {}).scrambler, want = +b.dataset.emadd || 1; let added = 0;
+      for (let k = 0; k < want; k++) { if (!(await addModule(scr, true))) break; added++; }
+      const st = stats();
+      setStatus(added ? `${added} ${scr}${added > 1 ? "s" : ""} fitted: ~${Math.round(st.em)} with everything on, ~${Math.round(st.emWith(st.emDark, st.scramblers))} hiding.` + (added < want ? ` No room for ${want - added} more.` : "")
+                      : `No room for an ${scr}, even after rearranging.`, added ? "ok" : "bad");
+    });
     document.querySelector(".tiles").addEventListener("click", e => { const b = e.target.closest("button[data-adj]"); if (b) adjust(b.dataset.adj, +b.dataset.d); });
     $("palette").addEventListener("pointerdown", paletteDown);
     document.addEventListener("pointermove", paletteMove, { passive: false });
