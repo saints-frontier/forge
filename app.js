@@ -328,7 +328,7 @@
     const base = Math.min(availW / w, availH / h);
     const scale = base * state.zoom;
     el.setAttribute("width", Math.round(w * scale)); el.setAttribute("height", Math.round(h * scale));
-    $("zoom-v").textContent = state.zoom === 1 ? "fit" : Math.round(state.zoom * 100) + "%";
+    $("zoom-v").textContent = Math.round(state.zoom * 100) + "%";
   }
   // ---------- drag from the palette onto the hull ----------
   let pdrag = null;                                           // { name, ghost, shown, target }
@@ -955,7 +955,7 @@
 
   // ---------- the guided first visit ----------
   const TOUR = [
-    { at: "#hull-svg", title: "This is your ship", text: "The hull, drawn like the game's fitting window: every coloured block is a module sitting in the cells it needs. Drag a module to move it, R turns it, drag it off the window to remove it." },
+    { at: "#hull-svg", title: "This is your ship", text: "The hull, drawn like the game's fitting window: every coloured block is a module sitting in the cells it needs. Drag a module to move it, R turns it, drag it off the window to remove it. Zoom − and + above it make the window larger or smaller." },
     { at: "#palette", title: "Everything you can fit", text: "Every module in the game, with the cells it takes. Press + to fit one (the forge finds a spot, rearranging if it must), or drag it straight onto the hull." },
     { at: ".tiles", title: "These numbers decide if you get home", text: "Hold, fuel and how many hours it lasts, capacitor and whether it stays charged with everything running, hull HP, power. The ◀ ▶ arrows add or remove the module behind each one." },
     { at: "#hints", title: "What should I change?", text: "Red checks are rules the game enforces. Below them, one-line advice a new rider wishes they had known, each with a button that does it." },
@@ -1086,6 +1086,8 @@
     $("zoom-in").addEventListener("click", () => { state.zoom = Math.min(3, +(state.zoom * 1.25).toFixed(2)); fitZoom(); });
     $("zoom-out").addEventListener("click", () => { state.zoom = Math.max(0.4, +(state.zoom / 1.25).toFixed(2)); fitZoom(); });
     $("zoom-fit").addEventListener("click", () => { state.zoom = 1; fitZoom(); });
+    // Ctrl + wheel over the fitting window zooms it (a touchpad pinch arrives the same way); a plain wheel still scrolls the page
+    $("grid").addEventListener("wheel", e => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); state.zoom = Math.max(0.4, Math.min(3, +(state.zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1)).toFixed(2))); fitZoom(); }, { passive: false });
     window.addEventListener("resize", fitZoom);
     renderSaved();
   }

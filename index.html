@@ -91,8 +91,12 @@ body.pdragging, body.pdragging * { cursor: grabbing !important; }
 @keyframes fbslide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
 .fb-text { font: 600 11px var(--mono); color: var(--gold); letter-spacing: 1px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .hullsvg { display: block; margin: 0 auto; user-select: none; touch-action: none; }
-.zoom { display: flex; gap: 4px; align-items: center; }
-.zoom .z { font: 600 11px var(--mono); color: var(--dim); min-width: 42px; text-align: center; }
+.headrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-right: 12px; border-bottom: 1px solid rgba(217,178,76,.3); }
+.headrow h2 { flex: 1; border-bottom: 0; white-space: nowrap; }
+.zoom { display: flex; gap: 4px; align-items: center; padding: 3px 4px 3px 9px; border: 1px solid var(--gold-soft); margin: 6px 0; }
+.zoom button { padding: 4px 10px; }
+.zoom .zl { display: inline-flex; gap: 5px; align-items: center; font: 700 10px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-right: 3px; }
+.zoom .z { font: 600 11px var(--mono); color: var(--silver); min-width: 42px; text-align: center; font-variant-numeric: tabular-nums; }
 .hullsvg .mod { cursor: grab; }
 .hullsvg .mod.sel rect { stroke: #fff; stroke-width: 1.5; }
 .hullsvg .modnum { font: 700 10px 'Rajdhani', 'Arial Narrow', 'IBM Plex Mono', Consolas, monospace; fill: #fff; text-anchor: middle; paint-order: stroke; stroke: #07070a; stroke-width: 2.6px; stroke-linejoin: round; pointer-events: none; }
@@ -523,7 +527,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     </section>
 
     <section class="pane mid" aria-label="Hull">
-      <h2>Fitting window <span class="n">drag in from the palette · drag off to remove · R / E turn 90° · F 180° · Ctrl+Z undo</span></h2>
+      <div class="headrow"><h2>Fitting window</h2><span class="zoom" role="group" aria-label="Zoom the fitting window"><span class="zl"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 10l4.4 4.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Zoom</span><button type="button" id="zoom-out" title="Zoom out: make the fitting window smaller (Ctrl + mouse wheel)" aria-label="Zoom out">−</button><span class="z" id="zoom-v" title="Size of the fitting window">100%</span><button type="button" id="zoom-in" title="Zoom in: make the fitting window larger (Ctrl + mouse wheel)" aria-label="Zoom in">+</button><button type="button" id="zoom-fit" title="Back to the size that fits your screen">Reset</button></span></div>
       <div class="status info" id="status">Loading…</div>
       <div class="forgebar" id="forgebar" hidden><div class="fb-track"><div class="fb-fill" id="fb-fill"></div></div><div class="fb-text" id="fb-text">Forging…</div></div>
       <div class="gridwrap" id="grid"></div>
@@ -531,8 +535,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       <div class="gridtools">
         <button type="button" id="btn-undo" title="Undo (Ctrl+Z)" disabled>↶ Undo</button><button type="button" id="btn-redo" title="Redo (Ctrl+Y)" disabled>Redo ↷</button>
         <button type="button" id="btn-clear">Clean slate</button>
-        <span class="zoom"><button type="button" id="zoom-out" aria-label="zoom out">−</button><span class="z" id="zoom-v">fit</span><button type="button" id="zoom-in" aria-label="zoom in">+</button><button type="button" id="zoom-fit">Fit</button></span>
-        <span class="hint">+ in the palette finds a spot, rearranging if it must</span><span class="tourlink" id="tour-open">Show me around</span>
+        <span class="hint">drag in from the palette · drag off to remove · R / E turn 90° · F 180° · + in the palette finds a spot</span><span class="tourlink" id="tour-open">Show me around</span>
       </div>
     </section>
 
@@ -605,7 +608,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 </div>
 <script src="data.js?v=1c2b4c20"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=df18c2a1"></script>
+<script src="app.js?v=04124125"></script>
 <script>
 (function () {
   // pages and their own addresses: thesaintsforge.com/aboutus, /forge, /guide (Cloudflare serves the page at each,
