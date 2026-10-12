@@ -244,15 +244,19 @@
     ov.addEventListener("pointermove", e => {
       if (!drag) { const id = pickAt(e.offsetX, e.offsetY); if (id !== hovered) { hovered = id; ov.style.cursor = id ? "pointer" : "grab"; dirty = true; schedule(); if (opts.onHover) opts.onHover(id); } return; }
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; drag.x = e.clientX; drag.y = e.clientY;
-      if (drag.pan) { mat(); const s = cam.dist / h * 1.2, eye = sub3(cam.target, [0, 0, 0]); const right = norm3(cross3(norm3([Math.sin(cam.yaw), 0, Math.cos(cam.yaw)]), [0, 1, 0])), up = [0, 1, 0];
-        cam.target = [cam.target[0] - right[0] * dx * s + up[0] * dy * s, cam.target[1] - right[1] * dx * s + up[1] * dy * s, cam.target[2] - right[2] * dx * s + up[2] * dy * s]; }
+      if (drag.pan) { mat(); const s = 2 * Math.tan(LY_FOV / 2) * cam.dist / h;   // light-years per pixel at the target: the map follows the pointer
+        const right = norm3(cross3(norm3([Math.sin(cam.yaw), 0, Math.cos(cam.yaw)]), [0, 1, 0])), up = [0, 1, 0];
+        cam.target = [cam.target[0] + right[0] * dx * s + up[0] * dy * s, cam.target[1] + right[1] * dx * s + up[1] * dy * s, cam.target[2] + right[2] * dx * s + up[2] * dy * s]; }   // + right: this vector points to screen-left (the drag was mirrored sideways, user 2026-10-12)
       else { cam.yaw -= dx * 0.006; cam.pitch = Math.max(-1.5, Math.min(1.5, cam.pitch + dy * 0.006)); }
       dirty = true; schedule();
     });
     const endDrag = e => { if (!drag) return; const d = drag; drag = null; if (!d.moved && e.type === "pointerup") { const id = pickAt(e.offsetX, e.offsetY); selected = id; dirty = true; schedule(); if (opts.onPick) opts.onPick(id); if (id == null && opts.onPickStar) opts.onPickStar(pickStar(e.offsetX, e.offsetY)); } };
     ov.addEventListener("pointerup", endDrag); ov.addEventListener("pointercancel", endDrag);
     ov.addEventListener("contextmenu", e => e.preventDefault());
-    ov.addEventListener("wheel", e => { e.preventDefault(); cam.dist = Math.max(15, Math.min(30000, cam.dist * (e.deltaY > 0 ? 1.15 : 1 / 1.15))); dirty = true; schedule(); }, { passive: false });
+    // The wheel zooms only with Ctrl (or Cmd) held, as in the Forge: a plain wheel scrolls the page (user 2026-10-12: the
+    // map swallowed page scrolls and ended up at galaxy scale). A trackpad pinch arrives as ctrl + wheel with small steps.
+    const zoomBy = f => { cam.dist = Math.max(15, Math.min(30000, cam.dist * f)); dirty = true; schedule(); };
+    ov.addEventListener("wheel", e => { if (!(e.ctrlKey || e.metaKey)) { if (opts.onPlainWheel) opts.onPlainWheel(); return; } e.preventDefault(); zoomBy(Math.exp(Math.max(-1, Math.min(1, e.deltaY / 100)) * 0.14)); }, { passive: false });
     ov.addEventListener("dblclick", e => { const id = pickAt(e.offsetX, e.offsetY); if (id) { cam.target = P(id); cam.dist = Math.max(30, Math.min(cam.dist, 160)); dirty = true; schedule(); } });
 
     return {
@@ -261,6 +265,7 @@
       mark(id, label) { marked = id != null && byId.has(id) ? { id, label: label || "" } : null; dirty = true; schedule(); },
       look(id, dist) { const p = P(id); if (p) { cam.target = p; if (dist) cam.dist = dist; dirty = true; schedule(); } },
       view(pitchDeg) { cam.pitch = pitchDeg * Math.PI / 180; dirty = true; schedule(); },
+      zoom(f) { zoomBy(f); },
       count: () => n,
       destroy() { ro.disconnect(); if (raf) cancelAnimationFrame(raf); gl3.remove(); ov.remove(); }
     };
