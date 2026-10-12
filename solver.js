@@ -4,7 +4,7 @@
    chose, and a ruin-and-recreate loop that empties one to three sections at a time and re-packs them.
 
    Messages in:  {type:"init", hull, modules}            hull = {sections:[{cells:[[x,y],...]}]}, modules = {name:{cells}}
-                 {type:"optimize", placements, mandatory, fillers, keepMin, seconds, seed, maxSections}
+                 {type:"optimize", placements, mandatory, fillers, keepMin, keepSum, seconds, seed, maxSections}
                  {type:"tryadd", placements, add, seconds, seed}
                  {type:"stop"}
    Messages out: {type:"progress", placements, value, iterations, gains}  {type:"done", ...same}
@@ -214,12 +214,48 @@ function meetsMin(pl, keepMin) {
   for (const f in keepMin || {}) if ((c[f] || 0) < keepMin[f]) return false;
   return true;
 }
+/* Totals to keep (user 2026-10-12): keepSum = [{ per: {module: amount}, min }], e.g. fuel = Fuel Bays x 500 + Fuel
+   Blisters x 250, hold = Cargo Containers x 36 + Emergency Containers x 25. Any mix of the group's modules will do.
+   A fit that falls short is not thrown away: it scores below every fit that holds the totals, and the less it is
+   short the higher, so the search climbs towards the number and ends as close as the hull allows. */
+const SHORT = 1e17;                                    // one whole total missing; above any sum of filler values
+function shortOf(pl, keepSum) {
+  let s = 0;
+  for (const g of keepSum || []) { let t = 0; for (const p of pl) t += g.per[p[0]] || 0; if (t < g.min) s += (g.min - t) / g.min; }
+  return s;
+}
+function scoreOf(pl, fillers, values, keepMin, keepSum) {
+  if (!meetsMin(pl, keepMin)) return -Infinity;
+  const s = shortOf(pl, keepSum), v = valueOf(pl, fillers, values);
+  return s > 0 ? v - SHORT * s : v;
+}
+/* What the ruined sections must hold of each total, pushed onto `mandatory` as a random mix of the group's modules
+   (so a Fuel Blister can stand in where a Fuel Bay does not fit, and the other way round). When the fit is short of
+   a total, a step up is asked for (from one small module more, up to the whole gap), not the whole gap at once:
+   the whole gap may not fit, and a refused pack would teach the search nothing. */
+function sumNeeds(keep, gone, keepSum, fillSet, rnd, mandatory) {
+  for (const g of keepSum || []) {
+    const names = Object.keys(g.per).filter(n => SHAPES[n] && g.per[n] > 0); if (!names.length) continue;
+    let out = 0, inGone = 0, fixed = 0;                  // outside the ruined sections; inside them now; inside and re-placed anyway (not a filler)
+    for (const p of keep) out += g.per[p[0]] || 0;
+    for (const p of gone) { const a = g.per[p[0]] || 0; inGone += a; if (!fillSet.has(p[0])) fixed += a; }
+    let want = g.min - out;
+    if (out + inGone < g.min) { const small = Math.min(...names.map(n => g.per[n])), gap = g.min - out - inGone; want = Math.min(want, inGone + small * (1 + Math.floor(rnd() * Math.ceil(gap / small)))); }
+    let need = want - fixed; if (need <= 0) continue;
+    const order = names.slice(); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
+    for (let i = 0; i < order.length && need > 0; i++) {
+      const a = g.per[order[i]], most = Math.ceil(need / a), k = i === order.length - 1 ? most : Math.floor(rnd() * (most + 1));
+      for (let j = 0; j < k; j++) mandatory.push(order[i]);
+      need -= k * a;
+    }
+  }
+}
 function optimize(msg) {
-  const { placements, fillers, values, keepMin, seconds, seed, maxSections } = msg;
+  const { placements, fillers, values, keepMin, keepSum, seconds, seed, maxSections } = msg;
   const rnd = rng(seed || 1);
   const fillSet = new Set(fillers);
   let cur = placements.map(p => [p[0], p[1], p[2], p[3]]);
-  let curValue = meetsMin(cur, keepMin) ? valueOf(cur, fillers, values) : -Infinity;
+  let curValue = scoreOf(cur, fillers, values, keepMin, keepSum);
   const t0 = Date.now(); let it = 0, gains = 0, lastPost = 0;
   const trace = [[0, curValue]];                     // [ms, value] at every strict gain: how fast the search converges
   const n = HULL.n;
@@ -233,6 +269,7 @@ function optimize(msg) {
     const mandatory = gone.filter(p => !fillSet.has(p[0])).map(p => p[0]);
     const outside = {}; for (const p of keep) outside[p[0]] = (outside[p[0]] || 0) + 1;
     for (const f in keepMin) for (let i = 0; i < Math.max(0, keepMin[f] - (outside[f] || 0)); i++) mandatory.push(f);
+    sumNeeds(keep, gone, keepSum, fillSet, rnd, mandatory);
     const free = HULL.full.map((f, s) => chosen.has(s) ? Uint32Array.from(f) : new Uint32Array(HULL.words));
     const res = pack(free, mandatory, fillers, values, k === 1 ? 60000 : 120000, rnd);
     if (!res) continue;
@@ -240,7 +277,7 @@ function optimize(msg) {
     const counts = {}; for (const p of cand) counts[p[0]] = (counts[p[0]] || 0) + 1;
     let okMin = true; for (const f in keepMin) if ((counts[f] || 0) < keepMin[f]) okMin = false;
     if (!okMin) continue;
-    const v = valueOf(cand, fillers, values);
+    const v = scoreOf(cand, fillers, values, null, keepSum);
     if (v >= curValue) {
       const gain = v > curValue;
       if (gain) { gains++; trace.push([Date.now() - t0, v]); }
@@ -301,11 +338,11 @@ function tryAdd(msg) {
    mandatory modules of that section re-arranged, the fillers re-dealt), kept when the value rises. Deterministic
    given the seed; bounded by `seconds`. */
 function polish(msg) {
-  const { placements, fillers, values, keepMin, seconds, seed, tries } = msg;
+  const { placements, fillers, values, keepMin, keepSum, seconds, seed, tries } = msg;
   const rnd = rng(seed || 3);
   const fillSet = new Set(fillers);
   let cur = placements.map(p => [p[0], p[1], p[2], p[3]]);
-  let curValue = meetsMin(cur, keepMin) ? valueOf(cur, fillers, values) : -Infinity;
+  let curValue = scoreOf(cur, fillers, values, keepMin, keepSum);
   const t0 = Date.now(); let gains = 0, it = 0;
   const n = HULL.n;
   outer: for (let round = 0; round < 2; round++) {
@@ -317,6 +354,7 @@ function polish(msg) {
         const mandatory = gone.filter(p => !fillSet.has(p[0])).map(p => p[0]);
         const outside = {}; for (const p of keep) outside[p[0]] = (outside[p[0]] || 0) + 1;
         for (const f in keepMin) for (let i = 0; i < Math.max(0, keepMin[f] - (outside[f] || 0)); i++) mandatory.push(f);
+        sumNeeds(keep, gone, keepSum, fillSet, rnd, mandatory);
         const free = HULL.full.map((f, k) => k === s ? Uint32Array.from(f) : new Uint32Array(HULL.words));
         const res = pack(free, mandatory, fillers, values, 400000, rnd);
         if (!res) continue;
@@ -324,7 +362,7 @@ function polish(msg) {
         const counts = {}; for (const p of cand) counts[p[0]] = (counts[p[0]] || 0) + 1;
         let okMin = true; for (const f in keepMin) if ((counts[f] || 0) < keepMin[f]) okMin = false;
         if (!okMin) continue;
-        const v = valueOf(cand, fillers, values);
+        const v = scoreOf(cand, fillers, values, null, keepSum);
         if (v > curValue) { gains++; cur = cand; curValue = v; emit({ type: "progress", placements: cur, value: curValue, iterations: it, gains }); }
       }
     }

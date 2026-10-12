@@ -173,6 +173,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .cmp-table td.up, .cmp-diff .up { color: var(--good); } .cmp-table td.down, .cmp-diff .down { color: var(--red); }
 .cmp-diff { font-size: 13px; color: var(--silver); } .cmp-diff b { color: var(--gold); }
 /* what the last forge changed: a small box under the status line */
+.keep .kstep { display: inline-flex; align-items: center; gap: 4px; } .keep .kstep button { padding: 2px 7px; min-width: 0; font-size: 13px; line-height: 1.2; } .keep .kstep input { width: 68px; }
 .forgediff { display: flex; gap: 10px 14px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; margin: 8px 12px 0; padding: 8px 10px; border: 1px solid var(--gold-soft); border-left: 3px solid var(--gold); background: rgba(217,178,76,.06); }
 .fd-text { min-width: 0; flex: 1 1 320px; }
 .fd-head { font: 700 13px/1.5 var(--body); color: var(--fg); } .fd-head .up { color: var(--good); } .fd-head .down { color: var(--red); } .fd-head .lab { font: 700 10px var(--mono); letter-spacing: 2px; color: var(--gold); text-transform: uppercase; margin-right: 8px; }
@@ -601,6 +602,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       <span class="sp"></span>
       <input type="text" id="fit-name" aria-label="Fit name" placeholder="Fit name" maxlength="60">
       <select id="saved-sel" aria-label="Saved fits"></select>
+      <button type="button" class="ghost" id="btn-unsave" title="Load a saved fit first: this removes it from the saved fits in this browser" disabled>Delete saved</button>
       <button type="button" id="btn-save">Save</button>
       <span id="tribe" class="tribe"></span>
     </div>
@@ -776,12 +778,12 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 
       <h2>Forge for the role</h2>
       <div class="forge">
-        <div class="note">Modules you placed stay. The spare cells go to these, in your order: ▲ ▼ to reorder, untick = never add. Nothing goes below the minimums. Once the fit is cap-stable, Capacitors drop to the bottom and only fill what nothing else fits.</div>
+        <div class="note">Modules you placed stay. The spare cells go to these, in your order: ▲ ▼ to reorder, untick = never add. Nothing goes below the minimums. Hold and fuel are totals: the forge picks the mix of containers, or of Fuel Bays and Fuel Blisters, and comes as close as the hull allows. Once the fit is cap-stable, Capacitors drop to the bottom and only fill what nothing else fits.</div>
         <div class="order" id="order" aria-label="priority order"></div>
         <div class="keep"><span class="kl">Keep at least</span>
-          <label><input type="number" id="min-cargo" min="0" value="0"> Cargo Containers</label>
+          <label class="kstep" title="Hold to keep, in m³. The forge reaches it with whatever mix fits best: Cargo Containers (36 m³) and Emergency Containers (25 m³)."><button type="button" data-kstep="hold" data-d="-1" aria-label="less hold">−</button><input type="number" id="min-cargo" min="0" step="25" value="0"><button type="button" data-kstep="hold" data-d="1" aria-label="more hold">+</button> m³ hold</label>
           <label><input type="number" id="min-caps" min="1" value="1"> Capacitors</label>
-          <label><input type="number" id="min-fuel" min="0" value="0"> Fuel Bays</label>
+          <label class="kstep" title="Fuel to keep, in units. The forge reaches it with whatever mix fits best: Fuel Bays (500) and Fuel Blisters (250)."><button type="button" data-kstep="fuel" data-d="-1" aria-label="less fuel">−</button><input type="number" id="min-fuel" min="0" step="250" value="0"><button type="button" data-kstep="fuel" data-d="1" aria-label="more fuel">+</button> fuel</label>
           <label><input type="number" id="min-brace" min="0" value="0"> Structural Braces</label>
         </div>
         <div class="row"><button type="button" id="btn-capstable" title="Set Keep at least to the Capacitors the recharge model needs">cap-stable: <span id="cap-stable-n">—</span></button><button type="button" id="btn-makestable" title="Fit the Capacitors the recharge model needs right now, rearranging if the hull is tight, and keep them as the minimum">Make me cap stable</button></div>
@@ -823,7 +825,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 </div>
 <script src="data.js?v=a7403a74"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=cba6becc"></script>
+<script src="app.js?v=f7dfaca8"></script>
 <script>
 (function () {
   // pages and their own addresses: thesaintsforge.com/aboutus, /forge, /guide (Cloudflare serves the page at each,

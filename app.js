@@ -21,7 +21,7 @@
   const PRIO_OF = { "Cargo Container": "hold", "Emergency Container": "hold", "Capacitor": "cap", "Fuel Bay": "fuel", "Fuel Blister": "fuel", "Structural Brace": "hp" };
   const $ = id => document.getElementById(id);
 
-  const state = { hull: "Reiver", name: "Untitled fit", placements: [], exterior: {}, selected: -1, zoom: 1, prio: { hold: 4, cap: 3, fuel: 0, hp: 0 }, order: ["hold", "cap", "fuel", "hp"], minCaps: 0, mins: { "Cargo Container": 0, "Fuel Bay": 0, "Structural Brace": 0 }, fuelGrade: "Unstable", preset: null, dirty: false };
+  const state = { hull: "Reiver", name: "Untitled fit", placements: [], exterior: {}, selected: -1, zoom: 1, prio: { hold: 4, cap: 3, fuel: 0, hp: 0 }, order: ["hold", "cap", "fuel", "hp"], minCaps: 0, mins: { hold: 0, fuel: 0, "Structural Brace": 0 }, fuelGrade: "Unstable", preset: null, dirty: false };
   let solver = null, solverReady = false, running = null, pendingResolve = null;
 
   // ---------- solver plumbing ----------
@@ -30,7 +30,7 @@
     const payload = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     try {
       if (solver && solver.terminate) solver.terminate();
-      solver = new Worker("solver.js?v=51701ad1");
+      solver = new Worker("solver.js?v=1b341ca7");
       solver.onmessage = e => onSolver(e.data);
       solver.onerror = () => {                           // a dead Worker: free whatever waited on it, then carry on in the page
         solver = null; const waiting = pendingResolve, was = running; pendingResolve = null; running = null;
@@ -44,7 +44,7 @@
   }
   function fallbackSolver(payload) {
     if (!window.ForgeSolver || !window.ForgeSolver.post) {
-      const s = document.createElement("script"); s.src = "solver.js?v=51701ad1"; s.onload = () => fallbackSolver(payload); document.head.appendChild(s); return;
+      const s = document.createElement("script"); s.src = "solver.js?v=1b341ca7"; s.onload = () => fallbackSolver(payload); document.head.appendChild(s); return;
     }
     window.ForgeSolver.onmessage = onSolver;
     solver = { postMessage: m => setTimeout(() => window.ForgeSolver.post(m), 0), terminate() {} };
@@ -56,7 +56,7 @@
     if (m.type === "progress") { if (prog) { prog.iterations = m.iterations; prog.gains = m.gains; progressTick(); } if (running === "optimize") { state.placements = m.placements; render(); } return; }
     if (m.type === "done") {
       const kind = running; running = null; $("btn-forge").textContent = "Forge for the role"; $("btn-forge").disabled = false;
-      if (kind === "optimize") { if (m.gains > 0) { state.placements = m.placements; markDirty(); } render(); progressDone(`Forged: ${m.iterations} re-packs in ${m.seconds.toFixed(0)} s, ${m.gains} gains · ${hold(state.placements)} m³ hold`); setStatus("", "info"); forgeEnded(); }
+      if (kind === "optimize") { if (m.gains > 0) { state.placements = m.placements; markDirty(); } render(); progressDone(`Forged: ${m.iterations} re-packs in ${m.seconds.toFixed(0)} s, ${m.gains} gains · ${hold(state.placements)} m³ hold`); setStatus("", "info"); shortOfMinimums(null, lastSums); forgeEnded(); }
       else progressStop();
       if (kind === "tryadd") { if (pendingResolve) { const r = pendingResolve; pendingResolve = null; r(m); } }
     }
@@ -584,7 +584,7 @@
     $("st-caprech-note").textContent = `recharge model: ${D.models.recharge.a}·n^${D.models.recharge.b}, fitted to in-game readings at 2, 5 and 13 units (a Blackstart Cell counts as one)`;
   }
   function renderHeader() { if (!K) return; const th = K.themes[state.hull].theme; $("tier").textContent = `✠ ${th.name} · ${th.tier} ✠`; }
-  function render() { renderGrid(); renderPalette(); renderStats(); renderSelection(); renderHeader(); $("fit-name").value = state.name; $("hull-sel").value = state.hull; $("free-count").textContent = ""; syncKeepInputs(); record();
+  function render() { renderGrid(); renderPalette(); renderStats(); renderSelection(); renderHeader(); $("fit-name").value = state.name; $("hull-sel").value = state.hull; $("free-count").textContent = ""; syncKeepInputs(); record(); syncUnsave();
     if (forgeBefore && forgeBefore.after && !pool && !running && !$("forgediff").hidden && JSON.stringify(state.placements) !== forgeBefore.after) hideForgeDiff(); }
 
   // ---------- undo / redo ----------
@@ -599,7 +599,7 @@
   function undoButtons() { const u = $("btn-undo"), r = $("btn-redo"); if (u) u.disabled = hidx <= 0; if (r) r.disabled = hidx >= history.length - 1; }
   function restore(s) {
     const o = JSON.parse(s), hullChanged = o.h !== state.hull;
-    Object.assign(state, { hull: o.h, placements: o.p, exterior: o.e, name: o.n, preset: o.b, dirty: o.d, minCaps: o.c, mins: Object.assign(zeroMins(), o.k || {}), selected: -1 });
+    Object.assign(state, { hull: o.h, placements: o.p, exterior: o.e, name: o.n, preset: o.b, dirty: o.d, minCaps: o.c, mins: minsFrom(o.k), selected: -1 });
     $("min-caps").value = state.minCaps; if (hullChanged) startSolver(); render(); undoButtons();
   }
   function undo() { if (pool || running || hidx <= 0) return; hidx--; restore(history[hidx]); setStatus("Undone.", "info"); }
@@ -619,11 +619,30 @@
   // 'Keep at least' for the other role fillers (user 2026-10-09): Cargo Containers (hold), Fuel Bays (fuel), Structural
   // Braces (armour). Same rules as the Capacitor minimum: a loaded fit sets them to its own counts, a module placed or
   // removed by hand moves its minimum with it, the forge never goes below them.
-  const KEEP_IDS = { "Cargo Container": "min-cargo", "Fuel Bay": "min-fuel", "Structural Brace": "min-brace" };
-  function zeroMins() { return { "Cargo Container": 0, "Fuel Bay": 0, "Structural Brace": 0 }; }
-  function syncKeepInputs() { if ($("min-caps")) $("min-caps").value = state.minCaps; for (const n in KEEP_IDS) { const el = $(KEEP_IDS[n]); if (el) el.value = state.mins[n] || 0; } }
-  function setMinsFromFit() { const c = counts(state.placements); state.mins = zeroMins(); for (const n in KEEP_IDS) state.mins[n] = c[n] || 0; syncKeepInputs(); }
-  function keepByHand(name) { if (name === "Capacitor") return capsByHand(); if (KEEP_IDS[name]) { state.mins[name] = counts(state.placements)[name] || 0; syncKeepInputs(); } }
+  // Hold and fuel are TOTALS (user 2026-10-12: "sometimes fuel blisters are better ... change that to fuel or cargo by
+  // itself"): m³ of hold from Cargo Containers and Emergency Containers, units of fuel from Fuel Bays and Fuel Blisters.
+  // The forge reaches the number with any mix and comes as close as the hull allows. The − and + beside each box move
+  // it by the group's smallest module (25 m³, 250 fuel). Structural Braces stay a count.
+  const KEEP_IDS = { "Structural Brace": "min-brace" };
+  const SUM_IDS = { hold: "min-cargo", fuel: "min-fuel" }, SUM_MAX = { hold: 6000, fuel: 40000 }, SUM_UNIT = { hold: "m³ of hold", fuel: "fuel" };
+  const SUM_PER = { hold: {}, fuel: {} }; FILLERS.forEach(n => { const m = MOD[n]; if (m && m.hold) SUM_PER.hold[n] = m.hold; if (m && m.fuel) SUM_PER.fuel[n] = m.fuel; });
+  const sumStep = k => Math.min(...Object.values(SUM_PER[k]).concat(k === "hold" ? [25] : [250]));
+  const sumNow = (k, pl) => (pl || state.placements).reduce((a, p) => a + (SUM_PER[k][p[0]] || 0), 0);
+  const clampSum = (k, v) => Math.max(0, Math.min(SUM_MAX[k], Math.round(+v || 0)));
+  function zeroMins() { return { hold: 0, fuel: 0, "Structural Brace": 0 }; }
+  // a list of minimums from a link, a saved fit or an older page: module counts become the totals they stood for
+  function minsFrom(k) {
+    const out = zeroMins(); if (!k || typeof k !== "object") return out;
+    const num = (v, cap) => Number.isFinite(+v) && +v > 0 ? Math.min(cap, Math.floor(+v)) : 0;
+    out.hold = k.hold != null ? num(k.hold, SUM_MAX.hold) : num(k["Cargo Container"], 400) * (SUM_PER.hold["Cargo Container"] || 36);
+    out.fuel = k.fuel != null ? num(k.fuel, SUM_MAX.fuel) : num(k["Fuel Bay"], 400) * (SUM_PER.fuel["Fuel Bay"] || 500);
+    out.hold = Math.min(out.hold, SUM_MAX.hold); out.fuel = Math.min(out.fuel, SUM_MAX.fuel); out["Structural Brace"] = num(k["Structural Brace"], 400);
+    return out;
+  }
+  function syncKeepInputs() { if ($("min-caps")) $("min-caps").value = state.minCaps; for (const n in KEEP_IDS) { const el = $(KEEP_IDS[n]); if (el) el.value = state.mins[n] || 0; } for (const k in SUM_IDS) { const el = $(SUM_IDS[k]); if (el && document.activeElement !== el) el.value = state.mins[k] || 0; } }
+  function setMinsFromFit() { const c = counts(state.placements); state.mins = zeroMins(); for (const n in KEEP_IDS) state.mins[n] = c[n] || 0; for (const k in SUM_IDS) state.mins[k] = sumNow(k); syncKeepInputs(); }
+  function keepByHand(name) { if (name === "Capacitor") return capsByHand(); if (KEEP_IDS[name]) state.mins[name] = counts(state.placements)[name] || 0; for (const k in SUM_IDS) if (SUM_PER[k][name]) state.mins[k] = sumNow(k); syncKeepInputs(); }
+  function stepSum(k, d) { state.mins[k] = clampSum(k, (Math.round((state.mins[k] || 0) / sumStep(k)) + d) * sumStep(k)); syncKeepInputs(); }
   function capsByHand() { const n = counts(state.placements)["Capacitor"] || 0; if (n !== state.minCaps) { state.minCaps = n; $("min-caps").value = n; } }
   async function addModule(name, quiet) {
     if (busy(quiet)) return false;
@@ -703,18 +722,19 @@
   // one search per logical thread but one (the page keeps one for itself); a 10-core / 20-thread CPU runs 19. Capped at 32
   // so a big workstation does not open hundreds of Workers. (Was min(8, cores - 1) until 2026-10-09.)
   function forgeSearches() { return Math.max(2, Math.min(32, (navigator.hardwareConcurrency || 4) - 1)); }
-  function forgeParallel(fillers, values, keepMin) {
+  function forgeParallel(fillers, values, keepMin, keepSum) {
     const K = forgeSearches(), t0 = Date.now();
-    const valueOf = pl => pl.reduce((a, p) => a + (values[p[0]] || 0), 0);
+    // the solver's own score: the filler values, less a large amount for every total the fit is short of (solver.js scoreOf)
+    const valueOf = pl => { let v = pl.reduce((a, p) => a + (values[p[0]] || 0), 0), short = 0; for (const g of keepSum || []) { const t = pl.reduce((a, p) => a + (g.per[p[0]] || 0), 0); if (t < g.min) short += (g.min - t) / g.min; } return short > 0 ? v - 1e17 * short : v; };
     const startOk = Object.keys(keepMin).every(f => (counts(state.placements)[f] || 0) >= keepMin[f]);
     const P = pool = { workers: [], best: startOk ? valueOf(state.placements) : -Infinity, bestPl: state.placements, lastGain: t0, gains: 0, iters: [], done: 0, stopping: false, reason: "", timer: null, t0, K,
-                       wBest: [], wLast: [], restarting: [], restarts: 0, fillers, values, keepMin };
+                       wBest: [], wLast: [], restarting: [], restarts: 0, fillers, values, keepMin, keepSum };
     const init = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     const consider = m => { if (m.value > P.best) { P.best = m.value; P.bestPl = m.placements; P.lastGain = Date.now(); P.gains++; state.placements = m.placements; render(); } };
     const spawn = i => {
-      let w; try { w = new Worker("solver.js?v=51701ad1"); } catch (e) { return null; }
+      let w; try { w = new Worker("solver.js?v=1b341ca7"); } catch (e) { return null; }
       const launch = () => { P.wBest[i] = P.best; P.wLast[i] = Date.now(); P.restarting[i] = false;
-        w.postMessage({ type: "optimize", placements: P.bestPl, fillers, values, keepMin, seconds: FORGE_MAX, seed: (Date.now() + i * 7919 + P.restarts * 104729) & 0xffff || i + 1, maxSections: 3 }); };
+        w.postMessage({ type: "optimize", placements: P.bestPl, fillers, values, keepMin, keepSum, seconds: FORGE_MAX, seed: (Date.now() + i * 7919 + P.restarts * 104729) & 0xffff || i + 1, maxSections: 3 }); };
       w.onmessage = e => {
         const m = e.data;
         if (m.type === "ready") launch();
@@ -752,11 +772,11 @@
     if (P.polishing || P.finished) return; P.polishing = true;
     clearInterval(P.timer); P.workers.forEach(w => w.terminate());
     if (P.reason === "stopped") { forgeFinish(P); return; }
-    let w; try { w = new Worker("solver.js?v=51701ad1"); } catch (e) { forgeFinish(P); return; }
+    let w; try { w = new Worker("solver.js?v=1b341ca7"); } catch (e) { forgeFinish(P); return; }
     $("fb-fill").classList.add("busy"); $("fb-text").textContent = `Polishing · ${hold(P.bestPl)} m³…`;
     const t0 = Date.now(); P.polishWorker = w;
     w.onmessage = e => { const m = e.data;
-      if (m.type === "ready") w.postMessage({ type: "polish", placements: P.bestPl, fillers: P.fillers, values: P.values, keepMin: P.keepMin, seconds: POLISH_SECS, seed: Date.now() & 0xffff, tries: 6 });
+      if (m.type === "ready") w.postMessage({ type: "polish", placements: P.bestPl, fillers: P.fillers, values: P.values, keepMin: P.keepMin, keepSum: P.keepSum, seconds: POLISH_SECS, seed: Date.now() & 0xffff, tries: 6 });
       else if (m.type === "progress" || m.type === "done") { if (m.value > P.best) { P.best = m.value; P.bestPl = m.placements; P.gains++; P.polishGains = (P.polishGains || 0) + 1; state.placements = m.placements; render(); }
         if (m.type === "progress") $("fb-text").textContent = `Polishing · ${hold(P.bestPl)} m³ · ${((Date.now() - t0) / 1000).toFixed(0)} s`;
         else { w.terminate(); forgeFinish(P); } } };
@@ -774,14 +794,17 @@
     if (window.__forge) window.__forge.last = { gains: P.gains, restarts: P.restarts, polishGains: P.polishGains || 0, secs, hold: hold(state.placements), reason: P.reason };
     progressDone(`Forged: ${P.gains} gains from ${P.workers.length} searches${extra}, ${its.toLocaleString("en-US")} re-packs · ${why} · ${hold(state.placements)} m³ hold`);
     $("btn-forge").textContent = "Forge for the role"; if (!/^Cap-stable/.test($("status").textContent)) setStatus("", "info");
-    shortOfMinimums(P.keepMin);
+    shortOfMinimums(P.keepMin, P.keepSum);
     forgeEnded();
   }
   // a minimum above what the hull can hold (with the other minimums kept) is never reached: say so instead of staying quiet
-  function shortOfMinimums(keepMin) {
+  function shortOfMinimums(keepMin, keepSum) {
     const c = counts(state.placements), short = Object.keys(keepMin || {}).filter(n => (c[n] || 0) < keepMin[n]);
-    if (short.length) setStatus(`No room for ${short.map(n => `${keepMin[n]} ${n}${keepMin[n] === 1 ? "" : "s"} (has ${c[n] || 0})`).join(", ")} while keeping the other minimums. Lower a minimum to make room, or remove a module by hand.`, "warn");
+    const f = n => n.toLocaleString("en-US"), sums = (keepSum || []).map(g => ({ g, has: sumNow(g.key) })).filter(x => x.has < x.g.min);
+    const parts = short.map(n => `${keepMin[n]} ${n}${keepMin[n] === 1 ? "" : "s"} (has ${c[n] || 0})`).concat(sums.map(x => `${f(x.g.min)} ${SUM_UNIT[x.g.key]} (the closest so far is ${f(x.has)})`));
+    if (parts.length) setStatus(`No room for ${parts.join(", ")} while keeping the other minimums. Lower a minimum to make room, remove a module by hand, or let the forge run longer.`, "warn");
   }
+  let lastSums = null;                                      // the totals of the single in-page search, for its finish line
   function forge() {
     if (pool) { forgeStop(pool, "stopped"); return; }
     if (running) { solver.postMessage({ type: "stop" }); return; }
@@ -804,15 +827,17 @@
     fillers.forEach(f => { if (f !== "Capacitor") keepMin[f] = Math.min(c[f] || 0, D.base_ship.always[f] || 0); });
     // and never below the pilot's own minimums (a filler whose priority is off is not traded at all)
     for (const n in KEEP_IDS) if (fillers.includes(n)) keepMin[n] = Math.max(keepMin[n] || 0, state.mins[n] || 0);
-    // the small fillers have no box: what is fitted stays (the forge may add them, never trade them away; remove by hand)
-    for (const n of ["Emergency Container", "Fuel Blister"]) if (fillers.includes(n)) keepMin[n] = Math.max(keepMin[n] || 0, c[n] || 0);
+    // the game's own never-removed modules among the fillers (one Cargo Container) stay whatever the totals say
+    fillers.forEach(f => { const k = D.base_ship.never_removed[f] || 0; if (k && f !== "Capacitor") keepMin[f] = Math.max(keepMin[f] || 0, Math.min(c[f] || 0, k)); });
+    // hold and fuel: totals, any mix. A total the fit already holds with its priority unticked needs nothing: those modules are not touched.
+    const keepSum = []; for (const k in SUM_IDS) { const min = clampSum(k, state.mins[k]); if (min > 0 && (Object.keys(SUM_PER[k]).some(n => fillers.includes(n)) || sumNow(k) < min)) keepSum.push({ key: k, per: SUM_PER[k], min }); }
     forgeBefore = { snap: snap(), hull: state.hull, name: state.name, placements: JSON.parse(JSON.stringify(state.placements)), exterior: Object.assign({}, state.exterior), after: null }; hideForgeDiff();
     $("btn-forge").textContent = "Stop"; state.selected = -1;          // the searches reorder the modules: an index kept from before would point elsewhere
     setStatus(capStable ? `Cap-stable at ${capsNow} Capacitors: they come last. Spare cells go to ${[...new Set(fillers.map(f => PRIO_OF[f]))].filter(k => k !== "cap").sort((x, y) => state.prio[y] - state.prio[x]).map(k => PRIO_NAME[k]).join(", then ")}, then Capacitors fill what nothing else fits.` : "", "info");
-    if (forgeParallel(fillers, values, keepMin)) return;
+    if (forgeParallel(fillers, values, keepMin, keepSum)) return;
     // no Workers here (the in-page solver): one search, 60 s
     running = "optimize"; progressStart(15, "Forging");            // in the page itself the search blocks everything: keep it short
-    solver.postMessage({ type: "optimize", placements: state.placements, fillers, values, keepMin, seconds: 15, seed: Date.now() & 0xffff, maxSections: 3 });
+    lastSums = keepSum; solver.postMessage({ type: "optimize", placements: state.placements, fillers, values, keepMin, keepSum, seconds: 15, seed: Date.now() & 0xffff, maxSections: 3 });
   }
 
   // ---------- presets, share, save ----------
@@ -822,7 +847,7 @@
     state.hull = p.hull; state.placements = p.placements.map(x => [x[0], x[1], rotOf(x[0], x[3], x[2]) || 0, x[3].map(c => [c[0], c[1]])]); state.exterior = soundExterior(p.exterior);
     state.name = docName(p); state.preset = p.n; state.selected = -1; state.dirty = false;
     state.minCaps = counts(state.placements)["Capacitor"] || 1; setMinsFromFit();
-    startSolver(); render(); setStatus(`${p.name} loaded (${p.role}). Keeping its ${state.minCaps} Capacitors, ${state.mins["Cargo Container"]} Cargo Containers, ${state.mins["Fuel Bay"]} Fuel Bays and ${state.mins["Structural Brace"]} Braces unless you lower the minimums.`, "ok");
+    startSolver(); render(); setStatus(`${p.name} loaded (${p.role}). Keeping its ${state.minCaps} Capacitors, ${state.mins.hold.toLocaleString("en-US")} m³ of hold, ${state.mins.fuel.toLocaleString("en-US")} fuel and ${state.mins["Structural Brace"]} Braces unless you lower the minimums.`, "ok");
   }
   // Links store a module as its place in a name table. The table's fingerprint travels with the link (f), and data.js
   // keeps every table ever used (link_tables), so a link made before a patch added a module still reads right.
@@ -852,7 +877,7 @@
     const placements = soundPlacements(o.h, list); if (!placements) return null;
     const whole = (v, max) => Number.isInteger(v) ? Math.max(0, Math.min(max, v)) : 0;
     let prio = null; if (o.r && typeof o.r === "object") { prio = {}; for (const k of ["hold", "cap", "fuel", "hp"]) if (Number.isFinite(o.r[k])) prio[k] = Math.max(0, Math.min(4, Math.round(o.r[k]))); }
-    let mins = null; if (o.k && typeof o.k === "object") { mins = zeroMins(); for (const n in mins) mins[n] = whole(o.k[n], 400); }
+    const mins = o.k && typeof o.k === "object" ? minsFrom(o.k) : null;
     return { hull: o.h, name: (typeof o.n === "string" && o.n.trim() ? o.n.trim() : "Shared fit").slice(0, 60), placements, exterior: soundExterior(o.e), prio, minCaps: whole(o.c, 400), mins,
              preset: Number.isInteger(o.b) ? o.b : null, dirty: o.d != null ? !!o.d : null };
   }
@@ -904,9 +929,18 @@
     try { localStorage.setItem("forge:saved", JSON.stringify(list.slice(0, 30))); } catch (e) { setStatus("Could not save in this browser.", "bad"); return; }
     renderSaved(); setStatus(`Saved "${state.name}" in this browser${had ? " (it replaced the earlier fit of that name)" : ""}.`, "ok");
   }
+  // Delete: the saved fit that carries the name on the page (load it first). The fit stays on the page, so a wrong
+  // click costs nothing: Save puts it back. No confirm box: those never open inside an artifact.
+  function syncUnsave() { const b = $("btn-unsave"); if (!b) return; const has = savedFits().some(x => x.name === state.name); b.disabled = !has; b.title = has ? `Remove "${state.name}" from the saved fits in this browser (the fit stays on the page)` : "Load a saved fit first: this removes it from the saved fits in this browser"; }
+  function unsaveFit() {
+    const name = state.name, list = savedFits(); if (!list.some(x => x.name === name)) { syncUnsave(); return; }
+    try { localStorage.setItem("forge:saved", JSON.stringify(list.filter(x => x.name !== name))); } catch (e) { setStatus("Could not change the saved fits in this browser.", "bad"); return; }
+    renderSaved(); setStatus(`Removed "${name}" from the saved fits in this browser. It is still on the page: Save puts it back.`, "ok");
+  }
   function renderSaved() {
     const list = savedFits(); const sel = $("saved-sel");
     sel.innerHTML = `<option value="">Saved fits (this browser)…</option>` + list.map((x, i) => `<option value="${i}">${esc(x.name)} · ${esc(x.hull)}</option>`).join("");
+    syncUnsave();
   }
 
   // ---------- the card dialog: the fit drawn in the doctrine-card design (cardgen.js), rendered to a PNG for Discord ----------
@@ -1142,7 +1176,7 @@
     $("hull-sel").addEventListener("change", e => { if (busy()) { e.target.value = state.hull; return; } state.hull = e.target.value; startSolver(); cleanSlate(false); });
     $("btn-own").addEventListener("click", () => cleanSlate(false));
     $("preset-sel").addEventListener("change", e => { if (e.target.value) loadPreset(e.target.value); e.target.value = ""; });
-    $("fit-name").addEventListener("input", e => { state.name = e.target.value; });
+    $("fit-name").addEventListener("input", e => { state.name = e.target.value; syncUnsave(); });
     $("hints").addEventListener("click", e => { const b = e.target.closest("button[data-hint]"); if (b && !running && !pool) applyHint(+b.dataset.hint); });
     if ($("emwhy")) $("emwhy").addEventListener("click", async e => {
       const b = e.target.closest("button[data-emadd]"); if (!b || busy()) return;
@@ -1188,13 +1222,15 @@
     $("order").addEventListener("change", e => { const c = e.target.closest("input[data-on]"); if (!c) return; state.prio[c.dataset.on] = c.checked ? 1 : 0; prioFromOrder(); renderOrder(); });
     $("min-caps").addEventListener("input", e => { state.minCaps = +e.target.value || 0; });
     for (const n in KEEP_IDS) $(KEEP_IDS[n]).addEventListener("input", e => { state.mins[n] = Math.max(0, Math.floor(+e.target.value || 0)); });
+    for (const k in SUM_IDS) { $(SUM_IDS[k]).addEventListener("input", e => { state.mins[k] = clampSum(k, e.target.value); }); $(SUM_IDS[k]).addEventListener("change", syncKeepInputs); }
+    document.querySelectorAll("[data-kstep]").forEach(b => b.addEventListener("click", () => { if (busy()) return; stepSum(b.dataset.kstep, +b.dataset.d); }));
     $("btn-makestable").addEventListener("click", makeCapStable);
     $("btn-capstable").addEventListener("click", () => { const n = +$("cap-stable-n").textContent; state.minCaps = n; $("min-caps").value = n; setStatus(`Minimum Capacitors set to ${n}: estimated recharge covers everything firing at once.`, "ok"); });
     $("fuel-sel").addEventListener("change", e => { state.fuelGrade = e.target.value; renderStats(); });
     $("btn-forge").addEventListener("click", forge);
     $("btn-share").addEventListener("click", shareLink);
     $("btn-discord").addEventListener("click", discordText);
-    $("btn-save").addEventListener("click", saveFit);
+    $("btn-save").addEventListener("click", saveFit); if ($("btn-unsave")) $("btn-unsave").addEventListener("click", unsaveFit);
     $("saved-sel").addEventListener("change", e => { if (busy()) { e.target.value = ""; return; } const x = savedFits()[+e.target.value]; if (x && decode(x.code)) { startSolver(); render(); setStatus(`Loaded "${x.name}".`, "ok"); } else if (x) setStatus(`"${x.name}" could not be read: it was saved by a different version of the Forge.`, "bad"); e.target.value = ""; });
     $("btn-clear").addEventListener("click", () => cleanSlate(false));
     const ZOOMS = [0.4, 0.5, 0.63, 0.8, 1, 1.25, 1.6, 2, 2.5, 3];
