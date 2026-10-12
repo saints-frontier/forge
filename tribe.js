@@ -119,7 +119,7 @@
         var role = old ? old.role : (window.prompt("Role, as shown in the Load fit list (e.g. Hauler · Ore and Fuel):", "") || "");
         if (!window.confirm((old ? "Replace the doctrine fit \"" + name + "\"" : "Add \"" + name + "\" as a new doctrine fit") + " with the " + fit.placements.length + " modules on screen (" + fit.hull + ")? Every Saint sees it at their next login.")) { note(""); return; }
         var maxN = 100; d.presets.forEach(function (p) { if (+p.n > maxN) maxN = +p.n; });
-        var p = { n: old ? old.n : maxN + 1, name: name, hull: fit.hull, role: role, doctrine: true, placements: fit.placements, exterior: fit.exterior || {}, carried: old && old.carried ? old.carried : {} };
+        var p = { n: old ? old.n : maxN + 1, name: old ? old.name : name, hull: fit.hull, role: role, doctrine: true, placements: fit.placements, exterior: fit.exterior || {}, carried: old && old.carried ? old.carried : {} };
         if (old) d.presets[i] = p; else d.presets.push(p);
         d.generated = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
         d.updated_by = me.name;
