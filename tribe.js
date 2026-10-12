@@ -27,9 +27,10 @@
     if (knight) box.querySelector(".tribe-up input").addEventListener("change", function (e) {
       var f = e.target.files && e.target.files[0]; if (!f) return;
       note("uploading " + f.name + "…");
-      f.text().then(function (text) { return fetch("/api/doctrine", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: text }); })
+      var sent = "";
+      f.text().then(function (text) { sent = text; return fetch("/api/doctrine", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: text }); })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-        .then(function (x) { if (x.ok) { note(x.d.fits + " doctrine fits stored. Reloading…"); setTimeout(function () { location.reload(); }, 900); } else note("not stored: " + (x.d && x.d.error || "error")); })
+        .then(function (x) { if (x.ok) { var d = null; try { d = JSON.parse(sent); } catch (e) {} if (d && Array.isArray(d.presets)) applied(d, x.d.fits + " doctrine fits stored", null); else { note(x.d.fits + " doctrine fits stored. Reloading…"); setTimeout(function () { location.reload(); }, 900); } } else note("not stored: " + (x.d && x.d.error || "error")); })
         .catch(function () { note("upload failed"); });
     });
     // "Set as doctrine" (Paladins, Knights, site keepers): the fit on screen goes into the store under a doctrine name,
@@ -49,10 +50,19 @@
       note("saving…");
       return fetch("/api/doctrine", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })
         .then(function (r) { return r.json().then(function (x) { return { ok: r.ok, x: x }; }); })
-        .then(function (res) { if (res.ok) { note(what + ": " + res.x.fits + " doctrine fits. Reloading…"); setTimeout(function () { location.reload(); }, 900); } else note("not saved: " + (res.x && res.x.error || "error")); });
+        .then(function (res) { if (res.ok) applied(d, what, null); else note("not saved: " + (res.x && res.x.error || "error")); });
     }
     // "manage": the list of doctrine fits with rename (name + role) and remove on every row (user 2026-10-09)
     var modal = null;
+    /* A save went through: show the new list on the page without reloading it, so the fit on screen stays where it
+       is (the reload dropped it and loaded the page's first fit: "annoying and confusing", user 2026-10-12). */
+    function applied(d, what, cur) {
+      if (modal) { modal.hidden = true; document.body.style.overflow = ""; }
+      if (!window.__forgeReplacePresets) { note(what + ". Reloading…"); setTimeout(function () { location.reload(); }, 900); return; }
+      var n = -1; try { n = window.__forgeReplacePresets(d.presets, cur); } catch (e) { n = -1; }
+      if (n < 0) { note(what + ". Reloading…"); setTimeout(function () { location.reload(); }, 900); return; }
+      note(what + " · " + n + " doctrine fits loaded");
+    }
     function openManage() {
       if (!modal) {
         modal = document.createElement("div"); modal.className = "modal"; modal.id = "tribemodal";
@@ -116,7 +126,7 @@
         note("saving " + name + "…");
         return fetch("/api/doctrine", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })
           .then(function (r) { return r.json().then(function (x) { return { ok: r.ok, x: x }; }); })
-          .then(function (res) { if (res.ok) { note(name + (old ? " replaced" : " added") + ": " + res.x.fits + " doctrine fits. Reloading…"); setTimeout(function () { location.reload(); }, 900); } else note("not saved: " + (res.x && res.x.error || "error")); });
+          .then(function (res) { if (res.ok) applied(d, name + (old ? " replaced" : " added"), p.n); else note("not saved: " + (res.x && res.x.error || "error")); });
       }).catch(function (e) { note("not saved: " + (e && e.message || "could not reach the doctrine store")); });
     });
     return fetch("/api/doctrine", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {

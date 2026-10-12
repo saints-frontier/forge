@@ -1273,9 +1273,23 @@
       p.placements = sound; p.exterior = soundExterior(p.exterior);
       if (D.presets.some(x => x.n === p.n || String(x.name).toLowerCase() === p.name.toLowerCase())) continue;
       if (!Number.isInteger(p.n)) p.n = next++;
-      D.presets.push(p); added++;
+      p.fromStore = true; D.presets.push(p); added++;
     }
     renderPresetSelect(); if (skipped.length) setStatus(`Not loaded, the layout is not valid: ${skipped.join(", ")}.`, "warn"); return added;
+  };
+  // The store's list after a save (set as doctrine, rename, remove, upload): the doctrine fits loaded from the store
+  // make way for the new list and the fit on the page STAYS (the page used to reload and fall back to its first
+  // fit; user 2026-10-12). `cur` = the number of the fit that was just saved from the page: the page then shows it
+  // as that doctrine fit (its doctrine name, not a proposal).
+  window.__forgeReplacePresets = (list, cur) => {
+    for (let i = D.presets.length - 1; i >= 0; i--) if (D.presets[i].fromStore) D.presets.splice(i, 1);
+    const added = window.__forgeAddPresets(JSON.parse(JSON.stringify(list || [])));
+    const p = cur != null ? D.presets.find(x => x.n === cur) : null;
+    if (p) { state.preset = p.n; state.name = docName(p); state.dirty = false; }
+    else if (!D.presets.some(x => x.n === state.preset)) state.preset = null;      // its doctrine fit is gone or renamed: the fit stays, on its own
+    renderPresetSelect(); render();
+    if (p) setStatus(`${p.name} is saved as doctrine: this is the fit every Saint loads from now on. It stays on the page.`, "ok");
+    return added;
   };
   const BAD_LINK = "That link does not hold a fit this page can read: it is damaged, or was made by a newer Forge (reload the page).";
   function boot() {
