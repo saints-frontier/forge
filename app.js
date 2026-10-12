@@ -173,8 +173,15 @@
       fuel += (m.fuel || 0) * k; cap += (m.cap || 0) * k; hp += (m.hp || 0) * k; repair += (m.repair || 0) * k; draw += (m.draw_mw || 0) * k;
       drain += (m.drain || 0) * k; trickle += (m.trickle || 0) * k; power += (m.power || 0) * k; payload += (m.payload || 0) * k; mass += (m.mass || 0) * k; }
     let dps = 0, dpsRamped = 0, mining = 0; const hits = [];     // hits: what one weapon lands per hit at full spool-up (the number the logs show)
-    for (const n in ext) { const e = EXT[n]; if (!e) continue; const k = ext[n]; mass += (e.mass || 0) * k; drain += (e.drain || 0) * k; dps += (e.dps || 0) * k; dpsRamped += (e.dps_ramped || e.dps || 0) * k; if (e.mining) mining += k;
-      if (e.dps && e.cycle_s) hits.push({ name: n, k, perHit: Math.round((e.dps_ramped || e.dps) * e.cycle_s), cycle: e.cycle_s, ramps: !!e.dps_ramped }); }
+    // Only as many weapons work at once as there are Weapon Receivers. A fit that lists a second set (lasers and the
+    // extractors that swap in) used to count all of them as firing: a miner was given 26 Capacitors where 14 do
+    // (2026-10-12). Counted: the hungriest ones for the drain, the hardest-hitting ones for the damage.
+    const slots = c["Weapon Receiver"] || 0, wlist = []; for (const n in ext) { const e = EXT[n]; if (e && e.hardpoint === "weapon") for (let i = 0; i < ext[n]; i++) wlist.push(n); }
+    const over = wlist.length > slots, pick = key => { const m = {}; wlist.slice().sort((x, y) => key(EXT[y]) - key(EXT[x])).slice(0, slots).forEach(n => m[n] = (m[n] || 0) + 1); return m; };
+    const wDrain = over ? pick(e => e.drain || 0) : null, wDps = over ? pick(e => e.dps_ramped || e.dps || 0) : null;
+    for (const n in ext) { const e = EXT[n]; if (!e) continue; const k = ext[n], isW = over && e.hardpoint === "weapon", kd = isW ? (wDrain[n] || 0) : k, kp = isW ? (wDps[n] || 0) : k;
+      mass += (e.mass || 0) * k; drain += (e.drain || 0) * kd; dps += (e.dps || 0) * kp; dpsRamped += (e.dps_ramped || e.dps || 0) * kp; if (e.mining) mining += Math.min(k, isW ? Math.max(kd, kp) : k);
+      if (e.dps && e.cycle_s && kp) hits.push({ name: n, k: kp, perHit: Math.round((e.dps_ramped || e.dps) * e.cycle_s), cycle: e.cycle_s, ramps: !!e.dps_ramped }); }
     const nCaps = c["Capacitor"] || 0, nCells = c["Blackstart Cell"] || 0;
     const rech = recharge(nCaps + nCells, trickle);
     const factor = D.models.fuel.factor[state.fuelGrade];
@@ -1133,6 +1140,10 @@
     $("tour-never").addEventListener("change", e => { try { if (e.target.checked) localStorage.setItem("forge:tour", "done"); else localStorage.removeItem("forge:tour"); } catch (x) {} });
     if ($("tour-open")) $("tour-open").addEventListener("click", () => { $("tour-never").checked = false; tourShow(0); });
     document.addEventListener("keydown", e => { if (tourI >= 0 && e.key === "Escape") tourShow(-1); });
+    // A mouse wheel over a focused number box changes its value in every browser: scrolling the page with the pointer
+    // on "Keep at least ... Capacitors" quietly took it down to 1, and the next forge traded the Capacitors away
+    // (2026-10-12). The box lets go of the focus instead, so the wheel scrolls the page and the number stays.
+    document.addEventListener("wheel", e => { const t = document.activeElement; if (t && t === e.target && t.tagName === "INPUT" && t.type === "number") t.blur(); }, { passive: true, capture: true });
     window.addEventListener("resize", () => { if (tourI >= 0) tourShow(tourI); });
     // first visit: the tour waits until the Forge is on screen (the public site opens on About us; a proposal link skips it)
     const tourStart = () => {

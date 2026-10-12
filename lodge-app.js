@@ -164,6 +164,9 @@
   });
   window.addEventListener("resize", placePicker);
   window.addEventListener("scroll", placePicker, true);
+  // a mouse wheel over a focused number box changes its value: the box lets go of the focus, so the wheel scrolls the
+  // page and a quantity never changes by itself (the same trap emptied a "Keep at least" box in the Forge, 2026-10-12)
+  document.addEventListener("wheel", e => { const t = document.activeElement; if (t && t === e.target && t.tagName === "INPUT" && t.type === "number") t.blur(); }, { passive: true, capture: true });
 
   $("goals").addEventListener("click", e => {
     const rb = e.target.closest("button[data-round]");
