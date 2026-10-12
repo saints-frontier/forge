@@ -422,6 +422,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-stars .sf-missing b { color: var(--warn); }
 .roads-stars .sf-tools { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 6px; }
 .roads-stars .sf-tools button { padding: 4px 9px; font-size: 10px; letter-spacing: 1px; background: rgba(7,7,10,.7); }
+.roads-stars .sf-tools button.on { color: var(--gold); border-color: var(--gold); }
 .roads-view { display: inline-flex; border: 1px solid var(--line-strong); }
 .roads-view button { border: 0; clip-path: none; padding: 6px 12px; font-size: 11px; letter-spacing: 2px; color: var(--silver); }
 .roads-view button.on { color: var(--gold); background: rgba(217,178,76,.12); }
@@ -693,7 +694,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     </section>
     <section class="pane roads-panel" id="roads-p-legend" hidden>
       <div class="roads-legend"><span><i class="k home"></i>home</span><span><i class="k cat"></i>catapult, one way per arrow</span><span><i class="k heavy"></i>Heavy Catapult</span><span><i class="k gate"></i>gate</span><span><i class="k hand"></i>worked out from the names, not stated on chain</span><span><i class="k off"></i>offline (a red arrowhead: that direction is down)</span></div>
-      <div class="roads-hint">Cycle 7 system names and numbers we have not copied from the game ourselves come from the community map at <a href="https://ef-map.com" target="_blank" rel="noopener">EF-Map</a>, with their permission. A dashed ring is a system only one player has reported there.</div>
+      <div class="roads-hint">Cycle 7 system names and numbers we have not copied from the game ourselves come from the community map at <a href="https://ef-map.com" target="_blank" rel="noopener">EF-Map</a>, with their permission. A system counts as <b>charted</b> when two or more players agree on its name there: those are the small steel rings with a name (the <b>Charted</b> button hides them). Every other system is <b>uncharted</b>: a faint dashed mark is one a single player has reported, and you can click any star to see what is known about it.</div>
     </section>
     <section class="pane roads-panel" id="roads-p-plan" hidden>
       <div class="roads-planner" id="roads-planner">
@@ -877,5 +878,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=69980538"></script><script src="lodge-planner.js?v=49bb0aa7"></script><script src="lodge-app.js?v=6dbc04bd"></script><script src="tribe.js?v=08d810d4"></script><script src="starfield.js?v=3d4f2138"></script><script src="roads.js?v=5e5291a8"></script>
+<script src="lodge-data.js?v=69980538"></script><script src="lodge-planner.js?v=49bb0aa7"></script><script src="lodge-app.js?v=6dbc04bd"></script><script src="tribe.js?v=08d810d4"></script><script src="starfield.js?v=a97b9a73"></script><script src="roads.js?v=920f6836"></script>
 </body></html>

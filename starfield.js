@@ -7,13 +7,13 @@
 
    const sf = Starfield(container, { onPick(systemId|null), onHover(systemId|null) });
    await sf.load("stars.bin");
-   sf.setScene({ systems: [{ id, name, cls: "home"|"ours"|"inferred"|"far", sub: "fuel 17 d" }],
+   sf.setScene({ systems: [{ id, name, cls: "home"|"ours"|"inferred"|"far"|"plan"|"charted"|"uncharted", sub: "fuel 17 d" }],   // charted = a system named on the community map, not on our roads: a small ring, labelled up close
                  roads: [{ a: id, b: id, kind, twoWay, online, status: "built"|"planned"|"progress", source }] });
    sf.fit(); sf.select(id); sf.destroy(); */
 (function () {
   "use strict";
   const LY_FOV = 50 * Math.PI / 180;
-  const COLORS = { home: "#e3222c", ours: "#d9b24c", inferred: "#b8b3a8", far: "#8a8378", plan: "#9a9389", road: "#d9b24c", planned: "#b8b3a8", off: "#e3222c", gate: "#f1e9d2", hand: "#b8b3a8" };
+  const COLORS = { home: "#e3222c", ours: "#d9b24c", inferred: "#b8b3a8", far: "#8a8378", plan: "#9a9389", charted: "#8d98a3", uncharted: "#737d86", road: "#d9b24c", planned: "#b8b3a8", off: "#e3222c", gate: "#f1e9d2", hand: "#b8b3a8" };
 
   function Starfield(container, opts) {
     opts = opts || {};
@@ -61,7 +61,7 @@
     let n = 0, pos = null, byId = new Map(), ids = null, names = null, galaxy = { c: [0, 0, 0], r: 9000 };
     const readNames = (dv, o, n) => { if (o + 4 > dv.byteLength) return null; const cnt = dv.getUint32(o, true); o += 4; const dec = new TextDecoder(), out = new Array(cnt); for (let i = 0; i < cnt; i++) { const l = dv.getUint8(o); out[i] = dec.decode(new Uint8Array(dv.buffer, o + 1, l)); o += 1 + l; } return out; };
     let scene = { systems: [], roads: [] }, lines = [], lineCount = 0, marks = [], markCount = 0, polylines = [];
-    let selected = null, hovered = null;
+    let selected = null, hovered = null, marked = null;
     const cam = { target: [0, 0, 0], dist: 9000, yaw: 0.6, pitch: 0.35 };
     let w = 1, h = 1, dpr = 1, dirty = true, raf = 0;
     const VP = new Float32Array(16);
@@ -108,7 +108,7 @@
         const col = r.online === false ? COLORS.off : r.status === "planned" ? COLORS.planned : r.source === "inferred" ? COLORS.hand : /Gate/.test(r.kind || "") ? COLORS.gate : COLORS.road;
         polys.push({ road: r, pts, col, heavy: /Heavy/.test(r.kind || ""), dash: r.status === "planned" ? [2, 5] : r.status === "progress" || r.online === false || r.source === "inferred" ? [7, 6] : [], alpha: r.status === "planned" ? 0.6 : 0.95 });
       }
-      for (const s of scene.systems) { const p = P(s.id), col = COLORS[s.cls] || COLORS.far, size = s.cls === "home" ? 9 : s.cls === "ours" ? 7 : 5; M.push(...p, ...rgba(col, 0.16), size * 4.5); M.push(...p, ...rgba(col, 0.95), size); }
+      for (const s of scene.systems) { const p = P(s.id), col = COLORS[s.cls] || COLORS.far, minor = s.cls === "charted" || s.cls === "uncharted", size = s.cls === "home" ? 9 : s.cls === "ours" ? 7 : s.cls === "uncharted" ? 2 : minor ? 2.6 : 5; M.push(...p, ...rgba(col, minor ? 0.07 : 0.16), size * 4.5); M.push(...p, ...rgba(col, minor ? 0.75 : 0.95), size); }
       lines = new Float32Array(L); lineCount = L.length / 7; marks = new Float32Array(M); markCount = M.length / 8; polylines = polys;
       gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf); gl.bufferData(gl.ARRAY_BUFFER, lines, gl.STATIC_DRAW);
       gl.bindBuffer(gl.ARRAY_BUFFER, markBuf); gl.bufferData(gl.ARRAY_BUFFER, marks, gl.STATIC_DRAW);
@@ -193,32 +193,35 @@
       // cover another label is left out, its ring stays. Nothing is ever stacked.
       ctx.textBaseline = "middle";
       const k = zoomK(), far = k < 0.75, foldR = k < 0.45 ? 34 : k < 0.75 ? 10 : 0, labelPlans = cam.dist < 900;
-      const rank = s => s.id === selected || s.id === hovered ? 0 : s.cls === "home" ? 1 : s.cls === "ours" ? 2 : s.cls === "inferred" ? 3 : s.cls === "plan" ? 5 : 4;
+      const rank = s => s.id === selected || s.id === hovered ? 0 : s.cls === "home" ? 1 : s.cls === "ours" ? 2 : s.cls === "inferred" ? 3 : s.cls === "plan" ? 5 : s.cls === "charted" ? 6 : s.cls === "uncharted" ? 7 : 4;
       const order = scene.systems.map(s => ({ s, p: project(P(s.id)) })).filter(o => o.p).sort((a, b) => rank(a.s) - rank(b.s));
       const leaders = [], folded = [];
       for (const o of order) {
-        if (foldR && rank(o.s) > 0) { const L = leaders.find(l => Math.hypot(l.p[0] - o.p[0], l.p[1] - o.p[1]) < foldR); if (L) { L.more++; folded.push(o); continue; } }
+        if (foldR && rank(o.s) > 0) { const L = leaders.find(l => Math.hypot(l.p[0] - o.p[0], l.p[1] - o.p[1]) < foldR); if (L) { if (o.s.cls !== "charted" && o.s.cls !== "uncharted") L.more++; folded.push(o); continue; } }   // a charted system folds silently: "+N" counts our own only
         o.more = 0; leaders.push(o);
       }
       // a folded system keeps a small mark, so a road never ends in empty space
-      for (const o of folded) { if (o.s.cls === "plan") continue; ctx.beginPath(); ctx.arc(o.p[0], o.p[1], 2.5, 0, Math.PI * 2); ctx.strokeStyle = COLORS[o.s.cls] || COLORS.far; ctx.lineWidth = 1; ctx.stroke(); }
+      for (const o of folded) { if (o.s.cls === "plan" || o.s.cls === "charted" || o.s.cls === "uncharted") continue; ctx.beginPath(); ctx.arc(o.p[0], o.p[1], 2.5, 0, Math.PI * 2); ctx.strokeStyle = COLORS[o.s.cls] || COLORS.far; ctx.lineWidth = 1; ctx.stroke(); }
       const boxes = [], hit = (b) => boxes.some(q => b[0] < q[2] && b[2] > q[0] && b[1] < q[3] && b[3] > q[1]);
       for (const o of leaders) {
-        const s = o.s, p = o.p, col = COLORS[s.cls] || COLORS.far, plan = s.cls === "plan", hot = s.id === selected || s.id === hovered;
-        const R = Math.max(2.5, (s.cls === "home" ? 11 : s.cls === "ours" ? 9 : plan ? 4 : 7) * (plan ? Math.max(k, 0.7) : k));
-        ctx.beginPath(); ctx.arc(p[0], p[1], R, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.lineWidth = s.id === selected ? 2.5 : 1.3; ctx.setLineDash(s.cls === "inferred" ? [3, 3] : []); ctx.stroke(); ctx.setLineDash([]);
+        const s = o.s, p = o.p, col = COLORS[s.cls] || COLORS.far, unch = s.cls === "uncharted", charted = s.cls === "charted" || unch, plan = s.cls === "plan" || charted, hot = s.id === selected || s.id === hovered;
+        const R = Math.max(2.5, (s.cls === "home" ? 11 : s.cls === "ours" ? 9 : plan ? (unch ? 3 : 4) : 7) * (plan ? Math.max(k, 0.7) : k));
+        ctx.beginPath(); ctx.arc(p[0], p[1], R, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.lineWidth = s.id === selected ? 2.5 : 1.3; ctx.setLineDash(s.cls === "inferred" || unch ? [3, 3] : []); ctx.globalAlpha = charted && !hot ? 0.7 : 1; ctx.stroke(); ctx.globalAlpha = 1; ctx.setLineDash([]);
         if (hot) { ctx.beginPath(); ctx.arc(p[0], p[1], R + 5, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.globalAlpha = 0.45; ctx.stroke(); ctx.globalAlpha = 1; }
-        if (plan && !labelPlans && !hot) continue;
+        if ((plan && !labelPlans && !hot) || (unch && !hot)) continue;   // an uncharted mark is named only under the pointer
         const label = (s.cls === "home" ? "✠ " : "") + (s.name || String(s.id)) + (o.more ? `  +${o.more}` : "");
-        ctx.font = `700 13px ${display}`;
+        ctx.font = charted ? `600 12px ${display}` : `700 13px ${display}`;
         const x = p[0] + R + 6, y = p[1] - (s.sub && !far ? 4 : 0), wdt = ctx.measureText(label).width, showSub = !!s.sub && !far;
         const box = [x - 3, y - 9, x + wdt + 3, y + (showSub ? 22 : 9)];
         if (!hot && hit(box)) continue;
         boxes.push(box);
         if (k < 0.45) { ctx.fillStyle = "rgba(7,7,10,.82)"; ctx.fillRect(box[0] - 2, box[1] - 1, box[2] - box[0] + 4, box[3] - box[1] + 2); ctx.strokeStyle = "rgba(217,178,76,.45)"; ctx.lineWidth = 1; ctx.strokeRect(box[0] - 1.5, box[1] - 0.5, box[2] - box[0] + 3, box[3] - box[1] + 1); }
-        ctx.fillStyle = "rgba(7,7,10,.75)"; ctx.fillText(label, x + 1, y + 1); ctx.fillStyle = s.cls === "home" ? "#ffd27a" : "#f1e9d2"; ctx.fillText(label, x, y);
+        ctx.fillStyle = "rgba(7,7,10,.75)"; ctx.fillText(label, x + 1, y + 1); ctx.fillStyle = s.cls === "home" ? "#ffd27a" : charted ? "#aab3bc" : "#f1e9d2"; ctx.fillText(label, x, y);
         if (showSub) { ctx.font = `600 11px ${mono}`; ctx.fillStyle = s.subColor || "#b8b3a8"; ctx.fillText(s.sub, x, y + 14); }
       }
+      // a star picked from the background (no ring of its own): a dashed ring and its label
+      if (marked) { const p = project(P(marked.id)); if (p) { ctx.beginPath(); ctx.arc(p[0], p[1], 7, 0, Math.PI * 2); ctx.strokeStyle = "#f1e9d2"; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
+        ctx.font = `600 12px ${display}`; ctx.fillStyle = "rgba(7,7,10,.8)"; ctx.fillText(marked.label, p[0] + 14, p[1] + 1); ctx.fillStyle = "#f1e9d2"; ctx.fillText(marked.label, p[0] + 13, p[1]); } }
     }
     // 1 when the camera is within ~350 LY of its target (rings at full size), falling to 0.3 at galaxy scale
     function zoomK() { return Math.max(0.3, Math.min(1, 350 / cam.dist)); }
@@ -235,6 +238,8 @@
     // ---------- input: drag orbits, shift/right drag pans, wheel zooms, click picks ----------
     let drag = null;
     const pickAt = (x, y) => { let best = null, bd = 14; for (const s of scene.systems) { const p = project(P(s.id)); if (!p) continue; const d = Math.hypot(p[0] - x, p[1] - y); if (d < bd) { bd = d; best = s.id; } } return best; };
+    // any star at all, for a click that hit no ring: the nearest one within 9 px
+    const pickStar = (x, y) => { let best = null, bd = 9; for (let i = 0; i < n; i++) { const p = project([pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]]); if (!p) continue; const d = Math.hypot(p[0] - x, p[1] - y); if (d < bd) { bd = d; best = ids[i]; } } return best; };
     ov.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY, moved: false, pan: e.button === 2 || e.shiftKey, id: e.pointerId }; ov.setPointerCapture(e.pointerId); e.preventDefault(); });
     ov.addEventListener("pointermove", e => {
       if (!drag) { const id = pickAt(e.offsetX, e.offsetY); if (id !== hovered) { hovered = id; ov.style.cursor = id ? "pointer" : "grab"; dirty = true; schedule(); if (opts.onHover) opts.onHover(id); } return; }
@@ -244,7 +249,7 @@
       else { cam.yaw -= dx * 0.006; cam.pitch = Math.max(-1.5, Math.min(1.5, cam.pitch + dy * 0.006)); }
       dirty = true; schedule();
     });
-    const endDrag = e => { if (!drag) return; const d = drag; drag = null; if (!d.moved && e.type === "pointerup") { const id = pickAt(e.offsetX, e.offsetY); selected = id; dirty = true; schedule(); if (opts.onPick) opts.onPick(id); } };
+    const endDrag = e => { if (!drag) return; const d = drag; drag = null; if (!d.moved && e.type === "pointerup") { const id = pickAt(e.offsetX, e.offsetY); selected = id; dirty = true; schedule(); if (opts.onPick) opts.onPick(id); if (id == null && opts.onPickStar) opts.onPickStar(pickStar(e.offsetX, e.offsetY)); } };
     ov.addEventListener("pointerup", endDrag); ov.addEventListener("pointercancel", endDrag);
     ov.addEventListener("contextmenu", e => e.preventDefault());
     ov.addEventListener("wheel", e => { e.preventDefault(); cam.dist = Math.max(15, Math.min(30000, cam.dist * (e.deltaY > 0 ? 1.15 : 1 / 1.15))); dirty = true; schedule(); }, { passive: false });
@@ -253,6 +258,7 @@
     return {
       load, setScene, fit, fitTo, fitAll, project, has: id => byId.has(id), position: P, oldName: id => { const i = byId.get(id); return names && i != null ? names[i] : null; },
       select(id) { selected = id; dirty = true; schedule(); },
+      mark(id, label) { marked = id != null && byId.has(id) ? { id, label: label || "" } : null; dirty = true; schedule(); },
       look(id, dist) { const p = P(id); if (p) { cam.target = p; if (dist) cam.dist = dist; dirty = true; schedule(); } },
       view(pitchDeg) { cam.pitch = pitchDeg * Math.PI / 180; dirty = true; schedule(); },
       count: () => n,

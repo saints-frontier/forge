@@ -148,7 +148,7 @@
     for (const s of systems.values()) { for (const n of s.nodes) { const dd = daysOf(n); if (dd != null && (s.days == null || dd < s.days)) s.days = dd; } s.guess = s.nodes.length > 0 && s.nodes.every(n => ni(n.id).basis === "inferred"); }
     let home = up(list.home); if (!systems.has(home)) home = [...systems.keys()].sort()[0] || "";
     const nodeSys = id => (id && info.has(id) && info.get(id).sys) || null, nodeGuess = id => !!(id && info.has(id) && info.get(id).basis === "inferred");
-    const ef = { byId: efById, byName: efByName, notes: efNotes, count: efById.size, error: (d.names && d.names.error) || null, used: [...ids.values()].filter(k => k.ef).length };
+    const ef = { byId: efById, byName: efByName, notes: efNotes, count: efById.size, confirmed: [...efById.values()].filter(e => e.status === "confirmed").length, error: (d.names && d.names.error) || null, used: [...ids.values()].filter(k => k.ef).length };
     return { list, roads, unplaced, systems, ids, plans, nodeById, nodeSys, nodeGuess, daysOf, home, ef, canEdit: !!d.canEdit, at: d.at, error: d.error, nodes: d.nodes || [] };
   }
 
@@ -191,7 +191,8 @@
   const head = (x, y, ang, col) => { const a = 9, w = 4.5, c = Math.cos(ang), s = Math.sin(ang);
     return `<polygon points="${x},${y} ${x - a * c + w * s},${y - a * s - w * c} ${x - a * c - w * s},${y - a * s + w * c}" fill="${col}"/>`; };
 
-  let M = null, selected = null;
+  let M = null, selected = null, picked = null;             // picked: a charted system clicked on the star map (not one of ours)
+  let showCharted = true; try { showCharted = localStorage.getItem("roads:charted") !== "0"; } catch (e) {}
   function drawMap() {
     const box = $("roads-map");
     if (!M.systems.size) { box.innerHTML = `<div class="roads-empty">No road is on the map yet. ${M.list.builders.length ? "A launcher appears when its name in game carries its systems: see Not on the map." : "No builder is set."}</div>`; return; }
@@ -236,6 +237,17 @@
 
   function drawDetail() {
     const el = $("roads-detail");
+    if (!selected && picked) {                               // a star that is not on our roads: charted, reported once, or nothing known
+      const e = M.ef.byId.get(picked), h = M.ids.get(M.home), ly = dist && h ? dist(h.id, picked) : null, old = sf && sf.oldName(picked);
+      let near = null; if (dist) for (const name of M.systems.keys()) { const k = M.ids.get(name); if (!k) continue; const d = dist(k.id, picked); if (d != null && (!near || d < near.d)) near = { name, d }; }
+      const reach = near ? (near.d <= RANGE["Mini Catapult"] ? "a Mini Catapult reaches it" : near.d <= RANGE["Heavy Catapult"] ? "a Heavy Catapult reaches it" : "beyond one catapult throw") : "";
+      const where = (near ? ` Nearest of ours: ${esc(near.name)}, ${Math.round(near.d).toLocaleString("en-US")} LY (${reach}).` : "") + (ly != null && (!near || near.name !== M.home) ? ` ${Math.round(ly).toLocaleString("en-US")} LY from ${esc(M.home)}.` : "");
+      const ok = e && e.status === "confirmed";
+      const what = ok ? "Charted on EF-Map's community map: two or more players agree on the name. None of our roads goes there."
+        : e && e.status === "conflict" ? `Not confirmed: players disagree on its name (most reported: ${esc(e.name)}).`
+        : e ? `Not confirmed: one player has reported the name ${esc(e.name)}. A second matching report on EF-Map charts it.`
+        : `Nobody has reported a name for it yet${old ? ` (its Cycle 6 name was ${esc(old)})` : ""}.`;
+      el.hidden = false; el.innerHTML = `<div class="roads-dh">${ok ? esc(e.name) : "Uncharted"}</div><div class="roads-hint">${what}${where}</div>`; return; }
     if (!selected || !M.systems.has(selected)) { el.hidden = true; el.innerHTML = ""; return; }
     el.hidden = false;
     const s = M.systems.get(selected), out = M.roads.filter(r => r.from === selected || (r.twoWay && r.to === selected)), inn = M.roads.filter(r => r.to === selected && !r.twoWay);
@@ -289,11 +301,12 @@
     if (sf) return Promise.resolve(sf);
     if (!window.Starfield) return Promise.resolve(null);
     if (!sfLoading) {
-      sf = window.Starfield(box, { onPick: id => { const name = [...M.ids].find(([, v]) => v.id === id); selected = name ? name[0] : null; drawDetail(); }, onHover: () => {} });
+      sf = window.Starfield(box, { onPick: id => { const name = [...M.ids].find(([, v]) => v.id === id); selected = name ? name[0] : null; picked = !name && M.ef.byId.has(id) ? id : null; if (sf) sf.mark(null); drawDetail(); },
+        onPickStar: id => { if (selected) return; picked = id || null; if (sf) sf.mark(id, "uncharted"); drawDetail(); }, onHover: () => {} });
       if (!sf) return Promise.resolve(null);
       window.__roadsStars = sf;                                      // tests
       box.insertAdjacentHTML("beforeend", '<div class="sf-hint">drag: turn · shift-drag: move · wheel: zoom · click a ring</div><div class="sf-missing" id="sf-missing"></div>' +
-        '<div class="sf-tools"><button type="button" data-sf="fit" title="Our network">Our roads</button><button type="button" data-sf="all" title="The whole galaxy">Galaxy</button><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button></div>');
+        '<div class="sf-tools"><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="fit" title="Our network">Our roads</button><button type="button" data-sf="all" title="The whole galaxy">Galaxy</button><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button></div>');
       sfLoading = sf.load("stars.bin?v=2").then(() => { dist = (a, b) => { const p = sf.position(a), q = sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; }; if (lastData && !draft) { M = build(lastData); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); stamp(lastData); } return sf; }).catch(e => { box.insertAdjacentHTML("beforeend", `<div class="sf-nogl">The stars could not be loaded: ${esc(e.message)}.</div>`); return null; });
     }
     return sfLoading;
@@ -311,6 +324,13 @@
       // a system with a number but no road yet (a landmark, a destination to come) is still pinned on the star map
       for (const [name, k] of M.ids) if (!M.systems.has(name) && s.has(k.id)) systems.push({ id: k.id, name, cls: k.sure ? "far" : "inferred", sub: "" });
       for (const x of systems) { const k = M.ids.get(x.name); if (k && k.c6 && x.cls === "far") x.cls = "plan"; }
+      // the systems charted on EF-Map's community map that our roads do not touch: small rings, named up close
+      // Charted = two or more players agree on the name. A system with one report (or a disputed name) is still
+      // uncharted (user 2026-10-12): a faint dashed mark, named "uncharted" under the pointer.
+      const placed = new Set(systems.map(x => x.id)); let chartedN = 0, waitingN = 0;
+      for (const [id, e] of M.ef.byId) { if (!s.has(id) || placed.has(id)) continue; const ok = e.status === "confirmed"; if (ok) chartedN++; else waitingN++;
+        if (showCharted) systems.push(ok ? { id, name: e.name, cls: "charted", sub: "" } : { id, name: "uncharted", cls: "uncharted", sub: "" }); }
+      const cb = $("roads-stars").querySelector('[data-sf="charted"]'); if (cb) { cb.hidden = !(chartedN + waitingN); cb.textContent = `Charted · ${chartedN.toLocaleString("en-US")}`; cb.classList.toggle("on", showCharted); }
       const roads = [];
       for (const r of M.roads) { const a = M.ids.get(r.from), b = M.ids.get(r.to); if (a && b) roads.push({ a: a.id, b: b.id, kind: r.kind, twoWay: r.twoWay, online: r.online, source: r.inferred ? "inferred" : r.source, status: r.status || "built" }); }
       s.setScene({ systems, roads }); if (!drawStars.fitted) { if (location.search.indexOf("sf=all") >= 0) s.fitAll(); else s.fit(); drawStars.fitted = true; }
@@ -356,7 +376,8 @@
     const own = [...M.ids].filter(([, k]) => k.id).sort((a, b) => a[0].localeCompare(b[0])), have = new Set(own.map(([, k]) => k.id));
     const more = [...M.ef.byName].filter(([, e]) => !have.has(e.id)).sort((a, b) => a[0].localeCompare(b[0]));
     const mine = own.map(([n, k]) => `<option value="${k.id}">${esc(n)}</option>`).join("");
-    const opts = more.length ? `<optgroup label="Ours">${mine}</optgroup><optgroup label="Charted on EF-Map">${more.map(([n, e]) => `<option value="${e.id}">${esc(n)}${e.status === "confirmed" ? "" : " (one report)"}</option>`).join("")}</optgroup>` : mine;
+    const grp = (label, rows) => rows.length ? `<optgroup label="${label}">${rows.map(([n, e]) => `<option value="${e.id}">${esc(n)}</option>`).join("")}</optgroup>` : "";
+    const opts = more.length ? `<optgroup label="Ours">${mine}</optgroup>` + grp("Charted on EF-Map", more.filter(([, e]) => e.status === "confirmed")) + grp("Uncharted: reported once", more.filter(([, e]) => e.status !== "confirmed")) : mine;
     const a = $("plan-from"), b = $("plan-to"), va = a.value, vb = b.value; a.innerHTML = opts; b.innerHTML = opts;
     const home = M.ids.get(M.home); a.value = va || (home ? home.id : ""); if (vb) b.value = vb;
   }
@@ -401,7 +422,7 @@
 
   function stamp(d) {
     const mins = Math.max(0, Math.round((Date.now() - (d.at || Date.now())) / 60000)), built = M.roads.filter(r => r.source === "chain"), guess = built.filter(r => r.inferred).length;
-    $("roads-stamp").textContent = (d.error ? "The chain did not answer: " + d.error + " · " : "") + `${M.systems.size} systems · ${built.length} roads${guess ? ` (${guess} worked out)` : ""} · read ${mins ? mins + " min ago" : "just now"}` + (M.ef.count ? ` · ${M.ef.count.toLocaleString("en-US")} system names from EF-Map` : M.ef.error ? ` · EF-Map names: ${M.ef.error}` : "");
+    $("roads-stamp").textContent = (d.error ? "The chain did not answer: " + d.error + " · " : "") + `${M.systems.size} systems · ${built.length} roads${guess ? ` (${guess} worked out)` : ""} · read ${mins ? mins + " min ago" : "just now"}` + (M.ef.count ? ` · EF-Map: ${M.ef.confirmed.toLocaleString("en-US")} systems charted, ${(M.ef.count - M.ef.confirmed).toLocaleString("en-US")} reported once` : M.ef.error ? ` · EF-Map names: ${M.ef.error}` : "");
   }
 
   function render(d) {
@@ -452,6 +473,7 @@
     }
     if (b.id === "roads-refresh") { load(true); return; }
     if (b.dataset.view) { setView(b.dataset.view); return; }
+    if (b.dataset.sf === "charted") { showCharted = !showCharted; try { localStorage.setItem("roads:charted", showCharted ? "1" : "0"); } catch (e) {} if (!showCharted) { picked = null; if (sf) sf.mark(null); } drawStars(); drawDetail(); return; }
     if (b.dataset.sf && sf) { if (b.dataset.sf === "fit") sf.fit(); else if (b.dataset.sf === "all") sf.fitAll(); else sf.view(b.dataset.sf === "top" ? 88 : 4); return; }
     if (b.id === "roads-paste-save") {
       // the game's formatted copy of a system is a link carrying the system's number (5 = solar system)
@@ -488,4 +510,5 @@
   }, 5000);
   window.__roadsRender = d => { loaded = true; render(d); };          // tests and local previews feed a fixture
   window.__roadsParse = readName; window.__roadsModel = () => M;
+  window.__roadsPick = id => { selected = null; picked = id; drawDetail(); return $("roads-detail").hidden ? null : $("roads-detail").innerText; };   // tests: what a click on any star says
 })();
