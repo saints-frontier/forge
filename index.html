@@ -72,6 +72,7 @@ body.pdragging, body.pdragging * { cursor: grabbing !important; }
 .hullsvg rect.cell.hint-ok { fill: rgba(217,178,76,.55); stroke: var(--gold); }
 .hullsvg rect.cell.hint-bad { fill: rgba(227,34,44,.45); stroke: var(--red); }
 .prow:hover { background: rgba(255,255,255,.03); }
+.prow.auto { color: var(--dim); } .prow.auto .pauto { grid-column: 3 / -1; text-align: right; font: 600 10px var(--mono); letter-spacing: 1px; white-space: nowrap; }
 .prow.has .pname { color: var(--fg); }
 .pname { color: var(--silver); font-size: 12.5px; line-height: 1.15; overflow-wrap: anywhere; }
 .psize, .pcount { font: 11px var(--mono); color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
@@ -171,6 +172,12 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .cmp-table td:first-child { text-align: left; color: var(--silver); }
 .cmp-table td.up, .cmp-diff .up { color: var(--good); } .cmp-table td.down, .cmp-diff .down { color: var(--red); }
 .cmp-diff { font-size: 13px; color: var(--silver); } .cmp-diff b { color: var(--gold); }
+/* what the last forge changed: a small box under the status line */
+.forgediff { display: flex; gap: 10px 14px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; margin: 8px 12px 0; padding: 8px 10px; border: 1px solid var(--gold-soft); border-left: 3px solid var(--gold); background: rgba(217,178,76,.06); }
+.fd-text { min-width: 0; flex: 1 1 320px; }
+.fd-head { font: 700 13px/1.5 var(--body); color: var(--fg); } .fd-head .up { color: var(--good); } .fd-head .down { color: var(--red); } .fd-head .lab { font: 700 10px var(--mono); letter-spacing: 2px; color: var(--gold); text-transform: uppercase; margin-right: 8px; }
+.fd-mods { font-size: 12px; color: var(--silver); margin-top: 2px; }
+.fd-btns { display: flex; gap: 6px; flex: none; } .fd-btns button { padding: 4px 9px; font-size: 10px; letter-spacing: 1px; }
 @media (max-width: 760px) { .cmp-hulls { grid-template-columns: 1fr; } }
 /* the shopping list */
 .shopbody { padding: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 14px; }
@@ -737,6 +744,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     <section class="pane mid" aria-label="Hull">
       <div class="headrow"><h2>Fitting window</h2><span class="edits"><button type="button" id="btn-undo" title="Undo (Ctrl+Z)" disabled>↶ Undo</button><button type="button" id="btn-redo" title="Redo (Ctrl+Y)" disabled>Redo ↷</button></span><span class="zoom" role="group" aria-label="Zoom the fitting window"><span class="zl"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 10l4.4 4.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Zoom</span><button type="button" id="zoom-out" title="Zoom out: make the fitting window smaller (Ctrl + mouse wheel)" aria-label="Zoom out">−</button><span class="z" id="zoom-v" title="Size of the fitting window">100%</span><button type="button" id="zoom-in" title="Zoom in: make the fitting window larger (Ctrl + mouse wheel)" aria-label="Zoom in">+</button><button type="button" id="zoom-fit" title="Back to the size that fits your screen">Reset</button></span></div>
       <div class="status info" id="status">Loading…</div>
+      <div class="forgediff" id="forgediff" hidden><div class="fd-text"><div class="fd-head" id="fd-head"></div><div class="fd-mods" id="fd-mods"></div></div><div class="fd-btns"><button type="button" class="ghost" id="fd-revert" title="Return to the fit from before this forge (Undo brings the forged one back)">Put the old fit back</button><button type="button" class="ghost" id="fd-close" aria-label="Hide this summary" title="Hide">×</button></div></div>
       <div class="forgebar" id="forgebar" hidden><div class="fb-track"><div class="fb-fill" id="fb-fill"></div></div><div class="fb-text" id="fb-text">Forging…</div></div>
       <div class="gridwrap" id="grid"></div>
       <div id="selbox" hidden><span id="sel-name"></span><span id="sel-detail"></span><button type="button" id="btn-ccw" title="Turn 90° counter-clockwise (E or Shift+R)">⟲ 90°</button><button type="button" id="btn-cw" title="Turn 90° clockwise (R)">⟳ 90°</button><button type="button" id="btn-180" title="Turn 180° (F)">⟳ 180°</button><button type="button" id="btn-remove">Remove</button></div>
@@ -813,9 +821,9 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     <div class="tour-row"><label class="tour-check"><input type="checkbox" id="tour-never"> Don't show this again</label><span class="sp"></span><button type="button" id="tour-skip">Skip</button><button type="button" class="primary" id="tour-next">Next</button></div>
   </div>
 </div>
-<script src="data.js?v=8d5e13ce"></script>
+<script src="data.js?v=a7403a74"></script>
 <script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=6395130c"></script>
+<script src="app.js?v=cba6becc"></script>
 <script>
 (function () {
   // pages and their own addresses: thesaintsforge.com/aboutus, /forge, /guide (Cloudflare serves the page at each,

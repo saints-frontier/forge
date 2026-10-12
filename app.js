@@ -56,7 +56,7 @@
     if (m.type === "progress") { if (prog) { prog.iterations = m.iterations; prog.gains = m.gains; progressTick(); } if (running === "optimize") { state.placements = m.placements; render(); } return; }
     if (m.type === "done") {
       const kind = running; running = null; $("btn-forge").textContent = "Forge for the role"; $("btn-forge").disabled = false;
-      if (kind === "optimize") { if (m.gains > 0) { state.placements = m.placements; markDirty(); } render(); progressDone(`Forged: ${m.iterations} re-packs in ${m.seconds.toFixed(0)} s, ${m.gains} gains · ${hold(state.placements)} m³ hold`); setStatus("", "info"); }
+      if (kind === "optimize") { if (m.gains > 0) { state.placements = m.placements; markDirty(); } render(); progressDone(`Forged: ${m.iterations} re-packs in ${m.seconds.toFixed(0)} s, ${m.gains} gains · ${hold(state.placements)} m³ hold`); setStatus("", "info"); forgeEnded(); }
       else progressStop();
       if (kind === "tryadd") { if (pendingResolve) { const r = pendingResolve; pendingResolve = null; r(m); } }
     }
@@ -125,8 +125,9 @@
     }
     return out;
   }
-  // hardpoint modules: known names, whole counts
-  function soundExterior(e) { const out = {}; if (e && typeof e === "object") for (const n in EXT) { const k = e[n]; if (Number.isInteger(k) && k > 0) out[n] = Math.min(k, 24); } return out; }
+  // hardpoint modules: known names, whole counts. External Thrusters are not kept: six come with the engine and change
+  // nothing on the ship, so an old link or preset that lists them simply loses them (user 2026-10-12)
+  function soundExterior(e) { const out = {}; if (e && typeof e === "object") for (const n in EXT) { if (EXT[n].auto) continue; const k = e[n]; if (Number.isInteger(k) && k > 0) out[n] = Math.min(k, 24); } return out; }
   function sectionSet(s) { return new Set(D.hulls[state.hull].sections[s].cells.map(c => c.join(","))); }
   function occupiedMap() {
     const occ = D.hulls[state.hull].sections.map(() => new Map());
@@ -248,8 +249,6 @@
     if (combat) out.push([(c["Ion Sensor"] || 0) >= 1, "Ion Sensor on a combat fit"]);
     const scanners = scannerSlots(c);
     out.push([(ext["Directional Scanner"] || 0) <= scanners, "Directional Scanner on a sensor"]);
-    const engines = D.base_ship.engines.reduce((a, e) => a + (c[e] || 0), 0);
-    out.push([(ext["External Thruster"] || 0) <= 6 * engines, `External Thrusters (${ext["External Thruster"] || 0} of ${6 * engines})`]);
     out.push([!overPower(st), `power ${st.draw.toFixed(1)} of ${st.power} MW`]);
     out.push([st.stable, st.stable ? `cap-stable (${f1(st.rech)} GJ/s ≥ ${f1(st.drain)} drain)` : `cap runs dry in ${isFinite(st.lastMin) ? Math.round(st.lastMin) + " s" : "—"} with everything on`]);
     return out;
@@ -518,9 +517,10 @@
       html += `</div>`;
     }
     html += `<div class="pgroup"><h3>Exterior (hardpoints)</h3>`;
-    D.exterior.forEach(e => { const k = state.exterior[e.name] || 0;
+    D.exterior.forEach(e => { if (e.auto) return; const k = state.exterior[e.name] || 0;
       html += `<div class="prow${k ? " has" : ""}"><span class="sw ext"></span><span class="pname">${e.name}</span><span class="psize">${e.hardpoint === "weapon" ? "hp" : ""}</span>` +
               `<span class="pcount">${k || ""}</span><button class="pbtn" data-addx="${e.name}" aria-label="add ${e.name}">+</button><button class="pbtn" data-subx="${e.name}" aria-label="remove ${e.name}"${k ? "" : " disabled"}>−</button></div>`; });
+    if (engineCount(counts(state.placements))) html += `<div class="prow auto" title="Six External Thrusters come with every engine. They weigh nothing and draw no power, so there is nothing to fit."><span class="sw ext"></span><span class="pname">External Thrusters</span><span class="pauto">6 · with the engine</span></div>`;
     html += `</div>`;
     $("palette").innerHTML = html;
   }
@@ -584,7 +584,8 @@
     $("st-caprech-note").textContent = `recharge model: ${D.models.recharge.a}·n^${D.models.recharge.b}, fitted to in-game readings at 2, 5 and 13 units (a Blackstart Cell counts as one)`;
   }
   function renderHeader() { if (!K) return; const th = K.themes[state.hull].theme; $("tier").textContent = `✠ ${th.name} · ${th.tier} ✠`; }
-  function render() { renderGrid(); renderPalette(); renderStats(); renderSelection(); renderHeader(); $("fit-name").value = state.name; $("hull-sel").value = state.hull; $("free-count").textContent = ""; syncKeepInputs(); record(); }
+  function render() { renderGrid(); renderPalette(); renderStats(); renderSelection(); renderHeader(); $("fit-name").value = state.name; $("hull-sel").value = state.hull; $("free-count").textContent = ""; syncKeepInputs(); record();
+    if (forgeBefore && forgeBefore.after && !pool && !running && !$("forgediff").hidden && JSON.stringify(state.placements) !== forgeBefore.after) hideForgeDiff(); }
 
   // ---------- undo / redo ----------
   // Every render records the fit if it changed (a forge or a + search records once, when it ends). 100 steps kept.
@@ -774,6 +775,7 @@
     progressDone(`Forged: ${P.gains} gains from ${P.workers.length} searches${extra}, ${its.toLocaleString("en-US")} re-packs · ${why} · ${hold(state.placements)} m³ hold`);
     $("btn-forge").textContent = "Forge for the role"; if (!/^Cap-stable/.test($("status").textContent)) setStatus("", "info");
     shortOfMinimums(P.keepMin);
+    forgeEnded();
   }
   // a minimum above what the hull can hold (with the other minimums kept) is never reached: say so instead of staying quiet
   function shortOfMinimums(keepMin) {
@@ -804,6 +806,7 @@
     for (const n in KEEP_IDS) if (fillers.includes(n)) keepMin[n] = Math.max(keepMin[n] || 0, state.mins[n] || 0);
     // the small fillers have no box: what is fitted stays (the forge may add them, never trade them away; remove by hand)
     for (const n of ["Emergency Container", "Fuel Blister"]) if (fillers.includes(n)) keepMin[n] = Math.max(keepMin[n] || 0, c[n] || 0);
+    forgeBefore = { snap: snap(), hull: state.hull, name: state.name, placements: JSON.parse(JSON.stringify(state.placements)), exterior: Object.assign({}, state.exterior), after: null }; hideForgeDiff();
     $("btn-forge").textContent = "Stop"; state.selected = -1;          // the searches reorder the modules: an index kept from before would point elsewhere
     setStatus(capStable ? `Cap-stable at ${capsNow} Capacitors: they come last. Spare cells go to ${[...new Set(fillers.map(f => PRIO_OF[f]))].filter(k => k !== "cap").sort((x, y) => state.prio[y] - state.prio[x]).map(k => PRIO_NAME[k]).join(", then ")}, then Capacitors fill what nothing else fits.` : "", "info");
     if (forgeParallel(fillers, values, keepMin)) return;
@@ -984,6 +987,30 @@
       `<table class="cmp-table"><tr><th></th><th>${esc(A.name)}</th><th>${esc(B.name)}</th><th>Δ</th></tr>` + rows.map(([l, a, b, d]) => { const dd = a - b; return `<tr><td>${l}</td><td>${f(a, d)}</td><td>${f(b, d)}</td><td class="${dd > 0 ? "up" : dd < 0 ? "down" : ""}">${dd > 0 ? "+" : ""}${f(dd, d)}</td></tr>`; }).join("") + `</table>` +
       `<div class="cmp-diff"><b>Modules</b>: ${diff.length ? diff.map(([d, n]) => `<span class="${d > 0 ? "up" : "down"}">${d > 0 ? "+" : ""}${+d} ${esc(n)}</span>`).join(", ") : "the same modules, placed differently"}.</div>`;
   }
+  // ---------- what a forge changed, against the fit it started from: a small box under the status line ----------
+  // (user 2026-10-12: a summary in the fitting window, not a dialog). It stays until the fit is edited, the old fit is
+  // put back, the next forge starts, or it is closed.
+  let forgeBefore = null;
+  // [label, value of a stats object, decimals, +1 when more is better / -1 when less is better]
+  const RES_ROWS = [["Hold m³", s => s.hold, 0, 1], ["Fuel", s => s.fuel, 0, 1], ["Capacitor GJ", s => s.cap, 0, 1], ["Recharge GJ/s", s => s.rech, 1, 1], ["Hull HP", s => s.hp, 0, 1], ["EM signature", s => s.em, 0, -1]];
+  function hideForgeDiff() { const el = $("forgediff"); if (el) el.hidden = true; }
+  function forgeEnded() {
+    const B = forgeBefore, el = $("forgediff"); if (!B || !el) return;
+    B.after = JSON.stringify(state.placements);
+    if (B.after === JSON.stringify(B.placements)) { el.hidden = true; return; }           // nothing better was found: the finish line says so
+    const sb = statsOf(B.hull, B.placements, B.exterior), sa = statsOf(state.hull, state.placements, state.exterior);
+    const f = (n, d) => Number(n).toLocaleString("en-US", { maximumFractionDigits: d }), sign = (n, d) => (n > 0 ? "+" : "−") + f(Math.abs(n), d);
+    const moved = RES_ROWS.map(([label, get, d, dir]) => { const dd = +(get(sa) - get(sb)).toFixed(d); return dd ? `<span class="${dd * dir > 0 ? "up" : "down"}">${sign(dd, d)} ${esc(label)}</span>` : ""; }).filter(Boolean);
+    const cb = counts(B.placements), ca = counts(state.placements), diff = [];
+    new Set([...Object.keys(cb), ...Object.keys(ca)]).forEach(n => { const d = (ca[n] || 0) - (cb[n] || 0); if (d) diff.push([d, n]); }); diff.sort((x, y) => y[0] - x[0]);
+    $("fd-head").innerHTML = `<span class="lab">The forge changed</span>` + (moved.length ? moved.join(" · ") : "the arrangement only: the numbers are the same");
+    $("fd-mods").textContent = (diff.length ? diff.map(([d, n]) => `${d > 0 ? "+" : "−"}${Math.abs(d)} ${n}`).join(", ") : "The same modules, placed differently") + ` · ${sa.free} free cell${sa.free === 1 ? "" : "s"} left (was ${sb.free})`;
+    el.hidden = false;
+  }
+  function revertForge() {
+    const B = forgeBefore; if (!B || busy()) return;
+    restore(B.snap); hideForgeDiff(); setStatus("The fit from before the forge is back. Undo returns to the forged one.", "info");
+  }
   function openCompare() {
     const sel = $("cmp-sel"); sel.innerHTML = D.presets.filter(p => p.hull === state.hull).concat(D.presets.filter(p => p.hull !== state.hull)).map(p => `<option value="${esc(p.n)}">${esc(docName(p))} · ${esc(p.hull)}</option>`).join("");
     if (state.preset && D.presets.some(p => p.n === state.preset)) sel.value = state.preset;
@@ -995,10 +1022,13 @@
     const c = counts(state.placements), ext = state.exterior, R = D.recipes || {};
     const rows = [], mats = {}, noRecipe = []; let secs = 0;
     const all = Object.keys(c).sort().map(n => [n, c[n]]).concat(Object.keys(ext).filter(n => ext[n]).sort().map(n => [n, ext[n]]));
+    // External Thrusters are not fitted on the page (six come with an engine), but a new ship still needs them: the list
+    // keeps them as a reminder (user 2026-10-12: "good to have it in the recipe of a new ship, in case they're missing")
+    const engines = engineCount(c), autoNames = new Set(); if (engines) D.exterior.forEach(e => { if (e.auto) { all.push([e.name, 6 * engines]); autoNames.add(e.name); } });
     for (const [n, k] of all) {
       const r = R[n];
       if (!r) { noRecipe.push(`${k}x ${n}`); rows.push({ n, k, fac: "no known recipe" }); continue; }
-      const runs = Math.ceil(k / (r.makes || 1)); rows.push({ n, k, fac: r.facility.replace(" (ship module)", ""), time: (r.time_s || 0) * runs });
+      const runs = Math.ceil(k / (r.makes || 1)); rows.push({ n, k, fac: r.facility.replace(" (ship module)", "") + (autoNames.has(n) ? ", or reuse the six from an old engine" : ""), time: (r.time_s || 0) * runs });
       secs += (r.time_s || 0) * runs;
       for (const m in r.in) mats[m] = (mats[m] || 0) + r.in[m] * runs;
     }
@@ -1010,7 +1040,7 @@
     for (const r of s.rows) t += `${r.k}x ${r.n}  (${r.fac})\n`;
     t += `\nMATERIALS, TOTAL\n`;
     for (const m of Object.keys(s.mats).sort((a, b) => s.mats[b] - s.mats[a])) t += `${f(s.mats[m])}x ${m}\n`;
-    t += `\nPrint time about ${Math.round(s.secs / 60)} min on the printers. Command Pod and Weapon Receiver come with the ship; salvage spares from wrecks.`;
+    t += `\nPrint time about ${Math.round(s.secs / 60)} min on the printers. Command Pod and Weapon Receiver come with the ship; salvage spares from wrecks. External Thrusters: reuse the six from an old engine if you have one.`;
     return t;
   }
   function openShop() {
@@ -1018,7 +1048,7 @@
     $("shop-sub").textContent = `${state.name} · ${s.rows.length} kinds of module · print time about ${Math.round(s.secs / 60)} min`;
     const mats = Object.keys(s.mats).sort((a, b) => s.mats[b] - s.mats[a]);
     $("shop-body").innerHTML = `<div><h3>Modules to print</h3><table>${s.rows.map(r => `<tr><td class="n">${+r.k}x</td><td>${esc(r.n)}</td><td class="f">${esc(r.fac)}</td></tr>`).join("")}</table>` +
-      `<div class="note">Command Pod and Weapon Receiver have no printer recipe: they come with the ship, and wrecks drop spares.</div></div>` +
+      `<div class="note">Command Pod and Weapon Receiver have no printer recipe: they come with the ship, and wrecks drop spares. External Thrusters are the same on every engine: move the six over from an old engine if you have one, print them if not.</div></div>` +
       `<div><h3>Materials, total</h3><table>${mats.map(m => `<tr><td class="n">${f(s.mats[m])}x</td><td>${esc(m)}</td></tr>`).join("")}</table>` +
       `<div class="note">Recipes as read from the Industry window; the simplest printer that makes each module (the Emergency Printer where it can, else the Mini Printer; the ship Printer makes the same). Refining the raw ore into these is one step further.</div></div>`;
     $("shopmodal").hidden = false; document.body.style.overflow = "hidden";
@@ -1084,6 +1114,7 @@
     $("btn-shop").addEventListener("click", openShop);
     $("btn-compare").addEventListener("click", openCompare);
     $("cmp-close").addEventListener("click", () => { $("cmpmodal").hidden = true; document.body.style.overflow = ""; });
+    if ($("forgediff")) { $("fd-close").addEventListener("click", hideForgeDiff); $("fd-revert").addEventListener("click", revertForge); }
     $("cmpmodal").addEventListener("click", e => { if (e.target === $("cmpmodal")) { $("cmpmodal").hidden = true; document.body.style.overflow = ""; } });
     $("cmp-sel").addEventListener("change", () => { $("cmp-link").value = ""; renderCompare(); });
     $("cmp-link").addEventListener("input", renderCompare);
@@ -1131,6 +1162,7 @@
       const b = e.target.closest("button"); if (!b) return;
       if (b.dataset.add) addModule(b.dataset.add); else if (b.dataset.sub) subModule(b.dataset.sub);
       else if ((b.dataset.addx || b.dataset.subx) && busy()) return;
+      else if (b.dataset.addx && EXT[b.dataset.addx] && EXT[b.dataset.addx].auto) return;
       else if (b.dataset.addx) { state.exterior[b.dataset.addx] = (state.exterior[b.dataset.addx] || 0) + 1; markDirty(); render(); }
       else if (b.dataset.subx) { state.exterior[b.dataset.subx] = Math.max(0, (state.exterior[b.dataset.subx] || 0) - 1); if (!state.exterior[b.dataset.subx]) delete state.exterior[b.dataset.subx]; markDirty(); render(); }
     });
