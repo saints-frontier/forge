@@ -1009,16 +1009,18 @@
     let markA = new Set(), markB = new Set();
     if (same) { const ma = cellMap(A.placements), mb = cellMap(B.placements); for (const [k, v] of ma) if (mb.get(k) !== v) markA.add(k); for (const [k, v] of mb) if (ma.get(k) !== v) markB.add(k); }
     const f = (n, d) => Number(n).toLocaleString("en-US", { maximumFractionDigits: d === undefined ? 0 : d });
-    const rows = [["Cells used", sa.cells, sb.cells, 0], ["Hold m³", sa.hold, sb.hold, 0], ["Fuel", sa.fuel, sb.fuel, 0], ["Fuel hours (" + state.fuelGrade + ")", isFinite(sa.hours) ? sa.hours : 0, isFinite(sb.hours) ? sb.hours : 0, 1],
-                  ["Capacitor GJ", sa.cap, sb.cap, 0], ["Recharge GJ/s est", sa.rech, sb.rech, 1], ["Drain GJ/s", sa.drain, sb.drain, 1], ["Hull HP", sa.hp, sb.hp, 0], ["Repair HP/s", sa.repair, sb.repair, 0], ["DPS spooled", sa.dpsRamped, sb.dpsRamped, 0], ["Power MW", sa.draw, sb.draw, 1],
-                  ["Mass t", sa.mass / 1000, sb.mass / 1000, 0], ["EM signature est", sa.em, sb.em, 0]];
+    // [label, this fit, the other fit, decimals, which way is better: 1 = more, -1 = less (mass, EM signature), 0 = neither]
+    const rows = [["Cells used", sa.cells, sb.cells, 0, 0], ["Hold m³", sa.hold, sb.hold, 0, 1], ["Fuel", sa.fuel, sb.fuel, 0, 1], ["Fuel hours (" + state.fuelGrade + ")", isFinite(sa.hours) ? sa.hours : 0, isFinite(sb.hours) ? sb.hours : 0, 1, 1],
+                  ["Capacitor GJ", sa.cap, sb.cap, 0, 1], ["Recharge GJ/s est", sa.rech, sb.rech, 1, 1], ["Drain GJ/s", sa.drain, sb.drain, 1, 0], ["Hull HP", sa.hp, sb.hp, 0, 1], ["Repair HP/s", sa.repair, sb.repair, 0, 1], ["DPS spooled", sa.dpsRamped, sb.dpsRamped, 0, 1], ["Power MW", sa.draw, sb.draw, 1, 0],
+                  ["Mass t", sa.mass / 1000, sb.mass / 1000, 0, -1], ["EM signature est", sa.em, sb.em, 0, -1]];
     const ca = counts(A.placements), cb = counts(B.placements); const names = new Set([...Object.keys(ca), ...Object.keys(cb)]); const diff = [];
     names.forEach(n => { const d = (ca[n] || 0) - (cb[n] || 0); if (d) diff.push([d, n]); });
     const ea = A.exterior || {}, eb = B.exterior || {}; new Set([...Object.keys(ea), ...Object.keys(eb)]).forEach(n => { const d = (ea[n] || 0) - (eb[n] || 0); if (d) diff.push([d, n + " (exterior)"]); });
     diff.sort((x, y) => y[0] - x[0]);
     $("cmp-body").innerHTML = `<div class="cmp-hulls"><div><div class="cmp-name">${esc(A.name)} <span>(this fit)</span></div>${hullSvg(A.hull, A.placements, { mark: markA, numbers: false }).svg}</div><div><div class="cmp-name">${esc(B.name)}</div>${hullSvg(B.hull, B.placements, { mark: markB, numbers: false }).svg}</div></div>` +
       `<div class="note">${same ? `Gold outlines mark the cells that differ: ${markA.size} on this fit, ${markB.size} on the other.` : "Different hulls: no cell-by-cell diff."}</div>` +
-      `<table class="cmp-table"><tr><th></th><th>${esc(A.name)}</th><th>${esc(B.name)}</th><th>Δ</th></tr>` + rows.map(([l, a, b, d]) => { const dd = a - b; return `<tr><td>${l}</td><td>${f(a, d)}</td><td>${f(b, d)}</td><td class="${dd > 0 ? "up" : dd < 0 ? "down" : ""}">${dd > 0 ? "+" : ""}${f(dd, d)}</td></tr>`; }).join("") + `</table>` +
+      `<table class="cmp-table"><tr><th></th><th>${esc(A.name)}</th><th>${esc(B.name)}</th><th>Δ</th></tr>` + rows.map(([l, a, b, d, dir]) => { const dd = +(a - b).toFixed(d); return `<tr><td>${l}</td><td>${f(a, d)}</td><td>${f(b, d)}</td><td class="${dd * dir > 0 ? "up" : dd * dir < 0 ? "down" : ""}">${dd > 0 ? "+" : ""}${f(dd, d)}</td></tr>`; }).join("") + `</table>` +
+      `<div class="note">Green = this fit is better on that line, red = worse. For mass and EM signature less is better; cells, drain and power are neither.</div>` +
       `<div class="cmp-diff"><b>Modules</b>: ${diff.length ? diff.map(([d, n]) => `<span class="${d > 0 ? "up" : "down"}">${d > 0 ? "+" : ""}${+d} ${esc(n)}</span>`).join(", ") : "the same modules, placed differently"}.</div>`;
   }
   // ---------- what a forge changed, against the fit it started from: a small box under the status line ----------
