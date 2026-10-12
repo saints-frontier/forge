@@ -192,6 +192,7 @@
     return `<polygon points="${x},${y} ${x - a * c + w * s},${y - a * s - w * c} ${x - a * c - w * s},${y - a * s + w * c}" fill="${col}"/>`; };
 
   let M = null, selected = null, picked = null;             // picked: a charted system clicked on the star map (not one of ours)
+  let unplacedBy = "builder"; try { unplacedBy = localStorage.getItem("roads:unplacedBy") === "node" ? "node" : "builder"; } catch (e) {}   // how Not on the map is grouped
   let showCharted = true; try { showCharted = localStorage.getItem("roads:charted") !== "0"; } catch (e) {}
   function drawMap() {
     const box = $("roads-map");
@@ -413,12 +414,24 @@
     const warn = long.length ? `<div class="roads-ugroup"><div class="roads-uh">Names to check</div>` + long.map(r => `<div class="roads-urow"><span><b>${esc(r.from)} → ${esc(r.to)}</b> · ${esc(r.kind)} ${r.name ? `<i>${esc(r.name)}</i>` : ""}<br><span class="roads-hint">${r.ly.toFixed(0)} LY apart, beyond its ${RANGE[r.kind]} LY reach: one of the names is wrong${r.builder ? " · " + esc(r.builder) : ""}.</span></span></div>`).join("") + `</div>` : "";
     const notes = M.ef.notes.length ? `<div class="roads-ugroup"><div class="roads-uh">Numbers to check</div>` + M.ef.notes.map(t => `<div class="roads-urow"><span class="roads-hint">${esc(t)} Ours was copied from the game: tell EF-Map if theirs is wrong.</span></div>`).join("") + `</div>` : "";
     if (!M.unplaced.length) { el.innerHTML = notes + warn + `<div class="roads-hint">Every launcher and gate read from the chain is on the map.</div>`; return; }
-    const byNode = new Map(); for (const u of M.unplaced) { const k = u.node || ""; if (!byNode.has(k)) byNode.set(k, []); byNode.get(k).push(u); }
-    el.innerHTML = notes + warn + [...byNode].map(([nid, us]) => {
-      const n = M.nodeById.get(nid), d = M.daysOf(n), here = M.nodeSys(nid);
-      return `<div class="roads-ugroup"><div class="roads-uh">${esc(us[0].builder || "")} · node ${esc((n && n.name) || short(nid))}${here ? " · in " + esc(here) : ""}${n ? ` · <span class="${fuelClass(d)}">${d == null ? "idle" : "fuel " + fmtDays(d)}</span>` : ""}</div>` +
-        us.map(u => `<div class="roads-urow"><span><b>${esc(u.kind)}</b> ${u.name ? `<i>${esc(u.name)}</i>` : "(no name)"}${u.to ? " · to " + esc(u.to) : ""}${u.online === false ? ' · <span class="bad">offline</span>' : ""}<br><span class="roads-hint">Not placed: ${esc(u.why)}. ${esc(u.fix || "")}</span></span></div>`).join("") + `</div>`;
-    }).join("");
+    // grouped by builder (each builder sees the list of what is theirs to rename) or by Network Node; the choice is kept
+    const fuelOf = nid => { const n = M.nodeById.get(nid), d = M.daysOf(n); return n ? ` · <span class="${fuelClass(d)}">${d == null ? "idle" : "fuel " + fmtDays(d)}</span>` : ""; };
+    const nodeLabel = nid => { const n = M.nodeById.get(nid), here = M.nodeSys(nid); return `node ${esc((n && n.name) || short(nid))}${here ? " · in " + esc(here) : ""}`; };
+    const row = (u, withNode) => `<div class="roads-urow"><span><b>${esc(u.kind)}</b> ${u.name ? `<i>${esc(u.name)}</i>` : "(no name)"}${u.to ? " · to " + esc(u.to) : ""}${u.online === false ? ' · <span class="bad">offline</span>' : ""}${withNode ? ` · <span class="roads-unode">${nodeLabel(u.node)}${fuelOf(u.node)}</span>` : ""}<br><span class="roads-hint">Not placed: ${esc(u.why)}. ${esc(u.fix || "")}</span></span></div>`;
+    const bar = `<div class="roads-usort"><span>Group by</span><span class="roads-view" role="group" aria-label="Group the list by"><button type="button" data-ugroup="builder"${unplacedBy === "builder" ? ' class="on"' : ""}>Builder</button><button type="button" data-ugroup="node"${unplacedBy === "node" ? ' class="on"' : ""}>Network Node</button></span></div>`;
+    let body;
+    if (unplacedBy === "builder") {
+      const byB = new Map(); for (const u of M.unplaced) { const k = u.builder || "Builder not known"; if (!byB.has(k)) byB.set(k, []); byB.get(k).push(u); }
+      body = [...byB].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0])).map(([who, us]) => {
+        const bare = us.filter(u => !up(u.name)).length, nodes = new Set(us.map(u => u.node || "")).size;
+        us = us.slice().sort((a, b) => nodeLabel(a.node).localeCompare(nodeLabel(b.node)) || (a.name || "").localeCompare(b.name || ""));
+        return `<div class="roads-ugroup"><div class="roads-uh">${esc(who)} · ${us.length} not placed${bare ? ` · ${bare} with no name` : ""} · on ${nodes} node${nodes === 1 ? "" : "s"}</div>` + us.map(u => row(u, true)).join("") + `</div>`;
+      }).join("");
+    } else {
+      const byNode = new Map(); for (const u of M.unplaced) { const k = u.node || ""; if (!byNode.has(k)) byNode.set(k, []); byNode.get(k).push(u); }
+      body = [...byNode].map(([nid, us]) => `<div class="roads-ugroup"><div class="roads-uh">${esc(us[0].builder || "")} · ${nodeLabel(nid)}${fuelOf(nid)}</div>` + us.map(u => row(u, false)).join("") + `</div>`).join("");
+    }
+    el.innerHTML = notes + warn + bar + body;
   }
 
   function stamp(d) {
@@ -461,6 +474,7 @@
   root.addEventListener("click", e => {
     const g = e.target.closest("[data-sys]"); if (g) { selected = selected === g.dataset.sys ? null : g.dataset.sys; drawMap(); drawDetail(); if (sf) { const k = selected && M.ids.get(selected); sf.select(k ? k.id : null); } return; }
     const b = e.target.closest("button"); if (!b || !M) return;
+    if (b.dataset.ugroup) { unplacedBy = b.dataset.ugroup === "node" ? "node" : "builder"; try { localStorage.setItem("roads:unplacedBy", unplacedBy); } catch (e) {} drawUnplaced(); return; }
     if (b.id === "plan-run") { runPlanner(); return; }
     if (b.dataset.plansave) { const l = listCopy(); l.plans = l.plans.filter(p => !p.draft); l.plans.push({ name: draft.name, note: draft.note, hops: draft.hops }); save(l, "Plan"); return; }
     if (b.dataset.plandrop) { draft = null; render(lastData); $("plan-status").textContent = "dropped."; return; }
