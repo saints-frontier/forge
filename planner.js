@@ -68,8 +68,8 @@ function plan(fromId, toId, tools, avoidIds) {
   const src = index.get(fromId), dst0 = index.get(toId); let dst = dst0;
   if (src == null || dst == null) return { error: "unknown system" };
   // an unreachable target (a pocket behind a gap wider than every tool): aim for the reachable star closest to it
-  // "Public gate" among the tools: the existing NPC network may be jumped, nothing to build, status unknown
-  const gates = tools.includes("Public gate") && GATES && GATES.size ? GATES : null;
+  // "Public Gate" among the tools: the client's NPC gate network may be jumped, nothing to build, state unknown
+  const gates = tools.includes("Public Gate") && GATES && GATES.size ? GATES : null;
   const kinds0 = tools.filter(t => RANGE[t]); if (!kinds0.length && !gates) return { error: "no tool" };
   const comp = component(src, kinds0.length ? Math.max(...kinds0.map(k => RANGE[k])) : 0, gates);
   let pocket = false;
@@ -109,7 +109,7 @@ function plan(fromId, toId, tools, avoidIds) {
       if (avoid.has(n) && n !== dst) continue;
       const ng = g + dist(s, n);
       if (ng >= (best.get(n) ?? Infinity)) continue;
-      best.set(n, ng); came.set(n, s); via.set(n, "Public gate"); heap.push([ng + h(n), ng, n]);
+      best.set(n, ng); came.set(n, s); via.set(n, "Public Gate"); heap.push([ng + h(n), ng, n]);
     }
   }
   let end = dst, reached = done && !pocket;
@@ -126,7 +126,7 @@ onmessage = async e => {
   const m = e.data;
   try {
     await load(m.stars || "stars.bin?v=2");
-    if (m.gates && (m.tools || []).includes("Public gate")) await loadGates(m.gates);
+    if (m.gates && (m.tools || []).includes("Public Gate")) await loadGates(m.gates);
     if (m.type === "plan") { const r = plan(m.from, m.to, m.tools || ["Heavy Catapult"], m.avoid); postMessage(Object.assign({ type: "done", id: m.id }, r)); }
   } catch (err) { postMessage({ type: "done", id: m.id, error: String(err && err.message || err) }); }
 };

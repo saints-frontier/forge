@@ -53,7 +53,8 @@
       void main() { gl_Position = uVP * vec4(aPos, 1.0); gl_PointSize = max(1.5, aSize * uDpr * uK); vCol = aCol; }`, `
       precision mediump float; varying vec4 vCol;
       void main() { float d = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.1, d) * vCol.a; gl_FragColor = vec4(vCol.rgb * a, a); }`);
-    // the public stargate network: one colour for every line, faint at galaxy scale (the alpha is a uniform)
+    // the public stargate network (gates.bin, from the client's location cache): one colour for every line, faint at
+    // galaxy scale (the alpha is a uniform)
     const gateProg = program(`
       attribute vec3 aPos; uniform mat4 uVP; void main() { gl_Position = uVP * vec4(aPos, 1.0); }`, `
       precision mediump float; uniform vec4 uCol; void main() { gl_FragColor = vec4(uCol.rgb * uCol.a, uCol.a); }`);
@@ -66,7 +67,7 @@
     const readNames = (dv, o, n) => { if (o + 4 > dv.byteLength) return null; const cnt = dv.getUint32(o, true); o += 4; const dec = new TextDecoder(), out = new Array(cnt); for (let i = 0; i < cnt; i++) { const l = dv.getUint8(o); out[i] = dec.decode(new Uint8Array(dv.buffer, o + 1, l)); o += 1 + l; } return out; };
     let scene = { systems: [], roads: [] }, lines = [], lineCount = 0, marks = [], markCount = 0, polylines = [];
     let selected = null, hovered = null, marked = null;
-    let gateVerts = 0, gatePairs = 0, gateAdj = new Map(), gatesOn = true;      // the public stargate network (gates.bin), id -> [neighbour ids]
+    let gateVerts = 0, gatePairs = 0, gateAdj = new Map(), gatesOn = true;      // the public stargate network: id -> [neighbour ids]
     const cam = { target: [0, 0, 0], dist: 9000, yaw: 0.6, pitch: 0.35 };
     let w = 1, h = 1, dpr = 1, dirty = true, raf = 0;
     const VP = new Float32Array(16);
@@ -87,8 +88,8 @@
       gl.bindBuffer(gl.ARRAY_BUFFER, glowBuf); gl.bufferData(gl.ARRAY_BUFFER, gh, gl.STATIC_DRAW);
       dirty = true; schedule(); return n;
     }
-    // gates.bin (tools/export_gates.py): "GATE", u32 build, u32 count, then u32 a, u32 b, u8 kind per pair. The pairs the
-    // star file knows become one GL line list; every system gets its neighbour list for the detail panel and highlights.
+    // gates.bin (tools/export_gates.py, from the client's location cache): "GATE", u32 build, u32 count, then u32 a,
+    // u32 b, u8 kind per stargate pair. One GL line list, plus every system's neighbour list for the detail panel.
     async function loadGates(url) {
       const buf = await fetch(url).then(r => { if (!r.ok) throw new Error("gates " + r.status); return r.arrayBuffer(); });
       const dv = new DataView(buf); if (String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3)) !== "GATE") throw new Error("not a gate file");
@@ -126,7 +127,7 @@
         const C = add(mul(add(A, B), 0.5), bow);
         const segs = catapult ? 28 : 1, pts = [];
         for (let i = 0; i <= segs; i++) { const t = i / segs, u = 1 - t; pts.push(add(add(mul(A, u * u), mul(C, 2 * u * t)), mul(B, t * t))); }
-        const col = r.online === false ? COLORS.off : r.kind === "Public gate" ? COLORS.pub : r.status === "planned" ? COLORS.planned : r.source === "inferred" ? COLORS.hand : /Gate/.test(r.kind || "") ? COLORS.gate : COLORS.road;
+        const col = r.online === false ? COLORS.off : r.kind === "Public Gate" ? COLORS.pub : r.status === "planned" ? COLORS.planned : r.source === "inferred" ? COLORS.hand : /Gate/.test(r.kind || "") ? COLORS.gate : COLORS.road;   // a public gate someone has jumped: grey, straight, both ways
         polys.push({ road: r, pts, col, heavy: /Heavy/.test(r.kind || ""), dash: r.status === "planned" ? [2, 5] : r.status === "progress" || r.online === false || r.source === "inferred" ? [7, 6] : [], alpha: r.status === "planned" ? 0.6 : 0.95 });
       }
       for (const s of scene.systems) { const p = P(s.id), col = COLORS[s.cls] || COLORS.far, minor = s.cls === "charted" || s.cls === "uncharted", size = s.cls === "home" ? 9 : s.cls === "ours" ? 7 : s.cls === "uncharted" ? 2 : minor ? 2.6 : 5; M.push(...p, ...rgba(col, minor ? 0.07 : 0.16), size * 4.5); M.push(...p, ...rgba(col, minor ? 0.75 : 0.95), size); }
@@ -179,8 +180,8 @@
         gl.drawArrays(gl.POINTS, 0, n);
       }
       if (gatesOn && gateVerts) {
-        // the whole network is a hairball from far away: fade it with distance, let it come up as the camera closes in
-        const a = Math.max(0.05, Math.min(0.38, 90 / cam.dist)), c = rgba(COLORS.pub, a);
+        // 4,800 lines: faint from far away, clear as the camera closes in
+        const a = Math.max(0.12, Math.min(0.55, 140 / cam.dist)), c = rgba(COLORS.pub, a);
         gl.useProgram(gateProg); gl.uniformMatrix4fv(uloc(gateProg, "uVP"), false, VP); gl.uniform4f(uloc(gateProg, "uCol"), c[0], c[1], c[2], c[3]);
         gl.bindBuffer(gl.ARRAY_BUFFER, gateBuf); const ap = loc(gateProg, "aPos"); gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap, 3, gl.FLOAT, false, 0, 0);
         gl.drawArrays(gl.LINES, 0, gateVerts);
@@ -202,7 +203,7 @@
     function overlay() {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
       ctx.lineCap = "round"; ctx.lineJoin = "round";
-      // the public gates of the system under the pointer, the selected one and a picked star: drawn bright over the faint network
+      // the public gates of the system under the pointer, the selected one and a picked star: bright over the faint network
       if (gatesOn && gateAdj.size) {
         const hot = new Set([selected, hovered, marked && marked.id].filter(x => x != null));
         for (const id of hot) { const a = project(P(id)); if (!a) continue;

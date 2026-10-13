@@ -59,7 +59,7 @@
   // ---------- the model: systems, roads, what could not be placed ----------
   let dist = null;                                            // (idA, idB) -> light-years, once the stars are loaded
   function build(d) {
-    const list = Object.assign({ builders: [], home: "", systems: {}, plans: [] }, d.list || {});
+    const list = Object.assign({ builders: [], home: "", systems: {}, plans: [], gates: [] }, d.list || {});
     // the game's number of a system, captured from the game's own links: {"ABC|D11": 30000001} or {"ABC|D11": {"id": 30000001, "sure": false}}
     const ids = new Map(); for (const [name, v] of Object.entries(list.systems || {})) { const id = typeof v === "number" ? v : v && +v.id; if (id) ids.set(up(name), { id, sure: typeof v === "number" ? true : v.sure !== false }); }
     // Cycle 7 names charted on EF-Map's community map, read by the site with the tribe's partner key: [[id, name, status]].
@@ -142,6 +142,10 @@
     const planName = (id, old) => { for (const [n, k] of ids) if (k.id === id) return n; const e = efById.get(id); if (e && !ids.has(e.name)) { ids.set(e.name, { id, sure: e.status === "confirmed", ef: e.status }); return e.name; } const nm = old ? `${old} (C6)` : `#${id}`; if (!ids.has(nm)) ids.set(nm, { id, sure: true, c6: true }); return nm; };
     const plans = (list.plans || []).map((p, i) => ({ i, name: p.name || `Plan ${i + 1}`, note: p.note || "", hops: (p.hops || []).map(h => ({ ...h, fromSys: planName(h.from, h.fromName), toSys: planName(h.to, h.toName) })) }));
     for (const p of plans) for (const h of p.hops) if (!h.gap) roads.push({ id: null, kind: h.kind, name: p.name, node: null, days: null, source: "plan", plan: p.i, from: h.fromSys, to: h.toSys, twoWay: /Gate/.test(h.kind || ""), online: true, status: "planned" });
+    // public (NPC) stargates a Saint has jumped, recorded by hand under Manage: drawn as roads (the whole network the
+    // client lists is the faint grey layer, gates.bin). A jumped gate is a two-way road that nobody fuels for us.
+    for (const g of list.gates || []) { const a = up(g.a || ""), b = up(g.b || ""); if (!a || !b || a === b) continue; fromEf(a); fromEf(b);
+      add({ id: null, kind: "Public Gate", name: g.note || "", node: null, days: null, source: "public", from: a, to: b, twoWay: true, online: true, status: "built" }); }
     const systems = new Map(), sys = n => { if (!systems.has(n)) systems.set(n, { name: n, nodes: [], days: null, guess: false }); return systems.get(n); };
     for (const r of roads) { sys(r.from); sys(r.to); }
     for (const n of d.nodes || []) { const i = info.get(n.id); if (i && i.sys) sys(i.sys).nodes.push(n); }
@@ -197,12 +201,14 @@
   let showGates = true; try { showGates = localStorage.getItem("roads:gates") !== "0"; } catch (e) {}       // the public stargate network (gates.bin)
   // a system's name as the page knows it: ours, then EF-Map's, then the archived Cycle 6 name marked (C6)
   const nameOfId = id => { for (const [n, k] of M.ids) if (k.id === id) return n; const e = M.ef.byId.get(id); if (e && e.status === "confirmed") return e.name; const old = sf && sf.oldName(id); return old ? old + " (C6)" : "#" + id; };
-  // the public gates of one system, from the game client: nothing says whether they are working or dormant
+  // has a Saint jumped this gate? (list.gates, recorded under Manage)
+  const jumped = (a, b) => (M.list.gates || []).some(g => (up(g.a) === a && up(g.b) === b) || (up(g.a) === b && up(g.b) === a));
+  // the public gates of one system, from the game client; a jumped one is marked, the rest are of unknown state
   function gateList(id) {
     if (!sf || !sf.gateCount()) return "";
-    const g = sf.gatesOf(id); if (!g.length) return `<div class="roads-hint">No public stargate here in the game client.</div>`;
-    const rows = g.map(o => ({ o, d: dist ? dist(id, o) : null })).sort((a, b) => (a.d || 0) - (b.d || 0));
-    return `<h4>Public gates · ${g.length}</h4><ul>${rows.map(r => `<li><b>${esc(nameOfId(r.o))}</b>${r.d != null ? ` · ${Math.round(r.d).toLocaleString("en-US")} LY` : ""}</li>`).join("")}</ul><div class="roads-hint">From the game client (patch 0.7.3.0). Working, unfueled or dormant: only a jump tells.</div>`;
+    const g = sf.gatesOf(id); if (!g.length) return `<div class="roads-hint">No public stargate here, says the game client.</div>`;
+    const me = nameOfId(id), rows = g.map(o => ({ o, d: dist ? dist(id, o) : null })).sort((a, b) => (a.d || 0) - (b.d || 0));
+    return `<h4>Public gates · ${g.length}</h4><ul>${rows.map(r => { const n = nameOfId(r.o); return `<li><b>${esc(n)}</b>${r.d != null ? ` · ${Math.round(r.d).toLocaleString("en-US")} LY` : ""}${jumped(me, n) ? ' · <span class="ok">jumped</span>' : ""}</li>`; }).join("")}</ul><div class="roads-hint">From the game client. Working, unfueled or dormant: only a jump tells; record one under Manage.</div>`;
   }
   function drawMap() {
     const box = $("roads-map");
@@ -323,7 +329,7 @@
       sfLoading = sf.load("stars.bin?v=2").then(() => { dist = (a, b) => { const p = sf.position(a), q = sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; }; if (lastData && !draft) { M = build(lastData); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); stamp(lastData); }
         // the public gates come after the stars, never in their way: the button appears once they are in
         sf.showGates(showGates);
-        sf.loadGates("gates.bin?v=1").then(n => { const b = box.querySelector('[data-sf="gates"]'); if (b) { b.hidden = false; b.textContent = `Public gates · ${n.toLocaleString("en-US")}`; b.classList.toggle("on", showGates); } if (M) drawDetail(); }).catch(() => {});
+        sf.loadGates("gates.bin?v=2").then(n => { const b = box.querySelector('[data-sf="gates"]'); if (b) { b.hidden = false; b.textContent = `Public gates · ${n.toLocaleString("en-US")}`; b.classList.toggle("on", showGates); } if (M) drawDetail(); }).catch(() => {});
         return sf; }).catch(e => { box.insertAdjacentHTML("beforeend", `<div class="sf-nogl">The stars could not be loaded: ${esc(e.message)}.</div>`); return null; });
     }
     return sfLoading;
@@ -375,11 +381,11 @@
     const builds = p.hops.filter(h => !h.gap), gaps = p.hops.filter(h => h.gap), ly = p.hops.reduce((a, h) => a + (h.ly || 0), 0);
     const mats = [0, 0, 0]; let launchers = 0;
     for (const h of builds) { const c = COST[h.kind]; if (!c) continue; const n = /Gate/.test(h.kind) ? 2 : 1; launchers += n; c.forEach((v, k) => mats[k] += v * n); }
-    const pub = builds.filter(h => h.kind === "Public gate").length, nodes = builds.length - pub;   // a public gate is nothing to build, and no node
-    const row = (h, k) => `<div class="roads-prow"><span>${k + 1}</span><span><b>${esc(h.fromSys)}</b></span><span><b>${esc(h.toSys)}</b></span><span class="${h.gap ? "gap" : h.kind === "Public gate" ? "pub" : "k"}">${h.gap ? "STARGATE NEEDED" : h.kind === "Public gate" ? "public gate · status unknown" : esc(h.kind)}</span><span class="ly">${(h.ly || 0).toFixed(1)}</span></div>`;
+    const pub = builds.filter(h => h.kind === "Public Gate").length, nodes = builds.length - pub;   // a public gate is nothing to build, and no node
+    const row = (h, k) => `<div class="roads-prow"><span>${k + 1}</span><span><b>${esc(h.fromSys)}</b></span><span><b>${esc(h.toSys)}</b></span><span class="${h.gap ? "gap" : h.kind === "Public Gate" ? "pub" : "k"}">${h.gap ? "STARGATE NEEDED" : h.kind === "Public Gate" ? (jumped(h.fromSys, h.toSys) ? "public gate · jumped before" : "public gate · state unknown") : esc(h.kind)}</span><span class="ly">${(h.ly || 0).toFixed(1)}</span></div>`;
     $("roads-plan").innerHTML = `<div class="roads-plan"><div class="ph">${esc(p.name)}<small>${p.hops.length} hops · ${f0(ly)} LY</small></div>` +
       (p.note ? `<div class="pnote">${esc(p.note)}</div>` : "") +
-      `<div class="ptot"><span><b>${launchers}</b> launchers to build (a gate counts twice)</span><span><b>${nodes}</b> Network Nodes</span>${pub ? `<span><b>${pub}</b> public gate${pub > 1 ? "s" : ""} to jump: working or dormant, nobody has checked</span>` : ""}${gaps.length ? `<span class="gap" style="color:var(--red)"><b>${gaps.length}</b> stargate${gaps.length > 1 ? "s" : ""} to find</span>` : ""}` +
+      `<div class="ptot"><span><b>${launchers}</b> launchers to build (a gate counts twice)</span><span><b>${nodes}</b> Network Nodes</span>${pub ? `<span><b>${pub}</b> public gate${pub > 1 ? "s" : ""} to jump (50 EU-40 or SOF-40 Fuel each; a gate may be unfueled or dormant)</span>` : ""}${gaps.length ? `<span class="gap" style="color:var(--red)"><b>${gaps.length}</b> stargate${gaps.length > 1 ? "s" : ""} to find</span>` : ""}` +
       `<span>Kerogen Tar <b>${f0(mats[0])}</b></span><span>Building Foam <b>${f0(mats[1])}</b></span><span>Still Kernel <b>${f0(mats[2])}</b></span><span>+ per node 8 Printed Circuits, 8 Carbon Weave, 8 Thermal Composites and fuel</span></div>` +
       `<div class="roads-phead"><span>#</span><span>From</span><span>To</span><span>Build</span><span class="ly">LY</span></div>` + p.hops.map(row).join("") +
       `<div class="roads-hint">Systems marked (C6) carry their Cycle 6 name: their Cycle 7 name is not known yet. Distances are straight lines from the archived positions.</div>` +
@@ -402,7 +408,7 @@
     if (planning) return;
     const from = +$("plan-from").value, to = +$("plan-to").value, tools = [...$("plan-tools").querySelectorAll("input:checked")].map(i => i.value);
     if (!from || !to || from === to) { $("plan-status").textContent = "pick two different systems."; return; }
-    if (!tools.some(t => t !== "Public gate")) { $("plan-status").textContent = "tick at least one launcher to build; public gates alone only go where the old network already leads."; }
+    if (!tools.some(t => t !== "Public Gate")) { $("plan-status").textContent = "tick at least one launcher to build; public gates alone only go where the network already leads."; }
     if (!planner) { planner = new Worker("planner.js?v=" + Date.now()); planner.onmessage = e => {
       const m = e.data;
       if (m.type === "progress") { $("plan-status").textContent = `searching… ${f0(m.expanded)} systems looked at, closest ${f0(m.closest)} LY`; return; }
@@ -416,7 +422,7 @@
       showDraft();
     }; }
     planning = true; $("plan-run").disabled = true; $("plan-status").textContent = "searching…";
-    planner.postMessage({ type: "plan", id: Date.now(), from, to, tools, stars: "stars.bin?v=2", gates: "gates.bin?v=1" });
+    planner.postMessage({ type: "plan", id: Date.now(), from, to, tools, stars: "stars.bin?v=2", gates: "gates.bin?v=2" });   // the client's gate network: free hops
   }
   function showDraft() {                          // the draft rides along as an extra, unsaved plan until kept or dropped
     const d = JSON.parse(JSON.stringify(lastData)); d.list.plans = (d.list.plans || []).concat([Object.assign({ draft: true }, draft)]);
@@ -461,8 +467,8 @@
     stamp(d);
     $("roads-manage-btn").hidden = !M.canEdit; if (!M.canEdit) $("roads-p-manage").hidden = true;
     setView(view); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); drawPlans(); fillPlanner(); if (openPlan != null && M.plans[openPlan]) drawPlan(openPlan);
-    const ed = $("roads-editor"); ed.hidden = !M.canEdit;
-    if (M.canEdit) $("roads-json").value = JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, plans: (M.list.plans || []).filter(p => !p.draft) }, null, 1);
+    const ed = $("roads-editor"); ed.hidden = !M.canEdit; $("roads-gate-form").hidden = !M.canEdit;
+    if (M.canEdit) $("roads-json").value = JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, gates: M.list.gates || [], plans: (M.list.plans || []).filter(p => !p.draft) }, null, 1);
   }
 
   // ---------- loading and saving ----------
@@ -484,7 +490,7 @@
       .then(res => { if (!res.ok) { $("roads-save-note").textContent = "not saved: " + ((res.x && res.x.error) || "error"); return; } $("roads-save-note").textContent = what + " saved."; return load(true); })
       .catch(() => { $("roads-save-note").textContent = "not saved: the site could not be reached."; });
   }
-  const listCopy = () => JSON.parse(JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, plans: M.list.plans || [] }));
+  const listCopy = () => JSON.parse(JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, gates: M.list.gates || [], plans: M.list.plans || [] }));
 
   root.addEventListener("click", e => {
     const g = e.target.closest("[data-sys]"); if (g) { selected = selected === g.dataset.sys ? null : g.dataset.sys; drawMap(); drawDetail(); if (sf) { const k = selected && M.ids.get(selected); sf.select(k ? k.id : null); } return; }
@@ -515,6 +521,12 @@
       const l = listCopy(); for (const [name, id] of found) l.systems[name] = { id, sure: true };
       $("roads-paste-note").textContent = `${found.size} system${found.size === 1 ? "" : "s"}: ${[...found.keys()].join(", ")}`; $("roads-paste").value = "";
       save(l, "System IDs"); return;
+    }
+    if (b.id === "roads-gate-save") {                 // a public gate someone has jumped: two full system names
+      const a = up($("roads-gate-a").value.trim()), c = up($("roads-gate-b").value.trim());
+      if (!a || !c || a === c) { $("roads-gate-note").textContent = "give both systems, full names."; return; }
+      const l = listCopy(); if (l.gates.some(g => (up(g.a) === a && up(g.b) === c) || (up(g.a) === c && up(g.b) === a))) { $("roads-gate-note").textContent = "already recorded."; return; }
+      l.gates.push({ a, b: c }); $("roads-gate-a").value = ""; $("roads-gate-b").value = ""; $("roads-gate-note").textContent = ""; save(l, "Public gate"); return;
     }
     if (b.id === "roads-json-save") { let l; try { l = JSON.parse($("roads-json").value); } catch (err) { $("roads-save-note").textContent = "that is not valid JSON."; return; } save(l, "Settings"); }
   });

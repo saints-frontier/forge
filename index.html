@@ -350,6 +350,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-legend .k.off { border-top: 2px dashed var(--red); }
 .roads-legend .k.pub { border-top: 1px solid #7d8894; }
 .roads-prow .pub { color: #8d98a3; }
+#roads-detail .ok { color: var(--good, #5bb36a); }
 .roads-svg { display: block; max-width: none; margin: 0 auto; }
 .roads-sys { cursor: pointer; outline: none; }
 .roads-sys rect { fill: #121016; stroke: var(--gold-soft); stroke-width: 1; }
@@ -707,15 +708,15 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       <div id="roads-fuel"></div>
     </section>
     <section class="pane roads-panel" id="roads-p-legend" hidden>
-      <div class="roads-legend"><span><i class="k home"></i>home</span><span><i class="k cat"></i>catapult, one way per arrow</span><span><i class="k heavy"></i>Heavy Catapult</span><span><i class="k gate"></i>gate</span><span><i class="k hand"></i>worked out from the names, not stated on chain</span><span><i class="k off"></i>offline (a red arrowhead: that direction is down)</span><span><i class="k pub"></i>public stargate (from the game client; working or dormant unknown)</span></div>
-      <div class="roads-hint">The faint grey lines are the <b>public stargate network</b> as the game client lists it: every corridor between two systems, 67,718 of them. The client does not say which gates work, which are unfueled and which lie dormant waiting to be rebuilt; the <b>Public gates</b> button hides them. Click a system to see its own gates named and measured.</div>
+      <div class="roads-legend"><span><i class="k home"></i>home</span><span><i class="k cat"></i>catapult, one way per arrow</span><span><i class="k heavy"></i>Heavy Catapult</span><span><i class="k gate"></i>gate</span><span><i class="k hand"></i>worked out from the names, not stated on chain</span><span><i class="k off"></i>offline (a red arrowhead: that direction is down)</span><span><i class="k pub"></i>public stargate (faint: in the game client · bright: a Saint has jumped it)</span></div>
+      <div class="roads-hint">The faint grey lines are the <b>public (NPC) stargate network</b> as the game client lists it: 4,782 gate pairs between 4,402 systems. The client does not say which gates work, which are unfueled and which lie dormant waiting to be rebuilt; a jump costs 50 EU-40 Fuel or 50 SOF-40 Fuel. A gate a Saint has jumped and recorded under Manage is drawn bright. The <b>Public gates</b> button hides the network; click any system to see its own gates named and measured.</div>
       <div class="roads-hint">Cycle 7 system names and numbers we have not copied from the game ourselves come from the community map at <a href="https://ef-map.com" target="_blank" rel="noopener">EF-Map</a>, with their permission. A system counts as <b>charted</b> when two or more players agree on its name there: those are the small steel rings with a name (the <b>Charted</b> button hides them). Every other system is <b>uncharted</b>: a faint dashed mark is one a single player has reported, and you can click any star to see what is known about it.</div>
     </section>
     <section class="pane roads-panel" id="roads-p-plan" hidden>
       <div class="roads-planner" id="roads-planner">
         <label>From <select id="plan-from" aria-label="From system"></select></label>
         <label>To <select id="plan-to" aria-label="To system"></select></label>
-        <span class="roads-tools" id="plan-tools"><label><input type="checkbox" value="Heavy Catapult" checked>Heavy Catapult 250</label><label><input type="checkbox" value="Mini Catapult">Mini Catapult 60</label><label><input type="checkbox" value="Heavy Gate">Heavy Gate 365</label><label><input type="checkbox" value="Mini Gate">Mini Gate 105</label><label><input type="checkbox" value="Public gate" checked>Public gates (existing, status unknown)</label></span>
+        <span class="roads-tools" id="plan-tools"><label><input type="checkbox" value="Heavy Catapult" checked>Heavy Catapult 250</label><label><input type="checkbox" value="Mini Catapult">Mini Catapult 60</label><label><input type="checkbox" value="Heavy Gate">Heavy Gate 365</label><label><input type="checkbox" value="Mini Gate">Mini Gate 105</label><label><input type="checkbox" value="Public Gate" checked>Public gates (in the client; state unknown)</label></span>
         <button type="button" class="primary" id="plan-run">Find the road</button>
         <span class="roads-hint" id="plan-status"></span>
       </div>
@@ -728,9 +729,10 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     <section class="pane roads-panel" id="roads-p-manage" hidden>
       <div class="roads-note-top">A system needs the game's number to stand on the star map. In game, drag the system's star into a chat or mail window, select the text, right-click → Copy selected with formatting, and paste it here. Several at once is fine.</div>
       <div class="roads-paste"><textarea id="roads-paste" rows="3" spellcheck="false" placeholder="Paste system links copied from the game here."></textarea><div class="row"><button type="button" id="roads-paste-save">Read the links</button><span class="roads-hint" id="roads-paste-note"></span></div></div>
+      <div class="roads-paste" id="roads-gate-form" hidden><div class="roads-note-top">Jumped a <b>public stargate</b>? Record it and it goes on the map as a road for everyone: both systems, full names.</div><div class="row"><input type="text" id="roads-gate-a" placeholder="ABC|D11" maxlength="24" aria-label="One end of the gate"><span>⇄</span><input type="text" id="roads-gate-b" placeholder="XYZ|K22" maxlength="24" aria-label="The other end"><button type="button" id="roads-gate-save">Record a public gate</button><span class="roads-hint" id="roads-gate-note"></span></div></div>
       <details class="roads-editor" id="roads-editor" hidden>
         <summary>Settings</summary>
-        <div class="roads-note-top">Whose structures are read (builders: character object addresses), the home system, the system numbers and the saved plans. No road is kept here: roads come from the chain. Paladins and Knights only.</div>
+        <div class="roads-note-top">Whose structures are read (builders: character object addresses), the home system, the system numbers, the public gates we have jumped and the saved plans. No road of ours is kept here: those come from the chain. Paladins and Knights only.</div>
         <textarea id="roads-json" spellcheck="false" aria-label="The settings as JSON"></textarea>
         <div class="row"><button type="button" class="primary" id="roads-json-save">Save the settings</button></div>
       </details>
@@ -894,5 +896,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=7bad40c6"></script><script src="lodge-planner.js?v=49bb0aa7"></script><script src="lodge-app.js?v=029bcdc7"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=de8d8daf"></script><script src="roads.js?v=c1e92ec9"></script>
+<script src="lodge-data.js?v=7bad40c6"></script><script src="lodge-planner.js?v=49bb0aa7"></script><script src="lodge-app.js?v=029bcdc7"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=d41940a4"></script><script src="roads.js?v=f34c1bbb"></script>
 </body></html>

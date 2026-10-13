@@ -135,7 +135,7 @@ export async function onRequestGet({ request, env }) {
 
 const SYS = v => typeof v === "string" && v.length >= 1 && v.length <= 24;
 const ADDR = v => typeof v === "string" && /^0x[0-9a-f]{64}$/.test(v);
-const KINDS = ["Mini Catapult", "Heavy Catapult", "Mini Gate", "Heavy Gate", "Public gate"];   // Public gate = an existing NPC stargate hop in a plan (nothing to build)
+const KINDS = ["Mini Catapult", "Heavy Catapult", "Mini Gate", "Heavy Gate", "Public Gate"];   // Public Gate = an NPC stargate someone has jumped (nothing to build)
 function checkList(d) {
   if (!d || typeof d !== "object" || Array.isArray(d)) return "Not a network list.";
   if (!Array.isArray(d.builders) || d.builders.length > MAX_BUILDERS || !d.builders.every(b => b && typeof b.name === "string" && b.name.length <= 40 && ADDR(b.address))) return "builders must be up to " + MAX_BUILDERS + " of {name, address}.";
@@ -148,6 +148,9 @@ function checkList(d) {
     for (const [id, v] of Object.entries(m)) if (!SYS(id) || !ok(v)) return k + ": bad entry " + String(id).slice(0, 20) + ".";
   }
   if (d.home != null && d.home !== "" && !SYS(d.home)) return "home must be a system name.";
+  // public (NPC) stargates someone has jumped: pairs of full system names, the only hand record on the page
+  const gates = d.gates == null ? [] : d.gates;
+  if (!Array.isArray(gates) || gates.length > 500 || !gates.every(g => g && SYS(g.a) && SYS(g.b) && g.a !== g.b && (g.note == null || (typeof g.note === "string" && g.note.length <= 80)))) return "gates must be a list of {a, b} system names (a gate someone has jumped).";
   const plans = d.plans == null ? [] : d.plans;
   const HOP = h => h && SID(h.from) && SID(h.to) && (h.gap === true || KINDS.includes(h.kind)) && (h.ly == null || typeof h.ly === "number") && (h.fromName == null || SYS(h.fromName)) && (h.toName == null || SYS(h.toName));
   if (!Array.isArray(plans) || plans.length > 20 || !plans.every(p => p && typeof p.name === "string" && p.name.length <= 40 && (p.note == null || (typeof p.note === "string" && p.note.length <= 400)) && Array.isArray(p.hops) && p.hops.length <= 400 && p.hops.every(HOP))) return "plans must be a list of {name, note, hops: [{from, to, kind | gap, ly}]}.";
