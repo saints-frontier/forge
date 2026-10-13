@@ -333,7 +333,7 @@
       sfLoading = sf.load("stars.bin?v=2").then(() => { dist = (a, b) => { const p = sf.position(a), q = sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; }; if (lastData && !draft) { M = build(lastData); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); stamp(lastData); }
         // the public gates come after the stars, never in their way: the button appears once they are in
         sf.showGates(showGates);
-        sf.loadGates("gates.bin?v=2").then(n => { const b = box.querySelector('[data-sf="gates"]'); if (b) { b.hidden = false; b.textContent = `Public gates · ${n.toLocaleString("en-US")}`; b.classList.toggle("on", showGates); } if (M) drawDetail(); }).catch(() => {});
+        sf.loadGates("gates.bin?v=3").then(n => { const b = box.querySelector('[data-sf="gates"]'); if (b) { b.hidden = false; b.textContent = `Public gates · ${n.toLocaleString("en-US")}`; b.classList.toggle("on", showGates); } if (M) drawDetail(); }).catch(() => {});
         return sf; }).catch(e => { box.insertAdjacentHTML("beforeend", `<div class="sf-nogl">The stars could not be loaded: ${esc(e.message)}.</div>`); return null; });
     }
     return sfLoading;
@@ -426,7 +426,7 @@
       showDraft();
     }; }
     planning = true; $("plan-run").disabled = true; $("plan-status").textContent = "searching…";
-    planner.postMessage({ type: "plan", id: Date.now(), from, to, tools, stars: "stars.bin?v=2", gates: "gates.bin?v=2" });   // the client's gate network: free hops
+    planner.postMessage({ type: "plan", id: Date.now(), from, to, tools, stars: "stars.bin?v=2", gates: "gates.bin?v=3" });   // the client's gate network: free hops
   }
   function showDraft() {                          // the draft rides along as an extra, unsaved plan until kept or dropped
     const d = JSON.parse(JSON.stringify(lastData)); d.list.plans = (d.list.plans || []).concat([Object.assign({ draft: true }, draft)]);
