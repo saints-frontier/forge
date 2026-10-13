@@ -26,6 +26,12 @@
   const short = id => id ? id.slice(0, 6) + "…" + id.slice(-4) : "?";
   const fmtDays = d => d == null ? "" : d >= 10 ? Math.round(d) + " d" : d >= 1 ? d.toFixed(1) + " d" : Math.max(0, Math.round(d * 24)) + " h";
   const fuelClass = d => d == null ? "none" : d < 3 ? "bad" : d < 14 ? "warn" : "good";
+  const FUEL_NAME = { "78515": "SOF-80 Fuel", "78516": "EU-40 Fuel", "88319": "D2 Fuel", "78437": "EU-90 Fuel", "84868": "SOF-40 Fuel", "88335": "D1 Fuel", "77818": "Unstable Fuel" };
+  const fuelName = n => (n && n.fuel && FUEL_NAME[n.fuel.type]) || "fuel";
+  // a node with no days: switched off, or burning a fuel whose rate the chain table does not give
+  const noDays = (n, off) => n && n.fuel && n.fuel.burning && !n.fuel.eff ? "rate unknown" : off;
+  // how long a full node of this fuel lasts (capacity / unit volume units)
+  const fullDays = n => n && n.fuel && n.fuel.unit && n.fuel.max && n.fuel.burnMs && n.fuel.eff ? Math.floor(n.fuel.max / n.fuel.unit) * n.fuel.burnMs * n.fuel.eff / 100 / 86400000 : null;
 
   const STOP = new Set(["THE", "CAT", "LVL", "FOR", "AND", "OUT", "OFF", "NEW", "OLD", "WAY", "VIA", "TOP", "END", "ONE", "TWO", "HUB", "NET", "ALL", "GAS", "ORE"]);
   const RANGE = { "Mini Catapult": 60, "Heavy Catapult": 250, "Mini Gate": 105, "Heavy Gate": 365 };   // light-years
@@ -73,7 +79,8 @@
     const fromEf = name => { const e = efByName.get(name); if (!e || ids.has(name)) return; for (const k of ids.values()) if (k.id === e.id) return; ids.set(name, { id: e.id, sure: e.status === "confirmed", ef: e.status }); };
     fromEf(up(list.home));
     const nodeById = new Map((d.nodes || []).map(n => [n.id, n]));
-    const daysOf = n => n && n.fuel && n.fuel.burning && n.fuel.burnMs ? n.fuel.quantity * n.fuel.burnMs / 86400000 : null;
+    // one unit of fuel lasts burn_rate x efficiency / 100 (the chain's rule: EU-40 Fuel, efficiency 40, in a node of 50 minutes = 20 minutes a unit)
+    const daysOf = n => n && n.fuel && n.fuel.burning && n.fuel.burnMs && n.fuel.eff ? n.fuel.quantity * n.fuel.burnMs * n.fuel.eff / 100 / 86400000 : null;
     // every full system name the chain or the numbered systems mention: what a short code may stand for
     const known = new Map(), learn = n => { const k = n.slice(0, 3); known.set(k, known.has(k) && known.get(k) !== n ? "" : n); };
     for (const n of ids.keys()) if (/^[A-Z0-9]{3}\|[A-Z0-9]{3}$/.test(n)) learn(n);
@@ -277,7 +284,7 @@
     el.innerHTML = `<div class="roads-dh">${esc(selected)}${kSel && kSel.ef ? ` <span class="roads-hint">· its place on the star map comes from EF-Map (${esc(kSel.ef)})</span>` : ""}</div>` +
       `<div class="roads-dcols"><div><h4>Roads out</h4><ul>${out.map(r => row(r, r.from === selected ? r.to : r.from)).join("") || "<li>None: a dead end.</li>"}</ul></div>` +
       `<div><h4>Roads in</h4><ul>${inn.map(r => row(r, r.from)).join("") || "<li>None.</li>"}</ul></div>` +
-      `<div><h4>Our nodes here</h4><ul>${s.nodes.map(n => `<li><b>${esc(n.name || short(n.id))}</b>${M.nodeGuess(n.id) ? " · worked out" : ""} · ${n.fuel.quantity.toLocaleString("en-US")} fuel${M.daysOf(n) == null ? " · not burning" : ` · <span class="${fuelClass(M.daysOf(n))}">${fmtDays(M.daysOf(n))}</span>`}</li>`).join("") || "<li>None known.</li>"}</ul></div>` +
+      `<div><h4>Our nodes here</h4><ul>${s.nodes.map(n => `<li><b>${esc(n.name || short(n.id))}</b>${M.nodeGuess(n.id) ? " · worked out" : ""} · ${n.fuel.quantity.toLocaleString("en-US")} ${esc(fuelName(n))}${M.daysOf(n) == null ? " · " + noDays(n, "not burning") : ` · <span class="${fuelClass(M.daysOf(n))}">${fmtDays(M.daysOf(n))}</span>${fullDays(n) ? ` <span class="roads-hint">(full: ${fmtDays(fullDays(n))})</span>` : ""}`}</li>`).join("") || "<li>None known.</li>"}</ul></div>` +
       (showGates && kSel ? `<div>${gateList(kSel.id)}</div>` : "") + `</div>`;
   }
 
@@ -285,7 +292,7 @@
     const all = M.nodes.map(n => ({ n, d: M.daysOf(n), s: M.nodeSys(n.id) })).sort((a, b) => (a.d == null) - (b.d == null) || a.d - b.d);
     const rows = all.filter(x => x.s), rest = all.filter(x => !x.s), restLow = rest.filter(x => x.d != null)[0];
     $("roads-fuel").innerHTML = (rows.length ? rows.map(x => `<div class="roads-frow"><span class="fs">${esc(x.s)}</span><span class="fn">${esc(x.n.name || "")}</span>` +
-      `<span class="fd ${fuelClass(x.d)}">${x.d == null ? "idle" : fmtDays(x.d)}</span><span class="fu">${x.n.fuel.quantity.toLocaleString("en-US")}</span></div>`).join("") : `<div class="roads-hint">No node on the map yet.</div>`) +
+      `<span class="fd ${fuelClass(x.d)}">${x.d == null ? noDays(x.n, "idle") : fmtDays(x.d)}</span><span class="fu">${x.n.fuel.quantity.toLocaleString("en-US")} ${esc(fuelName(x.n).replace(/ Fuel$/, ""))}</span></div>`).join("") : `<div class="roads-hint">No node on the map yet.</div>`) +
       (rest.length ? `<div class="roads-hint">${rest.length} more node${rest.length === 1 ? "" : "s"} not on the map yet${restLow ? `, the shortest at <span class="${fuelClass(restLow.d)}">${fmtDays(restLow.d)}</span>` : ""}.</div>` : "");
     const low = all.filter(x => x.d != null && x.d < 3);
     $("roads-fuel-n").textContent = low.length ? ` · ${low.length} low` : "";
@@ -440,7 +447,7 @@
     const notes = M.ef.notes.length ? `<div class="roads-ugroup"><div class="roads-uh">Numbers to check</div>` + M.ef.notes.map(t => `<div class="roads-urow"><span class="roads-hint">${esc(t)} Ours was copied from the game: tell EF-Map if theirs is wrong.</span></div>`).join("") + `</div>` : "";
     if (!M.unplaced.length) { el.innerHTML = notes + warn + `<div class="roads-hint">Every launcher and gate read from the chain is on the map.</div>`; return; }
     // grouped by builder (each builder sees the list of what is theirs to rename) or by Network Node; the choice is kept
-    const fuelOf = nid => { const n = M.nodeById.get(nid), d = M.daysOf(n); return n ? ` · <span class="${fuelClass(d)}">${d == null ? "idle" : "fuel " + fmtDays(d)}</span>` : ""; };
+    const fuelOf = nid => { const n = M.nodeById.get(nid), d = M.daysOf(n); return n ? ` · <span class="${fuelClass(d)}">${d == null ? noDays(n, "idle") : "fuel " + fmtDays(d)}</span>` : ""; };
     const nodeLabel = nid => { const n = M.nodeById.get(nid), here = M.nodeSys(nid); return `node ${esc((n && n.name) || short(nid))}${here ? " · in " + esc(here) : ""}`; };
     const row = (u, withNode) => `<div class="roads-urow"><span><b>${esc(u.kind)}</b> ${u.name ? `<i>${esc(u.name)}</i>` : "(no name)"}${u.to ? " · to " + esc(u.to) : ""}${u.online === false ? ' · <span class="bad">offline</span>' : ""}${withNode ? ` · <span class="roads-unode">${nodeLabel(u.node)}${fuelOf(u.node)}</span>` : ""}<br><span class="roads-hint">Not placed: ${esc(u.why)}. ${esc(u.fix || "")}</span></span></div>`;
     const bar = `<div class="roads-usort"><span>Group by</span><span class="roads-view" role="group" aria-label="Group the list by"><button type="button" data-ugroup="builder"${unplacedBy === "builder" ? ' class="on"' : ""}>Builder</button><button type="button" data-ugroup="node"${unplacedBy === "node" ? ' class="on"' : ""}>Network Node</button></span></div>`;

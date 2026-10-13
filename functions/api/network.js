@@ -51,6 +51,24 @@ async function getObjects(ids) {
 const variant = j => (((j.status || {}).status || {})["@variant"]) || "?";
 const label = j => String(((j.metadata || {}).name) || "").trim().slice(0, 80);
 
+/* How long a node's fuel lasts. The chain's fuel module burns one unit every burn_rate_in_ms x efficiency / 100:
+   a node says 3,000,000 ms (50 minutes), EU-40 Fuel has efficiency 40, so one unit lasts 20 minutes (3 an hour, as
+   the game shows) and D1 Fuel (10) 5 minutes. The efficiencies live in the world's FuelConfig table; they are read
+   with the nodes, and the values of 2026-10-13 stand in when that read fails. */
+const FUEL_EFF = { "78515": 80, "78516": 40, "88319": 15, "78437": 90, "84868": 40, "88335": 10 };
+async function fuelEfficiency(pkg) {
+  const eff = Object.assign({}, FUEL_EFF);
+  if (!/^0x[0-9a-f]{64}$/.test(pkg || "")) return eff;
+  try {
+    const d = await gql("query($t:String!){ objects(first:1, filter:{type:$t}) { nodes { asMoveObject { contents { json } } } } }", { t: pkg + "::fuel::FuelConfig" });
+    const cfg = (((d.objects || {}).nodes || [])[0] || {}).asMoveObject, table = cfg && cfg.contents && cfg.contents.json && cfg.contents.json.fuel_efficiency && cfg.contents.json.fuel_efficiency.id;
+    if (!table) return eff;
+    const f = await gql("query($a:SuiAddress!){ address(address:$a) { dynamicFields(first:50) { nodes { name { json } value { ... on MoveValue { json } } } } } }", { a: table });
+    for (const n of (((f.address || {}).dynamicFields || {}).nodes) || []) { const k = String((n.name || {}).json || ""), v = +((n.value || {}).json); if (/^[0-9]{1,9}$/.test(k) && v > 0 && v <= 1000) eff[k] = v; }
+  } catch (e) {}
+  return eff;
+}
+
 async function readChain(builders) {
   const assemblies = [], nodeIds = new Set(), seen = new Set();
   for (const b of builders) {
@@ -64,12 +82,14 @@ async function readChain(builders) {
       if (j.energy_source_id) nodeIds.add(j.energy_source_id);
     }
   }
-  const nodes = [];
+  const nodes = []; let pkg = "";
   for (const [id, o] of await getObjects([...nodeIds])) {
-    const j = o.json, f = j.fuel || {};
-    nodes.push({ id, name: label(j), status: variant(j), fuel: { quantity: +f.quantity || 0, max: +f.max_capacity || 0, burnMs: +f.burn_rate_in_ms || 0, burning: !!f.is_burning },
+    const j = o.json, f = j.fuel || {}; pkg = pkg || String(o.type || "").split("::")[0];
+    nodes.push({ id, name: label(j), status: variant(j), fuel: { quantity: +f.quantity || 0, max: +f.max_capacity || 0, unit: +f.unit_volume || 0, burnMs: +f.burn_rate_in_ms || 0, burning: !!f.is_burning, type: String(f.type_id || "") },
                  connected: (j.connected_assembly_ids || []).length });
   }
+  const eff = nodes.length ? await fuelEfficiency(pkg) : FUEL_EFF;
+  for (const n of nodes) n.fuel.eff = eff[n.fuel.type] || 0;          // 0 = a fuel the table does not know: the page says so instead of guessing
   return { assemblies, nodes };
 }
 
@@ -120,7 +140,7 @@ export async function onRequestGet({ request, env }) {
   const fresh = new URL(request.url).searchParams.get("fresh") === "1";
   const namesP = readNames(env, fresh);                 // runs beside the chain read
   if (builders.length) {
-    const key = new Request("https://cache.saints-forge.internal/network/" + encodeURIComponent(builders.map(b => b.address).join(",")));
+    const key = new Request("https://cache.saints-forge.internal/network/v2/" + encodeURIComponent(builders.map(b => b.address).join(",")));
     let hit = null; try { hit = fresh ? null : await caches.default.match(key); } catch (e) {}
     if (hit) { const c = await hit.json(); chain = c.chain; at = c.at; cached = true; }
     else {
@@ -176,4 +196,4 @@ export async function onRequestPost({ request, env }) {
 }
 
 /* for tests only (tools and the browser import this module and call the pieces; Pages ignores extra exports) */
-export const __test = { readChain, checkList, getObjects, ownedIds, readNames, cleanNames };
+export const __test = { readChain, checkList, getObjects, ownedIds, readNames, cleanNames, fuelEfficiency, FUEL_EFF };

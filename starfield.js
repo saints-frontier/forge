@@ -78,7 +78,7 @@
       const dv = new DataView(buf); if (String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3)) !== "SFLD") throw new Error("not a star file");
       n = dv.getUint32(4, true); pos = new Float32Array(n * 3); ids = new Uint32Array(n); const gh = new Float32Array(n * 2);
       for (let i = 0, o = 8; i < n; i++, o += 20) {
-        ids[i] = dv.getUint32(o, true); pos[i * 3] = dv.getFloat32(o + 4, true); pos[i * 3 + 1] = dv.getFloat32(o + 8, true); pos[i * 3 + 2] = dv.getFloat32(o + 12, true);
+        ids[i] = dv.getUint32(o, true); pos[i * 3] = dv.getFloat32(o + 4, true); pos[i * 3 + 1] = dv.getFloat32(o + 8, true); pos[i * 3 + 2] = -dv.getFloat32(o + 12, true);   // z NEGATED: the game draws these coordinates left-handed, WebGL is right-handed; without this the map is a mirror image (checked on two in-game Map screenshots, 2026-10-13)
         gh[i * 2] = dv.getUint8(o + 16) / 255; gh[i * 2 + 1] = dv.getUint8(o + 17) / 255; byId.set(ids[i], i);
       }
       names = readNames(dv, 8 + n * 20, n);
