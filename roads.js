@@ -145,7 +145,8 @@
     // public (NPC) stargates a Saint has jumped, recorded by hand under Manage: drawn as roads (the whole network the
     // client lists is the faint grey layer, gates.bin). A jumped gate is a two-way road that nobody fuels for us.
     for (const g of list.gates || []) { const a = up(g.a || ""), b = up(g.b || ""); if (!a || !b || a === b) continue; fromEf(a); fromEf(b);
-      add({ id: null, kind: "Public Gate", name: g.note || "", node: null, days: null, source: "public", from: a, to: b, twoWay: true, online: true, status: "built" }); }
+      // the state a Saint found it in: working = a solid road; no fuel on the far side = dashed (bring fuel); dormant = red and skipped by Find a road (one-way without materials)
+      add({ id: null, kind: "Public Gate", name: g.note || "", node: null, days: null, source: "public", from: a, to: b, twoWay: true, online: g.state !== "dormant", status: g.state === "unfueled" ? "progress" : "built", state: g.state || "" }); }
     const systems = new Map(), sys = n => { if (!systems.has(n)) systems.set(n, { name: n, nodes: [], days: null, guess: false }); return systems.get(n); };
     for (const r of roads) { sys(r.from); sys(r.to); }
     for (const n of d.nodes || []) { const i = info.get(n.id); if (i && i.sys) sys(i.sys).nodes.push(n); }
@@ -201,14 +202,17 @@
   let showGates = true; try { showGates = localStorage.getItem("roads:gates") !== "0"; } catch (e) {}       // the public stargate network (gates.bin)
   // a system's name as the page knows it: ours, then EF-Map's, then the archived Cycle 6 name marked (C6)
   const nameOfId = id => { for (const [n, k] of M.ids) if (k.id === id) return n; const e = M.ef.byId.get(id); if (e && e.status === "confirmed") return e.name; const old = sf && sf.oldName(id); return old ? old + " (C6)" : "#" + id; };
-  // has a Saint jumped this gate? (list.gates, recorded under Manage)
-  const jumped = (a, b) => (M.list.gates || []).some(g => (up(g.a) === a && up(g.b) === b) || (up(g.a) === b && up(g.b) === a));
+  // has a Saint jumped this gate? (list.gates, recorded under Manage) -> the record, with the state it was found in
+  const gateRec = (a, b) => (M.list.gates || []).find(g => (up(g.a) === a && up(g.b) === b) || (up(g.a) === b && up(g.b) === a)) || null;
+  const jumped = (a, b) => !!gateRec(a, b);
+  const STATE_TEXT = { working: "working", unfueled: "no fuel on the far side", dormant: "dormant: the far side needs restoring" };
+  const stateHtml = g => { if (!g) return ""; const t = STATE_TEXT[g.state] || "jumped, state not noted"; const cls = g.state === "dormant" ? "off" : g.state === "unfueled" ? "warn" : "ok"; return ` · <span class="${cls}">${esc(t)}</span>${g.seen ? ` <span class="roads-hint">(${esc(g.seen)})</span>` : ""}`; };
   // the public gates of one system, from the game client; a jumped one is marked, the rest are of unknown state
   function gateList(id) {
     if (!sf || !sf.gateCount()) return "";
     const g = sf.gatesOf(id); if (!g.length) return `<div class="roads-hint">No public stargate here, says the game client.</div>`;
     const me = nameOfId(id), rows = g.map(o => ({ o, d: dist ? dist(id, o) : null })).sort((a, b) => (a.d || 0) - (b.d || 0));
-    return `<h4>Public gates · ${g.length}</h4><ul>${rows.map(r => { const n = nameOfId(r.o); return `<li><b>${esc(n)}</b>${r.d != null ? ` · ${Math.round(r.d).toLocaleString("en-US")} LY` : ""}${jumped(me, n) ? ' · <span class="ok">jumped</span>' : ""}</li>`; }).join("")}</ul><div class="roads-hint">From the game client. Working, unfueled or dormant: only a jump tells; record one under Manage.</div>`;
+    return `<h4>Public gates · ${g.length}</h4><ul>${rows.map(r => { const n = nameOfId(r.o); return `<li><b>${esc(n)}</b>${r.d != null ? ` · ${Math.round(r.d).toLocaleString("en-US")} LY` : ""}${gateRec(me, n) ? stateHtml(gateRec(me, n)) : (r.d > 365 ? ' · <span class="roads-hint">longer than any gate jumped so far: check it on the game map</span>' : "")}</li>`; }).join("")}</ul><div class="roads-hint">From the game client. Working, unfueled or dormant: only a jump tells; record what you found under Manage.</div>`;
   }
   function drawMap() {
     const box = $("roads-map");
@@ -382,7 +386,7 @@
     const mats = [0, 0, 0]; let launchers = 0;
     for (const h of builds) { const c = COST[h.kind]; if (!c) continue; const n = /Gate/.test(h.kind) ? 2 : 1; launchers += n; c.forEach((v, k) => mats[k] += v * n); }
     const pub = builds.filter(h => h.kind === "Public Gate").length, nodes = builds.length - pub;   // a public gate is nothing to build, and no node
-    const row = (h, k) => `<div class="roads-prow"><span>${k + 1}</span><span><b>${esc(h.fromSys)}</b></span><span><b>${esc(h.toSys)}</b></span><span class="${h.gap ? "gap" : h.kind === "Public Gate" ? "pub" : "k"}">${h.gap ? "STARGATE NEEDED" : h.kind === "Public Gate" ? (jumped(h.fromSys, h.toSys) ? "public gate · jumped before" : "public gate · state unknown") : esc(h.kind)}</span><span class="ly">${(h.ly || 0).toFixed(1)}</span></div>`;
+    const row = (h, k) => `<div class="roads-prow"><span>${k + 1}</span><span><b>${esc(h.fromSys)}</b></span><span><b>${esc(h.toSys)}</b></span><span class="${h.gap ? "gap" : h.kind === "Public Gate" ? "pub" : "k"}">${h.gap ? "STARGATE NEEDED" : h.kind === "Public Gate" ? (gateRec(h.fromSys, h.toSys) ? "public gate · " + (STATE_TEXT[gateRec(h.fromSys, h.toSys).state] || "jumped before") : "public gate · state unknown") : esc(h.kind)}</span><span class="ly">${(h.ly || 0).toFixed(1)}</span></div>`;
     $("roads-plan").innerHTML = `<div class="roads-plan"><div class="ph">${esc(p.name)}<small>${p.hops.length} hops · ${f0(ly)} LY</small></div>` +
       (p.note ? `<div class="pnote">${esc(p.note)}</div>` : "") +
       `<div class="ptot"><span><b>${launchers}</b> launchers to build (a gate counts twice)</span><span><b>${nodes}</b> Network Nodes</span>${pub ? `<span><b>${pub}</b> public gate${pub > 1 ? "s" : ""} to jump (50 EU-40 or SOF-40 Fuel each; a gate may be unfueled or dormant)</span>` : ""}${gaps.length ? `<span class="gap" style="color:var(--red)"><b>${gaps.length}</b> stargate${gaps.length > 1 ? "s" : ""} to find</span>` : ""}` +
@@ -525,8 +529,11 @@
     if (b.id === "roads-gate-save") {                 // a public gate someone has jumped: two full system names
       const a = up($("roads-gate-a").value.trim()), c = up($("roads-gate-b").value.trim());
       if (!a || !c || a === c) { $("roads-gate-note").textContent = "give both systems, full names."; return; }
-      const l = listCopy(); if (l.gates.some(g => (up(g.a) === a && up(g.b) === c) || (up(g.a) === c && up(g.b) === a))) { $("roads-gate-note").textContent = "already recorded."; return; }
-      l.gates.push({ a, b: c }); $("roads-gate-a").value = ""; $("roads-gate-b").value = ""; $("roads-gate-note").textContent = ""; save(l, "Public gate"); return;
+      const state = ($("roads-gate-state") || {}).value || "", seen = new Date().toISOString().slice(0, 10);
+      const l = listCopy(), old = l.gates.find(g => (up(g.a) === a && up(g.b) === c) || (up(g.a) === c && up(g.b) === a));
+      if (old) { if ((old.state || "") === state) { $("roads-gate-note").textContent = "already recorded with that state."; return; } if (state) old.state = state; else delete old.state; old.seen = seen; }
+      else { const rec = { a, b: c, seen }; if (state) rec.state = state; l.gates.push(rec); }
+      $("roads-gate-a").value = ""; $("roads-gate-b").value = ""; $("roads-gate-note").textContent = old ? "state updated." : ""; save(l, "Public gate"); return;
     }
     if (b.id === "roads-json-save") { let l; try { l = JSON.parse($("roads-json").value); } catch (err) { $("roads-save-note").textContent = "that is not valid JSON."; return; } save(l, "Settings"); }
   });

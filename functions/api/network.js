@@ -14,7 +14,7 @@ const FIELDS = "address asMoveObject { contents { type { repr } json } }";
 const CACHE_SECONDS = 300, MAX_BUILDERS = 12, MAX_PAGES = 8;
 const EMPTY = { builders: [], home: "", systems: {}, plans: [] };
 /* settings only: a list stored before 2026-10-11 may still carry hand-placed nodes, launchers, links and notes; they are dropped */
-const settings = l => ({ builders: Array.isArray(l.builders) ? l.builders : [], home: l.home || "", systems: l.systems || {}, plans: Array.isArray(l.plans) ? l.plans : [], updated: l.updated, updated_by: l.updated_by });
+const settings = l => ({ builders: Array.isArray(l.builders) ? l.builders : [], home: l.home || "", systems: l.systems || {}, gates: Array.isArray(l.gates) ? l.gates : [], plans: Array.isArray(l.plans) ? l.plans : [], updated: l.updated, updated_by: l.updated_by });
 
 async function gql(query, variables) {
   const r = await fetch(SUI, { method: "POST", headers: { "content-type": "application/json", "user-agent": "saints-forge (read-only)" }, body: JSON.stringify({ query, variables: variables || {} }) });
@@ -150,7 +150,9 @@ function checkList(d) {
   if (d.home != null && d.home !== "" && !SYS(d.home)) return "home must be a system name.";
   // public (NPC) stargates someone has jumped: pairs of full system names, the only hand record on the page
   const gates = d.gates == null ? [] : d.gates;
-  if (!Array.isArray(gates) || gates.length > 500 || !gates.every(g => g && SYS(g.a) && SYS(g.b) && g.a !== g.b && (g.note == null || (typeof g.note === "string" && g.note.length <= 80)))) return "gates must be a list of {a, b} system names (a gate someone has jumped).";
+  const GATE_STATES = ["working", "unfueled", "dormant"], DAY = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+  if (!Array.isArray(gates) || gates.length > 500 || !gates.every(g => g && SYS(g.a) && SYS(g.b) && g.a !== g.b && (g.note == null || (typeof g.note === "string" && g.note.length <= 80))
+      && (g.state == null || GATE_STATES.includes(g.state)) && (g.seen == null || (typeof g.seen === "string" && DAY.test(g.seen))))) return "gates must be a list of {a, b, state?, seen?} (a gate someone has jumped; state working, unfueled or dormant; seen YYYY-MM-DD).";
   const plans = d.plans == null ? [] : d.plans;
   const HOP = h => h && SID(h.from) && SID(h.to) && (h.gap === true || KINDS.includes(h.kind)) && (h.ly == null || typeof h.ly === "number") && (h.fromName == null || SYS(h.fromName)) && (h.toName == null || SYS(h.toName));
   if (!Array.isArray(plans) || plans.length > 20 || !plans.every(p => p && typeof p.name === "string" && p.name.length <= 40 && (p.note == null || (typeof p.note === "string" && p.note.length <= 400)) && Array.isArray(p.hops) && p.hops.length <= 400 && p.hops.every(HOP))) return "plans must be a list of {name, note, hops: [{from, to, kind | gap, ly}]}.";
@@ -167,7 +169,7 @@ export async function onRequestPost({ request, env }) {
   let d; try { d = JSON.parse(text); } catch (e) { return json({ ok: false, error: "Not JSON." }, 400, cookies); }
   const bad = checkList(d);
   if (bad) return json({ ok: false, error: bad }, 400, cookies);
-  const clean = { builders: d.builders.map(b => ({ name: b.name, address: b.address })), home: d.home || "", systems: d.systems || {}, plans: d.plans || [],
+  const clean = { builders: d.builders.map(b => ({ name: b.name, address: b.address })), home: d.home || "", systems: d.systems || {}, gates: d.gates || [], plans: d.plans || [],
                   updated: new Date().toISOString(), updated_by: s.n };
   await env.DOCTRINE.put("network", JSON.stringify(clean));
   return json({ ok: true, by: s.n }, 200, cookies);
