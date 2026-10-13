@@ -147,8 +147,8 @@
     // plans: every hop is a planned road between two numbered systems; a system with no Cycle 7 name yet is shown
     // by its number's old name, marked "(C6)"
     const planName = (id, old) => { for (const [n, k] of ids) if (k.id === id) return n; const e = efById.get(id); if (e && !ids.has(e.name)) { ids.set(e.name, { id, sure: e.status === "confirmed", ef: e.status }); return e.name; } const nm = old ? `${old} (C6)` : `#${id}`; if (!ids.has(nm)) ids.set(nm, { id, sure: true, c6: true }); return nm; };
-    const plans = (list.plans || []).map((p, i) => ({ i, name: p.name || `Plan ${i + 1}`, note: p.note || "", hops: (p.hops || []).map(h => ({ ...h, fromSys: planName(h.from, h.fromName), toSys: planName(h.to, h.toName) })) }));
-    for (const p of plans) for (const h of p.hops) if (!h.gap) roads.push({ id: null, kind: h.kind, name: p.name, node: null, days: null, source: "plan", plan: p.i, from: h.fromSys, to: h.toSys, twoWay: /Gate/.test(h.kind || ""), online: true, status: "planned" });
+    const plans = (list.plans || []).map((p, i) => ({ i, name: p.name || `Plan ${i + 1}`, note: p.note || "", diag: p.diag || null, diagTarget: p.diagTarget, direct: p.direct || null, from: p.from, to: p.to, hops: (p.hops || []).map((h, n) => ({ ...h, n, fromSys: planName(h.from, h.fromName), toSys: planName(h.to, h.toName) })) }));
+    for (const p of plans) for (const h of p.hops) if (!h.gap) roads.push({ id: null, kind: h.kind, name: p.name, node: null, days: null, source: "plan", plan: p.i, n: h.n, from: h.fromSys, to: h.toSys, twoWay: /Gate/.test(h.kind || "") && h.kind !== "Public Gate", online: true, status: "planned" });
     // public (NPC) stargates a Saint has jumped, recorded by hand under Manage: drawn as roads (the whole network the
     // client lists is the faint grey layer, gates.bin). A jumped gate is a two-way road that nobody fuels for us.
     for (const g of list.gates || []) { const a = up(g.a || ""), b = up(g.b || ""); if (!a || !b || a === b) continue; fromEf(a); fromEf(b);
@@ -158,6 +158,11 @@
     for (const r of roads) { sys(r.from); sys(r.to); }
     for (const n of d.nodes || []) { const i = info.get(n.id); if (i && i.sys) sys(i.sys).nodes.push(n); }
     for (const s of systems.values()) { for (const n of s.nodes) { const dd = daysOf(n); if (dd != null && (s.days == null || dd < s.days)) s.days = dd; } s.guess = s.nodes.length > 0 && s.nodes.every(n => ni(n.id).basis === "inferred"); }
+    // a plan hop's status: built when the chain shows a road of ours between its two systems, in progress when the
+    // launch site has a Network Node of ours, else planned; a status set by hand on the page wins
+    const chainRoad = new Set(); for (const r of roads) if (r.source !== "plan" && r.source !== "public") { chainRoad.add(r.from + ">" + r.to); if (r.twoWay) chainRoad.add(r.to + ">" + r.from); }
+    for (const p of plans) for (const h of p.hops) { if (h.gap || h.free || h.kind === "Public Gate" || h.kind === "Our Road") continue; const auto = chainRoad.has(h.fromSys + ">" + h.toSys) ? "built" : (systems.has(h.fromSys) && systems.get(h.fromSys).nodes.length ? "progress" : "planned"); h.auto = !h.status; if (!h.status) h.status = auto; }
+    for (const r of roads) if (r.source === "plan") { const h = plans[r.plan].hops[r.n]; r.status = h.status === "built" ? "built" : h.status === "progress" ? "progress" : "planned"; }
     let home = up(list.home); if (!systems.has(home)) home = [...systems.keys()].sort()[0] || "";
     const nodeSys = id => (id && info.has(id) && info.get(id).sys) || null, nodeGuess = id => !!(id && info.has(id) && info.get(id).basis === "inferred");
     const ef = { byId: efById, byName: efByName, notes: efNotes, count: efById.size, confirmed: [...efById.values()].filter(e => e.status === "confirmed").length, error: (d.names && d.names.error) || null, used: [...ids.values()].filter(k => k.ef).length };
@@ -380,64 +385,193 @@
   }
   try { view = localStorage.getItem("roads:view") === "flat" ? "flat" : "stars"; } catch (e) {}
 
-  // ---------- road plans: one button each, a hop table, the plan drawn on the star map ----------
-  const COST = { "Mini Catapult": [102, 22, 4], "Heavy Catapult": [650, 141, 26], "Mini Gate": [210, 46, 8], "Heavy Gate": [1060, 231, 43] };   // Kerogen Tar, Building Foam, Still Kernel (data/recipes.json)
+  // ---------- road plans: one button each, a hop table with a build sheet, the plan drawn on the star map ----------
+  // per launcher: Kerogen Tar, Building Foam, Still Kernel, print minutes (data/recipes.json, Build Mode); a gate hop = two gates
+  const COST = { "Mini Catapult": [102, 22, 4, 15], "Heavy Catapult": [650, 141, 26, 48], "Mini Gate": [420, 92, 16, 96], "Heavy Gate": [2120, 462, 86, 720] };
+  const NODE = { parts: [8, 8, 8], minutes: 0.5, fuelDay: 72 };        // Printed Circuits, Carbon Weave, Thermal Composites; 1 unit of 40-grade fuel per 20 min = 72 a day (chain fuel rule)
+  const VOL = { tar: 0.3, foam: 47, kernel: 5, pc: 4, cw: 15, tc: 10 };   // m3 per unit (client type volumes)
+  const CRIT = { launchers: "fewest launchers to build", hops: "fewest hops", foam: "least Building Foam", nonpublic: "prefer public stargates", noncatapult: "prefer catapults", ly: "shortest distance" };
+  const PRIO_DEFAULT = [["launchers", 1], ["hops", 1], ["foam", 1], ["ly", 1], ["nonpublic", 0], ["noncatapult", 0]];
+  let planPrio = PRIO_DEFAULT.map(x => x.slice()); try { const s = JSON.parse(localStorage.getItem("roads:prio") || "null"); if (Array.isArray(s) && s.length === 6 && s.every(x => CRIT[x[0]])) planPrio = s; } catch (e) {}
+  let planStops = [], planAvoid = [];
+  const isBuild = h => !h.gap && !h.free && COST[h.kind];               // a hop that costs a launcher
+  const isCharted = id => [...M.ids.values()].some(k => k.id === id && !k.c6) || M.ef.byId.has(id);
+  const starName = id => { const n = nameOfId(id); return isCharted(id) ? n : n.replace(/ \(C6\)$/, "") + " (uncharted)"; };
+  // what a plan costs: launchers, nodes, materials, print time, hauling, fuel, public gate jumps
+  function planBill(hops) {
+    const b = { launchers: 0, tar: 0, foam: 0, kernel: 0, minutes: 0, pub: 0, gaps: 0, kinds: {}, sites: new Map() };
+    for (const h of hops) {
+      if (h.gap) { b.gaps++; continue; }
+      if (h.kind === "Public Gate" && !h.free) b.pub++; else if (h.kind === "Public Gate") b.pub++;
+      if (!isBuild(h)) continue;
+      const c = COST[h.kind], n = /Gate/.test(h.kind) ? 2 : 1; b.launchers += n; b.tar += c[0]; b.foam += c[1]; b.kernel += c[2]; b.minutes += c[3]; b.kinds[h.kind] = (b.kinds[h.kind] || 0) + 1;
+      b.sites.set(h.fromSys, true); if (/Gate/.test(h.kind)) b.sites.set(h.toSys, true);
+    }
+    b.newNodes = [...b.sites.keys()].filter(s => !((M.systems.get(s) || {}).nodes || []).length); b.oldNodes = b.sites.size - b.newNodes.length;
+    const nn = b.newNodes.length; b.pc = NODE.parts[0] * nn; b.cw = NODE.parts[1] * nn; b.tc = NODE.parts[2] * nn; b.minutes += NODE.minutes * nn;
+    b.m3 = b.tar * VOL.tar + b.foam * VOL.foam + b.kernel * VOL.kernel + b.pc * VOL.pc + b.cw * VOL.cw + b.tc * VOL.tc; b.cargo = Math.ceil(b.m3 / 36);
+    b.fuelDay = nn * NODE.fuelDay;
+    return b;
+  }
+  // the words for a leg that did not reach its target
+  function diagText(d, target) {
+    if (!d) return "";
+    const from = esc(nameOfId(d.end)), to = esc(nameOfId(target)), ly = f0(d.ly);
+    if (d.reason === "range") return `<b>${from}</b> is the closest the road gets: <b>${to}</b> is ${ly} LY away, beyond everything ticked (${d.beyond} LY). Only a public stargate crosses that, or a road from another side.`;
+    if (d.reason === "blocked") return `<b>${from} → ${to}</b> is ${ly} LY, in range, but the shot is blocked by ${d.blockers.map(x => `<b>${esc(starName(x.id))}</b> (${f0(x.ly)} LY out)`).join(", ")}. Build through the blocking star instead, or chart it: an uncharted blocker is one nobody has seen yet.`;
+    if (d.reason === "gatefar") return `A gate pair could span <b>${from} → ${to}</b> (${ly} LY), but nobody can reach ${to} to build the far gate: a catapult or a public gate has to get a builder there first.`;
+    if (d.reason === "avoided") return `The only way from <b>${from}</b> to <b>${to}</b> runs through a system on the avoid list.`;
+    return `<b>${from} → ${to}</b>: ${ly} LY, no tool crosses it.`;
+  }
+  function directText(d, from, to) {
+    if (!d) return "";
+    if (!d.tool) return `Straight line ${esc(nameOfId(from))} → ${esc(nameOfId(to))}: ${f0(d.ly)} LY, no single hop reaches that.`;
+    if (d.blockers && d.blockers.length) return `A direct ${esc(d.tool)} shot (${f0(d.ly)} LY) is blocked by ${d.blockers.map(x => `<b>${esc(starName(x.id))}</b>`).join(", ")}.`;
+    return "";
+  }
+  const hopKindText = h => h.gap ? "STARGATE NEEDED" : h.step === "gate" ? `BUILD ${esc(h.kind).toUpperCase()} PAIR` : h.kind === "Public Gate" ? "public gate · " + (STATE_TEXT[h.state || (gateRec(h.fromSys, h.toSys) || {}).state] || (gateRec(h.fromSys, h.toSys) ? "jumped before" : "state unknown")) : h.kind === "Our Road" ? "our road" : h.free ? esc(h.kind) + " · built above" : esc(h.kind);
+  const STATUS_TEXT = { planned: "planned", progress: "in progress", built: "built" };
   function drawPlans() {
     $("roads-plan-btns").innerHTML = M.plans.map(p => `<button type="button" data-panel="plan" data-plan="${p.i}">${esc(p.name)}${(M.list.plans[p.i] || {}).draft ? " (unsaved)" : ""}</button>`).join("");
   }
   let openPlan = null;
   function drawPlan(i) {
     const p = M.plans.find(x => x.i === i); if (!p) return; openPlan = i;
-    const isDraft = !!(M.list.plans[i] || {}).draft;
-    const builds = p.hops.filter(h => !h.gap), gaps = p.hops.filter(h => h.gap), ly = p.hops.reduce((a, h) => a + (h.ly || 0), 0);
-    const mats = [0, 0, 0]; let launchers = 0;
-    for (const h of builds) { const c = COST[h.kind]; if (!c) continue; const n = /Gate/.test(h.kind) ? 2 : 1; launchers += n; c.forEach((v, k) => mats[k] += v * n); }
-    const pub = builds.filter(h => h.kind === "Public Gate").length, nodes = builds.length - pub;   // a public gate is nothing to build, and no node
-    const row = (h, k) => `<div class="roads-prow"><span>${k + 1}</span><span><b>${esc(h.fromSys)}</b></span><span><b>${esc(h.toSys)}</b></span><span class="${h.gap ? "gap" : h.kind === "Public Gate" ? "pub" : "k"}">${h.gap ? "STARGATE NEEDED" : h.kind === "Public Gate" ? (gateRec(h.fromSys, h.toSys) ? "public gate · " + (STATE_TEXT[gateRec(h.fromSys, h.toSys).state] || "jumped before") : "public gate · state unknown") : esc(h.kind)}</span><span class="ly">${(h.ly || 0).toFixed(1)}</span></div>`;
-    $("roads-plan").innerHTML = `<div class="roads-plan"><div class="ph">${esc(p.name)}<small>${p.hops.length} hops · ${f0(ly)} LY</small></div>` +
-      (p.note ? `<div class="pnote">${esc(p.note)}</div>` : "") +
-      `<div class="ptot"><span><b>${launchers}</b> launchers to build (a gate counts twice)</span><span><b>${nodes}</b> Network Nodes</span>${pub ? `<span><b>${pub}</b> public gate${pub > 1 ? "s" : ""} to jump (50 EU-40 or SOF-40 Fuel each; a gate may be unfueled or dormant)</span>` : ""}${gaps.length ? `<span class="gap" style="color:var(--red)"><b>${gaps.length}</b> stargate${gaps.length > 1 ? "s" : ""} to find</span>` : ""}` +
-      `<span>Kerogen Tar <b>${f0(mats[0])}</b></span><span>Building Foam <b>${f0(mats[1])}</b></span><span>Still Kernel <b>${f0(mats[2])}</b></span><span>+ per node 8 Printed Circuits, 8 Carbon Weave, 8 Thermal Composites and fuel</span></div>` +
-      `<div class="roads-phead"><span>#</span><span>From</span><span>To</span><span>Build</span><span class="ly">LY</span></div>` + p.hops.map(row).join("") +
-      `<div class="roads-hint">Systems marked (C6) carry their Cycle 6 name: their Cycle 7 name is not known yet. Distances are straight lines from the archived positions.</div>` +
-      (M.canEdit ? `<div class="pacts">${isDraft ? `<button type="button" class="primary" data-plansave="1">Keep this plan</button><button type="button" data-plandrop="1">Drop it</button>` : `<button type="button" data-planremove="${i}">Remove this plan</button>`}</div>` : "") + `</div>`;
+    const raw = M.list.plans[i] || {}, isDraft = !!raw.draft, mode = raw.mode || "access";
+    const fwd = p.hops.filter(h => h.leg !== "back"), back = p.hops.filter(h => h.leg === "back");
+    const ly = fwd.reduce((a, h) => a + (h.ly || 0), 0), bill = planBill(fwd), bb = back.length ? planBill(back) : null;
+    const row = (h, k) => `<div class="roads-prow${h.step === "gate" ? " step" : ""}"><span>${k + 1}</span><span><b>${esc(h.fromSys)}</b></span><span><b>${esc(h.toSys)}</b></span><span class="${h.gap ? "gap" : h.kind === "Public Gate" ? "pub" : "k"}">${hopKindText(h)}</span><span class="ly">${(h.ly || 0).toFixed(1)}</span>` +
+      (isDraft ? "" : `<span class="st ${h.status || "planned"}" ${isBuild(h) && M.canEdit ? `data-hopstatus="${i}:${h.n}"` : ""} title="${h.auto ? "read from the chain" : "set by hand"}">${isBuild(h) ? STATUS_TEXT[h.status || "planned"] + (h.auto ? " ·" : "") : ""}</span>` +
+      `<span class="who">${isBuild(h) ? (M.canEdit ? `<input type="text" maxlength="24" placeholder="who builds" value="${esc(h.who || "")}" data-hopwho="${i}:${h.n}"><input type="date" value="${esc(h.by || "")}" data-hopby="${i}:${h.n}">` : esc([h.who, h.by].filter(Boolean).join(" · "))) : ""}</span>`) + `</div>`;
+    const head = `<div class="roads-phead"><span>#</span><span>From</span><span>To</span><span>Build</span><span class="ly">LY</span>${isDraft ? "" : "<span>Status</span><span>Builder · by</span>"}</div>`;
+    const kinds = Object.entries(bill.kinds).map(([k, n]) => `${n}× ${esc(k)}`).join(", ");
+    const sheet = `<div class="ptot"><span><b>${bill.launchers}</b> launcher${bill.launchers === 1 ? "" : "s"} to build${kinds ? ` (${kinds})` : ""}</span><span><b>${bill.newNodes.length}</b> new Network Node${bill.newNodes.length === 1 ? "" : "s"}${bill.oldNodes ? ` (${bill.oldNodes} site${bill.oldNodes === 1 ? "" : "s"} already ha${bill.oldNodes === 1 ? "s" : "ve"} one of ours)` : ""}</span>` +
+      (bill.pub ? `<span><b>${bill.pub}</b> public gate jump${bill.pub > 1 ? "s" : ""} · ${f0(bill.pub * 50)} EU-40 or SOF-40 Fuel</span>` : "") + (bill.gaps ? `<span class="gap" style="color:var(--red)"><b>${bill.gaps}</b> crossing${bill.gaps > 1 ? "s" : ""} no tool makes</span>` : "") +
+      (bill.launchers ? `<span>Kerogen Tar <b>${f0(bill.tar)}</b> · Building Foam <b>${f0(bill.foam)}</b> · Still Kernel <b>${f0(bill.kernel)}</b></span>` + (bill.newNodes.length ? `<span>nodes: Printed Circuits <b>${bill.pc}</b> · Carbon Weave <b>${bill.cw}</b> · Thermal Composites <b>${bill.tc}</b></span>` : "") +
+      `<span>printing <b>${bill.minutes >= 90 ? (bill.minutes / 60).toFixed(1) + " h" : f0(bill.minutes) + " min"}</b> · hauling <b>${f0(bill.m3)} m³</b> (${bill.cargo} Cargo Container${bill.cargo === 1 ? "" : "s"})</span>` + (bill.fuelDay ? `<span>the new nodes burn <b>${f0(bill.fuelDay)}</b> EU-40 or SOF-40 Fuel a day together</span>` : "") : "") + `</div>`;
+    const diag = p.diag ? `<div class="roads-diag">${diagText(p.diag, p.diagTarget)}</div>` : "", dir = p.direct ? directText(p.direct, p.from, p.to) : "";
+    const corridor = mode === "corridor" ? `<div class="roads-hint">A corridor: the gate pairs make a permanent two-way road; the catapult hops above each pair get a builder to the next site. Build in the order listed.</div>` : mode === "tree" ? `<div class="roads-hint">A network: each stop was reached from the nearest point of what the plan had built before it.</div>` : "";
+    const backHtml = back.length ? `<div class="ph" style="margin-top:12px">The way home<small>${back.length} hops · ${f0(back.reduce((a, h) => a + (h.ly || 0), 0))} LY · ${bb.launchers} more launcher${bb.launchers === 1 ? "" : "s"}</small></div>` + head + back.map(row).join("") : "";
+    const acts = `<div class="pacts">${M.canEdit ? (isDraft ? `<button type="button" class="primary" data-plansave="1">Keep this plan</button><button type="button" data-plandrop="1">Drop it</button>` : `<button type="button" data-planremove="${i}">Remove this plan</button>`) : ""}` +
+      `<button type="button" data-copynote="${i}">Copy as in-game note</button><button type="button" data-copytext="${i}">Copy for Discord</button>${bill.launchers ? `<button type="button" data-lodge="${i}">⚒ Build it in the Lodge</button>` : ""}<span class="roads-hint" id="plan-copied"></span></div>`;
+    $("roads-plan").innerHTML = `<div class="roads-plan${isDraft ? "" : " saved"}"><div class="ph">${esc(p.name)}<small>${fwd.length} hops · ${f0(ly)} LY${raw.priorities ? " · " + raw.priorities.map(k => CRIT[k]).filter(Boolean).slice(0, 3).join(", ") : ""}</small></div>` +
+      (p.note ? `<div class="pnote">${esc(p.note)}</div>` : "") + diag + (dir ? `<div class="roads-hint">${dir}</div>` : "") + sheet + corridor + head + fwd.map(row).join("") + backHtml +
+      `<div class="roads-hint">Systems marked (C6) carry their Cycle 6 name: their Cycle 7 name is not known yet; in the in-game note they open under their real name. Distances are straight lines from the archived positions.${isDraft ? "" : " Status comes from the chain when a launcher with the right name appears; click a status to set it by hand."}</div>` + acts + `</div>`;
     if (sf && view === "stars") { const ids = new Set(); for (const h of p.hops) { const a = M.ids.get(h.fromSys), b = M.ids.get(h.toSys); if (a) ids.add(a.id); if (b) ids.add(b.id); } sf.fitTo([...ids]); }
   }
   const f0 = n => Math.round(n).toLocaleString("en-US");
-  // the planner: a Worker over stars.bin; results show as an unsaved plan the editors can keep
-  let planner = null, planning = false, draft = null, lastData = null;
-  function fillPlanner() {
-    const own = [...M.ids].filter(([, k]) => k.id).sort((a, b) => a[0].localeCompare(b[0])), have = new Set(own.map(([, k]) => k.id));
+  // ---------- the planner: a Worker over stars.bin, gates.bin and catapults.bin; results show as an unsaved plan the editors can keep ----------
+  let planner = null, planning = false, draft = null, lastData = null, checker = null, checkRes = null, onPlanned = null;
+  function getPlanner() {
+    if (planner) return planner;
+    planner = new Worker("planner.js?v=" + Date.now());
+    planner.onmessage = e => { const m = e.data; if (m.type === "checked") onChecked(m); else if (m.type === "progress") { $("plan-status").textContent = `searching… ${f0(m.expanded)} systems looked at, closest ${f0(m.closest)} LY`; } else if (onPlanned) onPlanned(m); };
+    planner.onerror = e => { planning = false; $("plan-run").disabled = false; $("plan-status").textContent = "the planner failed: " + (e.message || "worker error"); };
+    return planner;
+  }
+  function systemOptions(extra) {
+    const own = [...M.ids].filter(([, k]) => k.id && !k.c6).sort((a, b) => a[0].localeCompare(b[0])), have = new Set(own.map(([, k]) => k.id));
     const more = [...M.ef.byName].filter(([, e]) => !have.has(e.id)).sort((a, b) => a[0].localeCompare(b[0]));
     const mine = own.map(([n, k]) => `<option value="${k.id}">${esc(n)}</option>`).join("");
     const grp = (label, rows) => rows.length ? `<optgroup label="${label}">${rows.map(([n, e]) => `<option value="${e.id}">${esc(n)}</option>`).join("")}</optgroup>` : "";
-    const opts = more.length ? `<optgroup label="Ours">${mine}</optgroup>` + grp("Charted on EF-Map", more.filter(([, e]) => e.status === "confirmed")) + grp("Uncharted: reported once", more.filter(([, e]) => e.status !== "confirmed")) : mine;
-    const a = $("plan-from"), b = $("plan-to"), va = a.value, vb = b.value; a.innerHTML = opts; b.innerHTML = opts;
-    const home = M.ids.get(M.home); a.value = va || (home ? home.id : ""); if (vb) b.value = vb;
+    const pick = picked && !have.has(picked) && !M.ef.byId.has(picked) ? `<optgroup label="Picked on the map"><option value="${picked}">${esc(nameOfId(picked))}</option></optgroup>` : "";
+    return (extra || "") + (more.length ? `<optgroup label="Ours">${mine}</optgroup>` + grp("Charted on EF-Map", more.filter(([, e]) => e.status === "confirmed")) + grp("Uncharted: reported once", more.filter(([, e]) => e.status !== "confirmed")) : mine) + pick;
   }
+  function fillPlanner() {
+    const opts = systemOptions("");
+    for (const id of ["plan-from", "plan-to", "plan-stop", "plan-avoid", "check-from"]) { const s = $(id); if (!s) continue; const v = s.value; s.innerHTML = opts; if (v) s.value = v; }
+    const ct = $("check-to"); if (ct) { const v = ct.value; ct.innerHTML = systemOptions(`<option value="">(no target: show every legal hop)</option>`); ct.value = v; }
+    const home = M.ids.get(M.home); if (!$("plan-from").value && home) $("plan-from").value = home.id;
+    renderPrio(); renderChips();
+  }
+  function renderPrio() {
+    $("plan-prio").innerHTML = planPrio.map(([k, on], i) => `<li class="${on ? "on" : "off"}"><label><input type="checkbox" data-priotick="${i}" ${on ? "checked" : ""}>${CRIT[k]}</label><span><button type="button" data-prioup="${i}" ${i ? "" : "disabled"} title="earlier">▲</button><button type="button" data-priodown="${i}" ${i < 5 ? "" : "disabled"} title="later">▼</button></span></li>`).join("");
+    try { localStorage.setItem("roads:prio", JSON.stringify(planPrio)); } catch (e) {}
+  }
+  function renderChips() {
+    $("plan-stops").innerHTML = planStops.map((id, i) => `<span class="chip">${esc(nameOfId(id))}<button type="button" data-chip="stop:${i}" title="remove">×</button></span>`).join("");
+    $("plan-avoids").innerHTML = planAvoid.map((id, i) => `<span class="chip">${esc(nameOfId(id))}<button type="button" data-chip="avoid:${i}" title="remove">×</button></span>`).join("");
+  }
+  // our built roads and recorded public gates, by system number, for the planner (what exists costs nothing to use)
+  function ownRoads() {
+    const out = [];
+    for (const r of M.roads) { if (r.source === "plan" || r.online === false) continue; const a = M.ids.get(r.from), b = M.ids.get(r.to); if (!a || !b) continue; out.push({ a: a.id, b: b.id, kind: r.kind === "Public Gate" ? "Public Gate" : "Our Road", twoWay: !!r.twoWay }); }
+    return out;
+  }
+  const gateStateList = () => (M.list.gates || []).map(g => { const a = M.ids.get(up(g.a)), b = M.ids.get(up(g.b)); return a && b ? { a: a.id, b: b.id, state: g.state || "" } : null; }).filter(Boolean);
+  const WORKER_MSG = () => ({ stars: "stars.bin?v=2", gates: "gates.bin?v=3", catapults: "catapults.bin?v=1" });
   function runPlanner() {
     if (planning) return;
-    const from = +$("plan-from").value, to = +$("plan-to").value, tools = [...$("plan-tools").querySelectorAll("input:checked")].map(i => i.value);
+    const from = +$("plan-from").value, to = +$("plan-to").value, tools = [...$("plan-tools").querySelectorAll("input:checked")].map(i => i.value), mode = $("plan-mode").value, roundTrip = $("plan-round").checked;
     if (!from || !to || from === to) { $("plan-status").textContent = "pick two different systems."; return; }
     if (!tools.some(t => t !== "Public Gate")) { $("plan-status").textContent = "tick at least one launcher to build; public gates alone only go where the network already leads."; }
-    if (!planner) { planner = new Worker("planner.js?v=" + Date.now()); planner.onmessage = e => {
-      const m = e.data;
-      if (m.type === "progress") { $("plan-status").textContent = `searching… ${f0(m.expanded)} systems looked at, closest ${f0(m.closest)} LY`; return; }
+    if (mode === "corridor" && !tools.some(t => /Gate$/.test(t) && t !== "Public Gate")) { $("plan-status").textContent = "a corridor is made of gate pairs: tick Mini Gate or Heavy Gate."; return; }
+    const priorities = planPrio.filter(x => x[1]).map(x => x[0]);
+    getPlanner();
+    onPlanned = m => {
       planning = false; $("plan-run").disabled = false;
       if (m.error) { $("plan-status").textContent = "the planner failed: " + m.error; return; }
-      const nameOf = id => { for (const [n, k] of M.ids) if (k.id === id) return n; const e = M.ef.byId.get(id); return e ? e.name : null; };
-      const target = nameOf(to) || ("#" + to);
-      draft = { name: "Road to " + target.replace(/ \(C6\)$/, ""), hops: m.hops,
-                note: m.reached ? "Found by the planner: fewest launchers, straight-line distances from the archived positions." : "The target cannot be reached with these tools: the road runs to the closest reachable system and ends with a gap only an NPC stargate can cross." };
-      $("plan-status").textContent = `${m.reached ? "road found" : "no full road"} · ${f0(m.expanded)} systems looked at in ${(m.ms / 1000).toFixed(1)} s`;
+      const target = nameOfId(to).replace(/ \(C6\)$/, ""), word = mode === "corridor" ? "Corridor to " : mode === "tree" ? "Network to " : "Road to ";
+      const hops = m.hops.slice(); if (m.back) for (const h of m.back.hops) hops.push(Object.assign({ leg: "back" }, h));
+      const prio = priorities.map(k => CRIT[k]).join(", ");
+      draft = { name: (word + target).slice(0, 40), hops, mode, priorities, from, to, diag: m.reached ? null : m.diagnostics, diagTarget: m.reached ? null : (m.legs.find(l => !l.reached) || {}).to, direct: m.direct,
+                note: (m.reached ? `Found by the planner (${prio}); straight-line distances from the archived positions.` : `The target cannot be reached with these tools: the road runs as far as it can and ends with a crossing no tool makes.`) + (m.back && !m.back.reached ? " The way home is not complete either." : "") };
+      $("plan-status").textContent = `${m.reached ? "road found" : "no full road"} · ${f0(m.expanded)} systems looked at in ${m.ms < 1000 ? m.ms + " ms" : (m.ms / 1000).toFixed(1) + " s"} · catapult hops ${m.graph}`;
       showDraft();
-    }; }
+    };
     planning = true; $("plan-run").disabled = true; $("plan-status").textContent = "searching…";
-    planner.postMessage({ type: "plan", id: Date.now(), from, to, tools, stars: "stars.bin?v=2", gates: "gates.bin?v=3" });   // the client's gate network: free hops
+    planner.postMessage(Object.assign({ type: "plan", id: Date.now(), from, to, stops: planStops, avoid: planAvoid, tools, priorities, mode, roundTrip, roads: ownRoads(), gateStates: gateStateList() }, WORKER_MSG()));
   }
   function showDraft() {                          // the draft rides along as an extra, unsaved plan until kept or dropped
     const d = JSON.parse(JSON.stringify(lastData)); d.list.plans = (d.list.plans || []).concat([Object.assign({ draft: true }, draft)]);
     M = build(d); drawMap(); drawStars(); drawPlans(); drawPlan(M.plans.length - 1);
+  }
+  // ---------- copies: an in-game note (clickable system links, EF-Map's line format), a Discord text, the Lodge ----------
+  const gameLink = (id, name) => `<a href="showinfo:5//${id}">${name.replace(/ \(C6\)$/, "")}</a>`;
+  const stateMark = h => { const s = h.state || (gateRec(h.fromSys, h.toSys) || {}).state; return s === "dormant" ? "*" : s === "unfueled" ? "!" : s === "working" ? "" : "?"; };
+  function noteText(p) {
+    const fwd = p.hops.filter(h => h.leg !== "back"), back = p.hops.filter(h => h.leg === "back"), bill = planBill(fwd);
+    const line = hs => { if (!hs.length) return ""; let s = gameLink(hs[0].from, hs[0].fromSys); for (const h of hs) { const tag = h.gap ? "[STARGATE NEEDED]→" : h.step === "gate" ? `[${h.kind} pair ${h.ly}]⇄` : h.kind === "Public Gate" ? `(Gate${stateMark(h)})→` : h.kind === "Our Road" ? "(ours)→" : h.free ? `(${h.kind.replace("Propulsion ", "")}, built)→` : `[${h.kind.replace(" Catapult", "").replace(" Gate", " Gate")} ${h.ly}]→`; s += ` ${tag} ${gameLink(h.to, h.toSys)}`; } return s; };
+    return `The Saints · ${p.name}\nBuild list, not a flyable route. ${bill.launchers} launcher${bill.launchers === 1 ? "" : "s"}: ${Object.entries(bill.kinds).map(([k, n]) => `${n}× ${k}`).join(", ") || "none"}; ${bill.newNodes.length} new Network Node${bill.newNodes.length === 1 ? "" : "s"}.\nLegend: (Gate)→ public stargate (* dormant, ! no fuel, ? unknown) · [Mini 45.4]→ build a one-way catapult · [Heavy Gate pair 120]⇄ build a gate pair · (ours)→ our road.\n${line(fwd)}${back.length ? "\nThe way home: " + line(back) : ""}`;
+  }
+  function discordText(p) {
+    const fwd = p.hops.filter(h => h.leg !== "back"), bill = planBill(fwd), ly = fwd.reduce((a, h) => a + (h.ly || 0), 0);
+    const rows = fwd.map((h, k) => `${k + 1}. ${h.fromSys.replace(/ \(C6\)$/, "")} → ${h.toSys.replace(/ \(C6\)$/, "")} · ${h.gap ? "STARGATE NEEDED" : h.step === "gate" ? "build " + h.kind + " pair" : h.kind === "Public Gate" ? "public gate" : h.kind === "Our Road" ? "our road" : h.free ? h.kind + " (built above)" : h.kind} · ${Math.round(h.ly || 0)} LY${h.status && h.status !== "planned" ? " · " + STATUS_TEXT[h.status] : ""}${h.who ? " · " + h.who : ""}`);
+    return `**${p.name}** · ${fwd.length} hops · ${f0(ly)} LY\n${rows.join("\n")}\n**To build:** ${bill.launchers} launcher${bill.launchers === 1 ? "" : "s"} (${Object.entries(bill.kinds).map(([k, n]) => `${n}× ${k}`).join(", ") || "none"}), ${bill.newNodes.length} new Network Node${bill.newNodes.length === 1 ? "" : "s"}${bill.launchers ? ` · ${f0(bill.tar)}x Kerogen Tar, ${f0(bill.foam)}x Building Foam, ${f0(bill.kernel)}x Still Kernel` : ""}${bill.pub ? ` · ${bill.pub} public gate jump${bill.pub > 1 ? "s" : ""}` : ""}\nThe Pilgrim Roads: https://www.thesaintsforge.com/roads`;
+  }
+  async function copyText(text, note) {
+    try { await navigator.clipboard.writeText(text); $("plan-copied").textContent = note; }
+    catch (e) { const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); $("plan-copied").textContent = note; } catch (e2) { $("plan-copied").textContent = "copy failed: select the text by hand."; } ta.remove(); }
+    setTimeout(() => { if ($("plan-copied")) $("plan-copied").textContent = ""; }, 4000);
+  }
+  function toLodge(p) {
+    const bill = planBill(p.hops.filter(h => h.leg !== "back")), goals = Object.entries(bill.kinds).map(([k, n]) => ({ item: k, qty: n * (/Gate/.test(k) ? 2 : 1) }));
+    if (bill.newNodes.length) goals.push({ item: "Network Node", qty: bill.newNodes.length });
+    if (!(window.__lodgeImport && window.__siteGo)) { $("plan-copied").textContent = "the Lodge is on the site: open thesaintsforge.com/roads there."; return; }
+    window.__lodgeImport({ name: p.name, goals }); window.__siteGo("lodge");
+  }
+  // ---------- Check a jump: one structure from one star, every legal target on the map ----------
+  function runChecker() {
+    const from = +$("check-from").value, structure = $("check-kind").value, target = +$("check-to").value || null;
+    if (!from) { $("check-status").textContent = "pick the system you jump from."; return; }
+    getPlanner();
+    $("check-status").textContent = "checking…";
+    planner.postMessage(Object.assign({ type: "check", id: Date.now(), from, structure, target }, WORKER_MSG()));
+  }
+  function onChecked(m) {
+    if (m.error) { $("check-status").textContent = "the check failed: " + m.error; return; }
+    checkRes = m; const from = +$("check-from").value;
+    $("check-status").textContent = `${m.legal.length} legal target${m.legal.length === 1 ? "" : "s"} within ${m.range} LY, ${m.blocked.length} in range but blocked`;
+    const li = (id, ly, cls, extra) => `<li class="${cls}"><b>${esc(starName(id))}</b> · ${ly} LY${extra || ""}</li>`;
+    let verdict = "";
+    if (m.target) { const t = m.target, n = esc(starName(t.id));
+      verdict = t.legal ? `<div class="roads-diag ok"><b>${n}</b>: a legal ${esc(m.structure)} jump, ${t.ly} LY.</div>`
+        : !t.inRange ? `<div class="roads-diag"><b>${n}</b> is ${t.ly} LY away, beyond a ${esc(m.structure)} (${m.range} LY).${m.stepTo ? ` The legal hop that ends closest to it: <b>${esc(starName(m.stepTo))}</b>. <button type="button" data-stepto="${m.stepTo}">Step there</button>` : ""}</div>`
+        : `<div class="roads-diag"><b>${n}</b> is ${t.ly} LY away, in range, but the shot is blocked by ${t.blockers.map(b => `<b>${esc(starName(b.id))}</b> (${b.ly} LY out)`).join(", ")}.${m.stepTo ? ` Closest legal hop toward it: <b>${esc(starName(m.stepTo))}</b>. <button type="button" data-stepto="${m.stepTo}">Step there</button>` : ""}</div>`; }
+    $("roads-check").innerHTML = verdict + `<div class="roads-dcols"><div><h4>Legal · ${m.legal.length}</h4><ul>${m.legal.slice(0, 60).map(([id, ly]) => li(id, ly, "ok")).join("") || "<li>none</li>"}${m.legal.length > 60 ? `<li class="roads-hint">and ${m.legal.length - 60} more</li>` : ""}</ul></div>` +
+      (/Catapult/.test(m.structure) ? `<div><h4>Blocked · ${m.blocked.length}</h4><ul>${m.blocked.slice(0, 60).map(([id, ly]) => li(id, ly, "bad", ` <button type="button" class="roads-quiet" data-why="${id}" title="who blocks it">why?</button>`)).join("") || "<li>none</li>"}${m.blocked.length > 60 ? `<li class="roads-hint">and ${m.blocked.length - 60} more</li>` : ""}</ul></div>` : "") +
+      `</div><div class="roads-hint">Green rings on the star map are legal targets, red ones are in range but blocked; a dashed circle is the interference sphere of the tested jump. Gates ignore interference. <button type="button" class="roads-quiet" data-checkclear="1">clear the marks</button></div>`;
+    if (sf) { const marks = m.legal.map(([id]) => ({ id, cls: "ok" })).concat(m.blocked.map(([id]) => ({ id, cls: "bad" }))); if (m.target) marks.push({ id: m.target.id, cls: m.target.legal ? "ok" : "aim", label: starName(m.target.id) }); sf.markMany(marks); sf.sphere(m.target && m.target.inRange && !m.target.legal ? { a: from, b: m.target.id } : null); sf.fitTo([from].concat(m.target ? [m.target.id] : m.legal.slice(0, 12).map(x => x[0]))); }
   }
 
   function drawUnplaced() {
@@ -498,17 +632,31 @@
     $("roads-save-note").textContent = "saving…";
     return fetch("/api/network", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(list) })
       .then(r => r.json().then(x => ({ ok: r.ok, x })))
-      .then(res => { if (!res.ok) { $("roads-save-note").textContent = "not saved: " + ((res.x && res.x.error) || "error"); return; } $("roads-save-note").textContent = what + " saved."; return load(true); })
+      .then(res => { if (!res.ok) { $("roads-save-note").textContent = "not saved: " + ((res.x && res.x.error) || "error"); return; } $("roads-save-note").textContent = what + " saved."; if (M && M.list) Object.assign(M.list, JSON.parse(JSON.stringify(list))); if (lastData && lastData.list) Object.assign(lastData.list, JSON.parse(JSON.stringify(list))); return load(true); })
       .catch(() => { $("roads-save-note").textContent = "not saved: the site could not be reached."; });
   }
   const listCopy = () => JSON.parse(JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, gates: M.list.gates || [], plans: M.list.plans || [] }));
 
   root.addEventListener("click", e => {
     const g = e.target.closest("[data-sys]"); if (g) { selected = selected === g.dataset.sys ? null : g.dataset.sys; drawMap(); drawDetail(); if (sf) { const k = selected && M.ids.get(selected); sf.select(k ? k.id : null); } return; }
+    const st = e.target.closest("[data-hopstatus]");
+    if (st && M && M.canEdit) { const [i, n] = st.dataset.hopstatus.split(":").map(Number); const l = listCopy(), h = l.plans[i].hops[n], cur = h.status || null; const next = cur == null ? "progress" : cur === "progress" ? "built" : cur === "built" ? "planned" : null; if (next) h.status = next; else delete h.status; save(l, "Plan"); return; }
     const b = e.target.closest("button"); if (!b || !M) return;
     if (b.dataset.ugroup) { unplacedBy = b.dataset.ugroup === "node" ? "node" : "builder"; try { localStorage.setItem("roads:unplacedBy", unplacedBy); } catch (e) {} drawUnplaced(); return; }
     if (b.id === "plan-run") { runPlanner(); return; }
-    if (b.dataset.plansave) { const l = listCopy(); l.plans = l.plans.filter(p => !p.draft); l.plans.push({ name: draft.name, note: draft.note, hops: draft.hops }); save(l, "Plan"); return; }
+    if (b.id === "plan-stop-add") { const v = +$("plan-stop").value; if (v && !planStops.includes(v)) planStops.push(v); renderChips(); return; }
+    if (b.id === "plan-avoid-add") { const v = +$("plan-avoid").value; if (v && !planAvoid.includes(v)) planAvoid.push(v); renderChips(); return; }
+    if (b.dataset.chip) { const [k, i] = b.dataset.chip.split(":"); (k === "stop" ? planStops : planAvoid).splice(+i, 1); renderChips(); return; }
+    if (b.dataset.prioup != null) { const i = +b.dataset.prioup; if (i > 0) { [planPrio[i - 1], planPrio[i]] = [planPrio[i], planPrio[i - 1]]; renderPrio(); } return; }
+    if (b.dataset.priodown != null) { const i = +b.dataset.priodown; if (i < planPrio.length - 1) { [planPrio[i + 1], planPrio[i]] = [planPrio[i], planPrio[i + 1]]; renderPrio(); } return; }
+    if (b.dataset.copynote) { copyText(noteText(M.plans[+b.dataset.copynote]), "copied: paste it into a note in game."); return; }
+    if (b.dataset.copytext) { copyText(discordText(M.plans[+b.dataset.copytext]), "copied for Discord."); return; }
+    if (b.dataset.lodge) { toLodge(M.plans[+b.dataset.lodge]); return; }
+    if (b.id === "check-run") { runChecker(); return; }
+    if (b.dataset.stepto) { $("check-from").value = b.dataset.stepto; runChecker(); return; }
+    if (b.dataset.why) { $("check-to").value = b.dataset.why; runChecker(); return; }
+    if (b.dataset.checkclear) { if (sf) { sf.markMany([]); sf.sphere(null); } return; }
+    if (b.dataset.plansave) { const l = listCopy(); l.plans = l.plans.filter(p => !p.draft); l.plans.push({ name: draft.name, note: draft.note, hops: draft.hops, mode: draft.mode, priorities: draft.priorities }); save(l, "Plan"); return; }
     if (b.dataset.plandrop) { draft = null; render(lastData); $("plan-status").textContent = "dropped."; return; }
     if (b.dataset.planremove) { const l = listCopy(); l.plans.splice(+b.dataset.planremove, 1); openPlan = null; save(l, "Plan"); return; }
     if (b.dataset.panel) {
@@ -545,7 +693,12 @@
     if (b.id === "roads-json-save") { let l; try { l = JSON.parse($("roads-json").value); } catch (err) { $("roads-save-note").textContent = "that is not valid JSON."; return; } save(l, "Settings"); }
   });
   root.addEventListener("keydown", e => { const g = e.target.closest && e.target.closest("[data-sys]"); if (g && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); selected = g.dataset.sys; drawMap(); drawDetail(); } });
-  root.addEventListener("change", e => { if (e.target.id === "roads-from" || e.target.id === "roads-to") route(); });
+  root.addEventListener("change", e => {
+    const t = e.target;
+    if (t.dataset && (t.dataset.hopwho || t.dataset.hopby)) { const [i, n] = (t.dataset.hopwho || t.dataset.hopby).split(":").map(Number); const l = listCopy(), h = l.plans[i].hops[n]; if (t.dataset.hopwho) { if (t.value.trim()) h.who = t.value.trim().slice(0, 24); else delete h.who; } else { if (t.value) h.by = t.value; else delete h.by; } save(l, "Plan"); return; }
+    if (t.dataset && t.dataset.priotick != null) { planPrio[+t.dataset.priotick][1] = t.checked ? 1 : 0; renderPrio(); return; }
+    if (t.id === "roads-from" || t.id === "roads-to") route();
+  });
 
   // the page loads its data the first time it is shown
   const seen = () => { if (root.hidden) return; if (!loaded) { loaded = true; load(false); } else if (M) { drawMap(); drawStars(); } };

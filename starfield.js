@@ -67,6 +67,7 @@
     const readNames = (dv, o, n) => { if (o + 4 > dv.byteLength) return null; const cnt = dv.getUint32(o, true); o += 4; const dec = new TextDecoder(), out = new Array(cnt); for (let i = 0; i < cnt; i++) { const l = dv.getUint8(o); out[i] = dec.decode(new Uint8Array(dv.buffer, o + 1, l)); o += 1 + l; } return out; };
     let scene = { systems: [], roads: [] }, lines = [], lineCount = 0, marks = [], markCount = 0, polylines = [];
     let selected = null, hovered = null, marked = null;
+    let many = [], sphereOf = null;             // Check a jump: rings for every legal / blocked target, the sphere of the tested jump
     let gateVerts = 0, gatePairs = 0, gateAdj = new Map(), gatesOn = true;      // the public stargate network: id -> [neighbour ids]
     const cam = { target: [0, 0, 0], dist: 9000, yaw: 0.6, pitch: 0.35 };
     let w = 1, h = 1, dpr = 1, dirty = true, raf = 0;
@@ -225,6 +226,15 @@
         const col = r.online === false ? COLORS.off : pl.col;
         head(last - 1, last, col); if (r.twoWay) head(1, 0, col);
       }
+      // Check a jump: the interference sphere of the tested jump (a circle of the sphere's radius at its centre) and
+      // the legal (green) and blocked (red) targets, plus the aimed-at system in gold
+      if (sphereOf) { const A = P(sphereOf.a), B = P(sphereOf.b); if (A && B) { const mid = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2, (A[2] + B[2]) / 2], r = Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]) / 2, c = project(mid);
+        if (c) { let px = 0; for (const k of [[r, 0, 0], [0, r, 0], [0, 0, r]]) { const q = project([mid[0] + k[0], mid[1] + k[1], mid[2] + k[2]]); if (q) px = Math.max(px, Math.hypot(q[0] - c[0], q[1] - c[1])); }
+          ctx.beginPath(); ctx.arc(c[0], c[1], px, 0, Math.PI * 2); ctx.strokeStyle = "#f1e9d2"; ctx.lineWidth = 1; ctx.setLineDash([4, 5]); ctx.globalAlpha = 0.55; ctx.stroke(); ctx.globalAlpha = 0.08; ctx.fillStyle = "#f1e9d2"; ctx.fill(); ctx.globalAlpha = 1; ctx.setLineDash([]);
+          const a = project(A), b = project(B); if (a && b) { ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.strokeStyle = "#d9b24c"; ctx.lineWidth = 1.2; ctx.setLineDash([2, 4]); ctx.stroke(); ctx.setLineDash([]); } } } }
+      for (const m of many) { const p = project(P(m.id)); if (!p) continue; const col = m.cls === "ok" ? "#7ec98b" : m.cls === "bad" ? "#e3222c" : "#d9b24c", R = m.cls === "aim" ? 9 : 5;
+        ctx.beginPath(); ctx.arc(p[0], p[1], R, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.lineWidth = m.cls === "aim" ? 2 : 1.4; ctx.globalAlpha = 0.9; ctx.stroke(); ctx.globalAlpha = 1;
+        if (m.label) { ctx.font = `600 12px ${display}`; ctx.fillStyle = "rgba(7,7,10,.8)"; ctx.fillText(m.label, p[0] + R + 7, p[1] + 1); ctx.fillStyle = col; ctx.fillText(m.label, p[0] + R + 6, p[1]); } }
       // rings and labels. In priority order (selected, home, ours, the rest, plan waypoints): far from the camera a
       // system close to one already drawn (34 px at galaxy scale, 10 px mid-way, never up close) folds into it (the leader's label gains "+N"); a label whose box would
       // cover another label is left out, its ring stays. Nothing is ever stacked.
@@ -300,6 +310,8 @@
       load, setScene, fit, fitTo, fitAll, project, has: id => byId.has(id), position: P, oldName: id => { const i = byId.get(id); return names && i != null ? names[i] : null; },
       select(id) { selected = id; dirty = true; schedule(); },
       mark(id, label) { marked = id != null && byId.has(id) ? { id, label: label || "" } : null; dirty = true; schedule(); },
+      markMany(list) { many = (list || []).filter(m => m && byId.has(m.id)); dirty = true; schedule(); },
+      sphere(s) { sphereOf = s && byId.has(s.a) && byId.has(s.b) ? { a: s.a, b: s.b } : null; dirty = true; schedule(); },
       look(id, dist) { const p = P(id); if (p) { cam.target = p; if (dist) cam.dist = dist; dirty = true; schedule(); } },
       view(pitchDeg) { cam.pitch = pitchDeg * Math.PI / 180; dirty = true; schedule(); },
       zoom(f) { zoomBy(f); },

@@ -155,7 +155,7 @@ export async function onRequestGet({ request, env }) {
 
 const SYS = v => typeof v === "string" && v.length >= 1 && v.length <= 24;
 const ADDR = v => typeof v === "string" && /^0x[0-9a-f]{64}$/.test(v);
-const KINDS = ["Mini Catapult", "Heavy Catapult", "Mini Gate", "Heavy Gate", "Public Gate"];   // Public Gate = an NPC stargate someone has jumped (nothing to build)
+const KINDS = ["Mini Catapult", "Heavy Catapult", "Mini Gate", "Heavy Gate", "Public Gate", "Our Road"];   // Our Road = a road of ours the plan rides   // Public Gate = an NPC stargate someone has jumped (nothing to build)
 function checkList(d) {
   if (!d || typeof d !== "object" || Array.isArray(d)) return "Not a network list.";
   if (!Array.isArray(d.builders) || d.builders.length > MAX_BUILDERS || !d.builders.every(b => b && typeof b.name === "string" && b.name.length <= 40 && ADDR(b.address))) return "builders must be up to " + MAX_BUILDERS + " of {name, address}.";
@@ -174,8 +174,13 @@ function checkList(d) {
   if (!Array.isArray(gates) || gates.length > 500 || !gates.every(g => g && SYS(g.a) && SYS(g.b) && g.a !== g.b && (g.note == null || (typeof g.note === "string" && g.note.length <= 80))
       && (g.state == null || GATE_STATES.includes(g.state)) && (g.seen == null || (typeof g.seen === "string" && DAY.test(g.seen))))) return "gates must be a list of {a, b, state?, seen?} (a gate someone has jumped; state working, unfueled or dormant; seen YYYY-MM-DD).";
   const plans = d.plans == null ? [] : d.plans;
-  const HOP = h => h && SID(h.from) && SID(h.to) && (h.gap === true || KINDS.includes(h.kind)) && (h.ly == null || typeof h.ly === "number") && (h.fromName == null || SYS(h.fromName)) && (h.toName == null || SYS(h.toName));
-  if (!Array.isArray(plans) || plans.length > 20 || !plans.every(p => p && typeof p.name === "string" && p.name.length <= 40 && (p.note == null || (typeof p.note === "string" && p.note.length <= 400)) && Array.isArray(p.hops) && p.hops.length <= 400 && p.hops.every(HOP))) return "plans must be a list of {name, note, hops: [{from, to, kind | gap, ly}]}.";
+  const HSTAT = ["planned", "progress", "built"], DAYS = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+  const HOP = h => h && SID(h.from) && SID(h.to) && (h.gap === true || KINDS.includes(h.kind)) && (h.ly == null || typeof h.ly === "number") && (h.fromName == null || SYS(h.fromName)) && (h.toName == null || SYS(h.toName))
+    && (h.status == null || HSTAT.includes(h.status)) && (h.who == null || (typeof h.who === "string" && h.who.length <= 24)) && (h.by == null || (typeof h.by === "string" && DAYS.test(h.by)))
+    && (h.leg == null || h.leg === "back") && (h.step == null || h.step === "gate") && (h.free == null || h.free === true) && (h.state == null || GATE_STATES.includes(h.state));
+  const PLAN = p => p && typeof p.name === "string" && p.name.length <= 40 && (p.note == null || (typeof p.note === "string" && p.note.length <= 400)) && Array.isArray(p.hops) && p.hops.length <= 400 && p.hops.every(HOP)
+    && (p.mode == null || ["access", "corridor", "tree"].includes(p.mode)) && (p.priorities == null || (Array.isArray(p.priorities) && p.priorities.length <= 6 && p.priorities.every(k => typeof k === "string" && k.length <= 12)));
+  if (!Array.isArray(plans) || plans.length > 20 || !plans.every(PLAN)) return "plans must be a list of {name, note, mode?, priorities?, hops: [{from, to, kind | gap, ly, status?, who?, by?}]}.";
   return null;
 }
 
