@@ -135,7 +135,7 @@ export async function onRequestGet({ request, env }) {
 
 const SYS = v => typeof v === "string" && v.length >= 1 && v.length <= 24;
 const ADDR = v => typeof v === "string" && /^0x[0-9a-f]{64}$/.test(v);
-const KINDS = ["Mini Catapult", "Heavy Catapult", "Mini Gate", "Heavy Gate"];
+const KINDS = ["Mini Catapult", "Heavy Catapult", "Mini Gate", "Heavy Gate", "Public gate"];   // Public gate = an existing NPC stargate hop in a plan (nothing to build)
 function checkList(d) {
   if (!d || typeof d !== "object" || Array.isArray(d)) return "Not a network list.";
   if (!Array.isArray(d.builders) || d.builders.length > MAX_BUILDERS || !d.builders.every(b => b && typeof b.name === "string" && b.name.length <= 40 && ADDR(b.address))) return "builders must be up to " + MAX_BUILDERS + " of {name, address}.";

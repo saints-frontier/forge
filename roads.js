@@ -194,6 +194,16 @@
   let M = null, selected = null, picked = null;             // picked: a charted system clicked on the star map (not one of ours)
   let unplacedBy = "builder"; try { unplacedBy = localStorage.getItem("roads:unplacedBy") === "node" ? "node" : "builder"; } catch (e) {}   // how Not on the map is grouped
   let showCharted = true; try { showCharted = localStorage.getItem("roads:charted") !== "0"; } catch (e) {}
+  let showGates = true; try { showGates = localStorage.getItem("roads:gates") !== "0"; } catch (e) {}       // the public stargate network (gates.bin)
+  // a system's name as the page knows it: ours, then EF-Map's, then the archived Cycle 6 name marked (C6)
+  const nameOfId = id => { for (const [n, k] of M.ids) if (k.id === id) return n; const e = M.ef.byId.get(id); if (e && e.status === "confirmed") return e.name; const old = sf && sf.oldName(id); return old ? old + " (C6)" : "#" + id; };
+  // the public gates of one system, from the game client: nothing says whether they are working or dormant
+  function gateList(id) {
+    if (!sf || !sf.gateCount()) return "";
+    const g = sf.gatesOf(id); if (!g.length) return `<div class="roads-hint">No public stargate here in the game client.</div>`;
+    const rows = g.map(o => ({ o, d: dist ? dist(id, o) : null })).sort((a, b) => (a.d || 0) - (b.d || 0));
+    return `<h4>Public gates · ${g.length}</h4><ul>${rows.map(r => `<li><b>${esc(nameOfId(r.o))}</b>${r.d != null ? ` · ${Math.round(r.d).toLocaleString("en-US")} LY` : ""}</li>`).join("")}</ul><div class="roads-hint">From the game client (patch 0.7.3.0). Working, unfueled or dormant: only a jump tells.</div>`;
+  }
   function drawMap() {
     const box = $("roads-map");
     if (!M.systems.size) { box.innerHTML = `<div class="roads-empty">No road is on the map yet. ${M.list.builders.length ? "A launcher appears when its name in game carries its systems: see Not on the map." : "No builder is set."}</div>`; return; }
@@ -248,7 +258,7 @@
         : e && e.status === "conflict" ? `Not confirmed: players disagree on its name (most reported: ${esc(e.name)}).`
         : e ? `Not confirmed: one player has reported the name ${esc(e.name)}. A second matching report on EF-Map charts it.`
         : `Nobody has reported a name for it yet${old ? ` (its Cycle 6 name was ${esc(old)})` : ""}.`;
-      el.hidden = false; el.innerHTML = `<div class="roads-dh">${ok ? esc(e.name) : "Uncharted"}</div><div class="roads-hint">${what}${where}</div>`; return; }
+      el.hidden = false; el.innerHTML = `<div class="roads-dh">${ok ? esc(e.name) : "Uncharted"}</div><div class="roads-hint">${what}${where}</div>` + (showGates ? `<div class="roads-dcols"><div>${gateList(picked)}</div></div>` : ""); return; }
     if (!selected || !M.systems.has(selected)) { el.hidden = true; el.innerHTML = ""; return; }
     el.hidden = false;
     const s = M.systems.get(selected), out = M.roads.filter(r => r.from === selected || (r.twoWay && r.to === selected)), inn = M.roads.filter(r => r.to === selected && !r.twoWay);
@@ -257,7 +267,8 @@
     el.innerHTML = `<div class="roads-dh">${esc(selected)}${kSel && kSel.ef ? ` <span class="roads-hint">· its place on the star map comes from EF-Map (${esc(kSel.ef)})</span>` : ""}</div>` +
       `<div class="roads-dcols"><div><h4>Roads out</h4><ul>${out.map(r => row(r, r.from === selected ? r.to : r.from)).join("") || "<li>None: a dead end.</li>"}</ul></div>` +
       `<div><h4>Roads in</h4><ul>${inn.map(r => row(r, r.from)).join("") || "<li>None.</li>"}</ul></div>` +
-      `<div><h4>Our nodes here</h4><ul>${s.nodes.map(n => `<li><b>${esc(n.name || short(n.id))}</b>${M.nodeGuess(n.id) ? " · worked out" : ""} · ${n.fuel.quantity.toLocaleString("en-US")} fuel${M.daysOf(n) == null ? " · not burning" : ` · <span class="${fuelClass(M.daysOf(n))}">${fmtDays(M.daysOf(n))}</span>`}</li>`).join("") || "<li>None known.</li>"}</ul></div></div>`;
+      `<div><h4>Our nodes here</h4><ul>${s.nodes.map(n => `<li><b>${esc(n.name || short(n.id))}</b>${M.nodeGuess(n.id) ? " · worked out" : ""} · ${n.fuel.quantity.toLocaleString("en-US")} fuel${M.daysOf(n) == null ? " · not burning" : ` · <span class="${fuelClass(M.daysOf(n))}">${fmtDays(M.daysOf(n))}</span>`}</li>`).join("") || "<li>None known.</li>"}</ul></div>` +
+      (showGates && kSel ? `<div>${gateList(kSel.id)}</div>` : "") + `</div>`;
   }
 
   function drawFuel() {
@@ -308,8 +319,12 @@
       if (!sf) return Promise.resolve(null);
       window.__roadsStars = sf;                                      // tests
       box.insertAdjacentHTML("beforeend", '<div class="sf-hint">drag: turn · shift-drag: move · ctrl + wheel: zoom · click any star</div><div class="sf-missing" id="sf-missing"></div>' +
-        '<div class="sf-tools"><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="fit" title="Our network">Our roads</button><button type="button" data-sf="all" title="The whole galaxy">Galaxy</button><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button></div>');
-      sfLoading = sf.load("stars.bin?v=2").then(() => { dist = (a, b) => { const p = sf.position(a), q = sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; }; if (lastData && !draft) { M = build(lastData); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); stamp(lastData); } return sf; }).catch(e => { box.insertAdjacentHTML("beforeend", `<div class="sf-nogl">The stars could not be loaded: ${esc(e.message)}.</div>`); return null; });
+        '<div class="sf-tools"><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="fit" title="Our network">Our roads</button><button type="button" data-sf="all" title="The whole galaxy">Galaxy</button><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button></div>');
+      sfLoading = sf.load("stars.bin?v=2").then(() => { dist = (a, b) => { const p = sf.position(a), q = sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; }; if (lastData && !draft) { M = build(lastData); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); stamp(lastData); }
+        // the public gates come after the stars, never in their way: the button appears once they are in
+        sf.showGates(showGates);
+        sf.loadGates("gates.bin?v=1").then(n => { const b = box.querySelector('[data-sf="gates"]'); if (b) { b.hidden = false; b.textContent = `Public gates · ${n.toLocaleString("en-US")}`; b.classList.toggle("on", showGates); } if (M) drawDetail(); }).catch(() => {});
+        return sf; }).catch(e => { box.insertAdjacentHTML("beforeend", `<div class="sf-nogl">The stars could not be loaded: ${esc(e.message)}.</div>`); return null; });
     }
     return sfLoading;
   }
@@ -360,11 +375,11 @@
     const builds = p.hops.filter(h => !h.gap), gaps = p.hops.filter(h => h.gap), ly = p.hops.reduce((a, h) => a + (h.ly || 0), 0);
     const mats = [0, 0, 0]; let launchers = 0;
     for (const h of builds) { const c = COST[h.kind]; if (!c) continue; const n = /Gate/.test(h.kind) ? 2 : 1; launchers += n; c.forEach((v, k) => mats[k] += v * n); }
-    const nodes = builds.length;
-    const row = (h, k) => `<div class="roads-prow"><span>${k + 1}</span><span><b>${esc(h.fromSys)}</b></span><span><b>${esc(h.toSys)}</b></span><span class="${h.gap ? "gap" : "k"}">${h.gap ? "STARGATE NEEDED" : esc(h.kind)}</span><span class="ly">${(h.ly || 0).toFixed(1)}</span></div>`;
+    const pub = builds.filter(h => h.kind === "Public gate").length, nodes = builds.length - pub;   // a public gate is nothing to build, and no node
+    const row = (h, k) => `<div class="roads-prow"><span>${k + 1}</span><span><b>${esc(h.fromSys)}</b></span><span><b>${esc(h.toSys)}</b></span><span class="${h.gap ? "gap" : h.kind === "Public gate" ? "pub" : "k"}">${h.gap ? "STARGATE NEEDED" : h.kind === "Public gate" ? "public gate · status unknown" : esc(h.kind)}</span><span class="ly">${(h.ly || 0).toFixed(1)}</span></div>`;
     $("roads-plan").innerHTML = `<div class="roads-plan"><div class="ph">${esc(p.name)}<small>${p.hops.length} hops · ${f0(ly)} LY</small></div>` +
       (p.note ? `<div class="pnote">${esc(p.note)}</div>` : "") +
-      `<div class="ptot"><span><b>${launchers}</b> launchers to build (a gate counts twice)</span><span><b>${nodes}</b> Network Nodes</span>${gaps.length ? `<span class="gap" style="color:var(--red)"><b>${gaps.length}</b> stargate${gaps.length > 1 ? "s" : ""} to find</span>` : ""}` +
+      `<div class="ptot"><span><b>${launchers}</b> launchers to build (a gate counts twice)</span><span><b>${nodes}</b> Network Nodes</span>${pub ? `<span><b>${pub}</b> public gate${pub > 1 ? "s" : ""} to jump: working or dormant, nobody has checked</span>` : ""}${gaps.length ? `<span class="gap" style="color:var(--red)"><b>${gaps.length}</b> stargate${gaps.length > 1 ? "s" : ""} to find</span>` : ""}` +
       `<span>Kerogen Tar <b>${f0(mats[0])}</b></span><span>Building Foam <b>${f0(mats[1])}</b></span><span>Still Kernel <b>${f0(mats[2])}</b></span><span>+ per node 8 Printed Circuits, 8 Carbon Weave, 8 Thermal Composites and fuel</span></div>` +
       `<div class="roads-phead"><span>#</span><span>From</span><span>To</span><span>Build</span><span class="ly">LY</span></div>` + p.hops.map(row).join("") +
       `<div class="roads-hint">Systems marked (C6) carry their Cycle 6 name: their Cycle 7 name is not known yet. Distances are straight lines from the archived positions.</div>` +
@@ -387,7 +402,7 @@
     if (planning) return;
     const from = +$("plan-from").value, to = +$("plan-to").value, tools = [...$("plan-tools").querySelectorAll("input:checked")].map(i => i.value);
     if (!from || !to || from === to) { $("plan-status").textContent = "pick two different systems."; return; }
-    if (!tools.length) { $("plan-status").textContent = "tick at least one tool."; return; }
+    if (!tools.some(t => t !== "Public gate")) { $("plan-status").textContent = "tick at least one launcher to build; public gates alone only go where the old network already leads."; }
     if (!planner) { planner = new Worker("planner.js?v=" + Date.now()); planner.onmessage = e => {
       const m = e.data;
       if (m.type === "progress") { $("plan-status").textContent = `searching… ${f0(m.expanded)} systems looked at, closest ${f0(m.closest)} LY`; return; }
@@ -401,7 +416,7 @@
       showDraft();
     }; }
     planning = true; $("plan-run").disabled = true; $("plan-status").textContent = "searching…";
-    planner.postMessage({ type: "plan", id: Date.now(), from, to, tools, stars: "stars.bin?v=2" });
+    planner.postMessage({ type: "plan", id: Date.now(), from, to, tools, stars: "stars.bin?v=2", gates: "gates.bin?v=1" });
   }
   function showDraft() {                          // the draft rides along as an extra, unsaved plan until kept or dropped
     const d = JSON.parse(JSON.stringify(lastData)); d.list.plans = (d.list.plans || []).concat([Object.assign({ draft: true }, draft)]);
@@ -488,6 +503,7 @@
     }
     if (b.id === "roads-refresh") { load(true); return; }
     if (b.dataset.view) { setView(b.dataset.view); return; }
+    if (b.dataset.sf === "gates") { showGates = !showGates; try { localStorage.setItem("roads:gates", showGates ? "1" : "0"); } catch (e) {} if (sf) sf.showGates(showGates); b.classList.toggle("on", showGates); drawDetail(); return; }
     if (b.dataset.sf === "charted") { showCharted = !showCharted; try { localStorage.setItem("roads:charted", showCharted ? "1" : "0"); } catch (e) {} if (!showCharted) { picked = null; if (sf) sf.mark(null); } drawStars(); drawDetail(); return; }
     if (b.dataset.sf && sf) { if (b.dataset.sf === "fit") sf.fit(); else if (b.dataset.sf === "all") sf.fitAll(); else if (b.dataset.sf === "in") sf.zoom(1 / 1.35); else if (b.dataset.sf === "out") sf.zoom(1.35); else sf.view(b.dataset.sf === "top" ? 88 : 4); return; }
     if (b.id === "roads-paste-save") {

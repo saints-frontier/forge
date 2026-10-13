@@ -11,6 +11,17 @@ const RANGE = { "Mini Catapult": 60, "Heavy Catapult": 250, "Mini Gate": 105, "H
 const COST = { "Mini Catapult": 1, "Heavy Catapult": 1, "Mini Gate": 2, "Heavy Gate": 2 };    // launchers to build
 const CELL = 125;
 let N = 0, X = null, Y = null, Z = null, ID = null, NAME = null, grid = null, index = null, loading = null;
+let GATES = null, gatesLoading = null;               // star index -> [star indices]: the public stargate network (gates.bin), hops that cost nothing to build
+
+function loadGates(url) {                           // after the stars: the pairs become index lists
+  if (gatesLoading) return gatesLoading;
+  gatesLoading = fetch(url).then(r => { if (!r.ok) throw new Error("gates " + r.status); return r.arrayBuffer(); }).then(buf => {
+    const dv = new DataView(buf), cnt = dv.getUint32(8, true); GATES = new Map();
+    const push = (a, b) => { let l = GATES.get(a); if (!l) GATES.set(a, l = []); l.push(b); };
+    for (let i = 0, o = 12; i < cnt; i++, o += 9) { const a = index.get(dv.getUint32(o, true)), b = index.get(dv.getUint32(o + 4, true)); if (a == null || b == null) continue; push(a, b); push(b, a); }
+  }).catch(() => { GATES = new Map(); });
+  return gatesLoading;
+}
 
 function load(url) {
   if (loading) return loading;
@@ -47,30 +58,34 @@ class Heap { constructor() { this.a = []; } push(x) { const a = this.a; a.push(x
   get size() { return this.a.length; } }
 
 // every star reachable from `src` by hops of at most `r` (no interference: gates ignore it; a quick pre-check)
-function component(src, r) {
+function component(src, r, gates) {               // gates: the public network counts as reach too (a pilot can jump it, status permitting)
   const seen = new Set([src]), q = [src], cand = [];
-  for (let qi = 0; qi < q.length; qi++) { const s = q[qi]; within(X[s], Y[s], Z[s], r, cand); for (const n of cand) if (!seen.has(n)) { seen.add(n); q.push(n); } }
+  for (let qi = 0; qi < q.length; qi++) { const s = q[qi]; if (r > 0) { within(X[s], Y[s], Z[s], r, cand); for (const n of cand) if (!seen.has(n)) { seen.add(n); q.push(n); } }
+    if (gates) for (const n of gates.get(s) || []) if (!seen.has(n)) { seen.add(n); q.push(n); } }
   return seen;
 }
 function plan(fromId, toId, tools, avoidIds) {
   const src = index.get(fromId), dst0 = index.get(toId); let dst = dst0;
   if (src == null || dst == null) return { error: "unknown system" };
   // an unreachable target (a pocket behind a gap wider than every tool): aim for the reachable star closest to it
-  const kinds0 = tools.filter(t => RANGE[t]); if (!kinds0.length) return { error: "no tool" };
-  const comp = component(src, Math.max(...kinds0.map(k => RANGE[k])));
+  // "Public gate" among the tools: the existing NPC network may be jumped, nothing to build, status unknown
+  const gates = tools.includes("Public gate") && GATES && GATES.size ? GATES : null;
+  const kinds0 = tools.filter(t => RANGE[t]); if (!kinds0.length && !gates) return { error: "no tool" };
+  const comp = component(src, kinds0.length ? Math.max(...kinds0.map(k => RANGE[k])) : 0, gates);
   let pocket = false;
   if (!comp.has(dst)) { pocket = true; let bd = Infinity; for (const i of comp) { const d = dist(i, dst0); if (d < bd) { bd = d; dst = i; } } }
   // a gate pair needs a builder at BOTH ends, so a gate can only join systems a catapult can already reach: with a
   // catapult among the tools, gate hops stay inside the catapult-reachable set (gates then save launchers or add a
-  // two-way road, never reach); with gates alone the rule is off and the pilot must know another way across
+  // two-way road, never reach); with gates alone the rule is off and the pilot must know another way across.
+  // Public gates extend that reach: a builder can ride them to the far side.
   const catR = Math.max(0, ...kinds0.filter(k => /Catapult/.test(k)).map(k => RANGE[k]));
-  const reach = catR ? component(src, catR) : null;
+  const reach = catR ? component(src, catR, gates) : null;
   if (reach && !reach.has(dst)) { let bd = Infinity; for (const i of reach) { const d = dist(i, dst0); if (d < bd) { bd = d; dst = i; } } pocket = true; }
   const kinds = tools.filter(t => RANGE[t]).sort((a, b) => RANGE[a] - RANGE[b]);      // shortest range first: the cheapest tool that reaches wins
-  if (!kinds.length) return { error: "no tool" };
-  const maxR = Math.max(...kinds.map(k => RANGE[k])), BIG = 1e7;
+  const maxR = kinds.length ? Math.max(...kinds.map(k => RANGE[k])) : 0, BIG = 1e7;
   const avoid = new Set((avoidIds || []).map(id => index.get(id)).filter(i => i != null));
-  const h = i => Math.ceil(Math.max(0, dist(i, dst) - 1e-9) / maxR) * BIG + dist(i, dst);
+  // with public gates a far target may cost no launcher at all, so the launcher part of the heuristic is dropped (slower, still exact)
+  const h = gates ? (i => dist(i, dst)) : (i => Math.ceil(Math.max(0, dist(i, dst) - 1e-9) / maxR) * BIG + dist(i, dst));
   const best = new Map([[src, 0]]), came = new Map(), via = new Map();
   const heap = new Heap(); heap.push([h(src), 0, src]);
   const cand = []; let expanded = 0, t0 = Date.now(), lastMsg = t0, done = false;
@@ -80,7 +95,7 @@ function plan(fromId, toId, tools, avoidIds) {
     if (g > best.get(s)) continue;
     expanded++;
     if (Date.now() - lastMsg > 500) { lastMsg = Date.now(); postMessage({ type: "progress", expanded, closest: Math.round(dist(s, dst)) }); }
-    within(X[s], Y[s], Z[s], maxR, cand);
+    if (maxR > 0) within(X[s], Y[s], Z[s], maxR, cand); else cand.length = 0;
     for (const n of cand) {
       if (n === s || (avoid.has(n) && n !== dst)) continue;
       const d = dist(s, n); let kind = null, blk = null;
@@ -89,6 +104,12 @@ function plan(fromId, toId, tools, avoidIds) {
       const ng = g + COST[kind] * BIG + d;
       if (ng >= (best.get(n) ?? Infinity)) continue;
       best.set(n, ng); came.set(n, s); via.set(n, kind); heap.push([ng + h(n), ng, n]);
+    }
+    if (gates) for (const n of gates.get(s) || []) {          // a public gate hop: nothing to build, only the light-years
+      if (avoid.has(n) && n !== dst) continue;
+      const ng = g + dist(s, n);
+      if (ng >= (best.get(n) ?? Infinity)) continue;
+      best.set(n, ng); came.set(n, s); via.set(n, "Public gate"); heap.push([ng + h(n), ng, n]);
     }
   }
   let end = dst, reached = done && !pocket;
@@ -105,6 +126,7 @@ onmessage = async e => {
   const m = e.data;
   try {
     await load(m.stars || "stars.bin?v=2");
+    if (m.gates && (m.tools || []).includes("Public gate")) await loadGates(m.gates);
     if (m.type === "plan") { const r = plan(m.from, m.to, m.tools || ["Heavy Catapult"], m.avoid); postMessage(Object.assign({ type: "done", id: m.id }, r)); }
   } catch (err) { postMessage({ type: "done", id: m.id, error: String(err && err.message || err) }); }
 };

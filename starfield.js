@@ -13,7 +13,7 @@
 (function () {
   "use strict";
   const LY_FOV = 50 * Math.PI / 180;
-  const COLORS = { home: "#e3222c", ours: "#d9b24c", inferred: "#b8b3a8", far: "#8a8378", plan: "#9a9389", charted: "#8d98a3", uncharted: "#737d86", road: "#d9b24c", planned: "#b8b3a8", off: "#e3222c", gate: "#f1e9d2", hand: "#b8b3a8" };
+  const COLORS = { home: "#e3222c", ours: "#d9b24c", inferred: "#b8b3a8", far: "#8a8378", plan: "#9a9389", charted: "#8d98a3", uncharted: "#737d86", road: "#d9b24c", planned: "#b8b3a8", off: "#e3222c", gate: "#f1e9d2", hand: "#b8b3a8", pub: "#7d8894" };
 
   function Starfield(container, opts) {
     opts = opts || {};
@@ -53,8 +53,12 @@
       void main() { gl_Position = uVP * vec4(aPos, 1.0); gl_PointSize = max(1.5, aSize * uDpr * uK); vCol = aCol; }`, `
       precision mediump float; varying vec4 vCol;
       void main() { float d = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.1, d) * vCol.a; gl_FragColor = vec4(vCol.rgb * a, a); }`);
+    // the public stargate network: one colour for every line, faint at galaxy scale (the alpha is a uniform)
+    const gateProg = program(`
+      attribute vec3 aPos; uniform mat4 uVP; void main() { gl_Position = uVP * vec4(aPos, 1.0); }`, `
+      precision mediump float; uniform vec4 uCol; void main() { gl_FragColor = vec4(uCol.rgb * uCol.a, uCol.a); }`);
     const loc = (p, n) => gl.getAttribLocation(p, n), uloc = (p, n) => gl.getUniformLocation(p, n);
-    const starBuf = gl.createBuffer(), glowBuf = gl.createBuffer(), lineBuf = gl.createBuffer(), markBuf = gl.createBuffer();
+    const starBuf = gl.createBuffer(), glowBuf = gl.createBuffer(), lineBuf = gl.createBuffer(), markBuf = gl.createBuffer(), gateBuf = gl.createBuffer();
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.disable(gl.DEPTH_TEST);
 
     // ---------- state ----------
@@ -62,6 +66,7 @@
     const readNames = (dv, o, n) => { if (o + 4 > dv.byteLength) return null; const cnt = dv.getUint32(o, true); o += 4; const dec = new TextDecoder(), out = new Array(cnt); for (let i = 0; i < cnt; i++) { const l = dv.getUint8(o); out[i] = dec.decode(new Uint8Array(dv.buffer, o + 1, l)); o += 1 + l; } return out; };
     let scene = { systems: [], roads: [] }, lines = [], lineCount = 0, marks = [], markCount = 0, polylines = [];
     let selected = null, hovered = null, marked = null;
+    let gateVerts = 0, gatePairs = 0, gateAdj = new Map(), gatesOn = true;      // the public stargate network (gates.bin), id -> [neighbour ids]
     const cam = { target: [0, 0, 0], dist: 9000, yaw: 0.6, pitch: 0.35 };
     let w = 1, h = 1, dpr = 1, dirty = true, raf = 0;
     const VP = new Float32Array(16);
@@ -81,6 +86,22 @@
       gl.bindBuffer(gl.ARRAY_BUFFER, starBuf); gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
       gl.bindBuffer(gl.ARRAY_BUFFER, glowBuf); gl.bufferData(gl.ARRAY_BUFFER, gh, gl.STATIC_DRAW);
       dirty = true; schedule(); return n;
+    }
+    // gates.bin (tools/export_gates.py): "GATE", u32 build, u32 count, then u32 a, u32 b, u8 kind per pair. The pairs the
+    // star file knows become one GL line list; every system gets its neighbour list for the detail panel and highlights.
+    async function loadGates(url) {
+      const buf = await fetch(url).then(r => { if (!r.ok) throw new Error("gates " + r.status); return r.arrayBuffer(); });
+      const dv = new DataView(buf); if (String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3)) !== "GATE") throw new Error("not a gate file");
+      const cnt = dv.getUint32(8, true), v = new Float32Array(cnt * 6); let k = 0; gateAdj = new Map(); gatePairs = 0;
+      const push = (id, o) => { let a = gateAdj.get(id); if (!a) gateAdj.set(id, a = []); a.push(o); };
+      for (let i = 0, o = 12; i < cnt; i++, o += 9) {
+        const a = dv.getUint32(o, true), b = dv.getUint32(o + 4, true), ia = byId.get(a), ib = byId.get(b); if (ia == null || ib == null) continue;
+        v[k++] = pos[ia * 3]; v[k++] = pos[ia * 3 + 1]; v[k++] = pos[ia * 3 + 2]; v[k++] = pos[ib * 3]; v[k++] = pos[ib * 3 + 1]; v[k++] = pos[ib * 3 + 2];
+        push(a, b); push(b, a); gatePairs++;
+      }
+      gateVerts = k / 3;
+      gl.bindBuffer(gl.ARRAY_BUFFER, gateBuf); gl.bufferData(gl.ARRAY_BUFFER, v.subarray(0, k), gl.STATIC_DRAW);
+      dirty = true; schedule(); return gatePairs;
     }
     const P = id => { const i = byId.get(id); return i == null ? null : [pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]]; };
     const rgba = (hex, a) => [parseInt(hex.slice(1, 3), 16) / 255, parseInt(hex.slice(3, 5), 16) / 255, parseInt(hex.slice(5, 7), 16) / 255, a];
@@ -105,7 +126,7 @@
         const C = add(mul(add(A, B), 0.5), bow);
         const segs = catapult ? 28 : 1, pts = [];
         for (let i = 0; i <= segs; i++) { const t = i / segs, u = 1 - t; pts.push(add(add(mul(A, u * u), mul(C, 2 * u * t)), mul(B, t * t))); }
-        const col = r.online === false ? COLORS.off : r.status === "planned" ? COLORS.planned : r.source === "inferred" ? COLORS.hand : /Gate/.test(r.kind || "") ? COLORS.gate : COLORS.road;
+        const col = r.online === false ? COLORS.off : r.kind === "Public gate" ? COLORS.pub : r.status === "planned" ? COLORS.planned : r.source === "inferred" ? COLORS.hand : /Gate/.test(r.kind || "") ? COLORS.gate : COLORS.road;
         polys.push({ road: r, pts, col, heavy: /Heavy/.test(r.kind || ""), dash: r.status === "planned" ? [2, 5] : r.status === "progress" || r.online === false || r.source === "inferred" ? [7, 6] : [], alpha: r.status === "planned" ? 0.6 : 0.95 });
       }
       for (const s of scene.systems) { const p = P(s.id), col = COLORS[s.cls] || COLORS.far, minor = s.cls === "charted" || s.cls === "uncharted", size = s.cls === "home" ? 9 : s.cls === "ours" ? 7 : s.cls === "uncharted" ? 2 : minor ? 2.6 : 5; M.push(...p, ...rgba(col, minor ? 0.07 : 0.16), size * 4.5); M.push(...p, ...rgba(col, minor ? 0.75 : 0.95), size); }
@@ -157,6 +178,13 @@
         gl.bindBuffer(gl.ARRAY_BUFFER, glowBuf); const ag = loc(starProg, "aGlowHue"); gl.enableVertexAttribArray(ag); gl.vertexAttribPointer(ag, 2, gl.FLOAT, false, 0, 0);
         gl.drawArrays(gl.POINTS, 0, n);
       }
+      if (gatesOn && gateVerts) {
+        // the whole network is a hairball from far away: fade it with distance, let it come up as the camera closes in
+        const a = Math.max(0.05, Math.min(0.38, 90 / cam.dist)), c = rgba(COLORS.pub, a);
+        gl.useProgram(gateProg); gl.uniformMatrix4fv(uloc(gateProg, "uVP"), false, VP); gl.uniform4f(uloc(gateProg, "uCol"), c[0], c[1], c[2], c[3]);
+        gl.bindBuffer(gl.ARRAY_BUFFER, gateBuf); const ap = loc(gateProg, "aPos"); gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap, 3, gl.FLOAT, false, 0, 0);
+        gl.drawArrays(gl.LINES, 0, gateVerts);
+      }
       if (false && lineCount) {
         gl.useProgram(lineProg); gl.uniformMatrix4fv(uloc(lineProg, "uVP"), false, VP);
         gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf); const ap = loc(lineProg, "aPos"), ac = loc(lineProg, "aCol");
@@ -173,8 +201,16 @@
     }
     function overlay() {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
-      // the roads: arcs and lines projected point by point, then the arrowheads (both ends of a two-way road)
       ctx.lineCap = "round"; ctx.lineJoin = "round";
+      // the public gates of the system under the pointer, the selected one and a picked star: drawn bright over the faint network
+      if (gatesOn && gateAdj.size) {
+        const hot = new Set([selected, hovered, marked && marked.id].filter(x => x != null));
+        for (const id of hot) { const a = project(P(id)); if (!a) continue;
+          for (const o of gateAdj.get(id) || []) { const b = project(P(o)); if (!b) continue;
+            ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.strokeStyle = "#aab3bc"; ctx.lineWidth = 1.4; ctx.globalAlpha = 0.85; ctx.stroke(); ctx.globalAlpha = 1;
+            ctx.beginPath(); ctx.arc(b[0], b[1], 3, 0, Math.PI * 2); ctx.fillStyle = "#aab3bc"; ctx.fill(); } }
+      }
+      // the roads: arcs and lines projected point by point, then the arrowheads (both ends of a two-way road)
       for (const pl of polylines) {
         const q = pl.pts.map(project); if (q.some(x => !x)) continue;
         ctx.beginPath(); q.forEach((x, i) => i ? ctx.lineTo(x[0], x[1]) : ctx.moveTo(x[0], x[1]));
@@ -267,6 +303,8 @@
       view(pitchDeg) { cam.pitch = pitchDeg * Math.PI / 180; dirty = true; schedule(); },
       zoom(f) { zoomBy(f); },
       count: () => n,
+      loadGates, gatesOf: id => (gateAdj.get(id) || []).slice(), gateCount: () => gatePairs,
+      showGates(on) { gatesOn = !!on; dirty = true; schedule(); },
       destroy() { ro.disconnect(); if (raf) cancelAnimationFrame(raf); gl3.remove(); ov.remove(); }
     };
   }
