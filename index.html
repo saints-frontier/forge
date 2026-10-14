@@ -508,6 +508,11 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-group button:last-child { border-right: 0; }
 .roads-prow .have { color: var(--good, #5bb36a); }
 .roads-have { font: 12px var(--mono); color: var(--silver); padding: 4px 0 6px; } .roads-have b { color: var(--title); } .roads-have .have { color: var(--good, #5bb36a); } .roads-have .k { color: var(--gold); } .roads-have .gap { color: var(--red); }
+#roads-check ul li { display: flex; align-items: center; gap: 6px; }
+#roads-check ul li button.jump { background: none; border: 0; padding: 2px 4px; font: 12px var(--mono); color: var(--silver); cursor: pointer; text-align: left; border-radius: 3px; }
+#roads-check ul li button.jump:hover { background: rgba(255,255,255,.07); }
+#roads-check ul li.hi button.jump { background: rgba(227,34,44,.18); outline: 1px solid rgba(217,178,76,.5); }
+#roads-check .roads-dcols ul { max-height: 340px; overflow: auto; }
 
 .tribe { display: inline-flex; align-items: center; gap: 8px; margin-left: 6px; }
 .tribe-btn { font: 600 11px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-soft); padding: 7px 10px; text-decoration: none; background: var(--panel); white-space: nowrap;
@@ -769,11 +774,10 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       <div class="roads-planner">
         <label>Jump with <select id="check-kind" aria-label="Structure"><option value="Mini Catapult">Mini Catapult (60 LY)</option><option value="Heavy Catapult">Heavy Catapult (250 LY)</option><option value="Mini Gate">Mini Gate pair (105 LY)</option><option value="Heavy Gate">Heavy Gate pair (365 LY)</option></select></label>
         <label>From <span class="sysbox"><input type="text" class="sysin" id="check-from" placeholder="type a system" autocomplete="off" spellcheck="false" aria-label="From system"></span></label>
-        <label>To <span class="sysbox"><input type="text" class="sysin" id="check-to" placeholder="any: every legal hop" autocomplete="off" spellcheck="false" aria-label="Target system"></span></label>
-        <button type="button" class="primary" id="check-run">Check</button>
+        <button type="button" class="roads-quiet" id="check-run" title="read the jumps again">↻</button>
         <span class="roads-hint" id="check-status"></span>
       </div>
-      <div class="roads-note-top">Every star counts, charted or not: a green verdict here means no star at all is in the way. Click any star on the map first to test a jump to an uncharted system.</div>
+      <div class="roads-note-top">Pick where you jump from and what with: every system the jump can reach appears below and lights up green on the star map; in range but blocked by a star is red. Click one to test that jump. Every star counts, charted or not.</div>
       <div id="roads-check"></div>
     </section>
     <section class="pane roads-panel" id="roads-p-todo" hidden>
@@ -950,5 +954,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=7bad40c6"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=511d1b55"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=bde24e3a"></script><script src="roads.js?v=8a22b133"></script>
+<script src="lodge-data.js?v=7bad40c6"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=511d1b55"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=bde24e3a"></script><script src="roads.js?v=b65cd94e"></script>
 </body></html>

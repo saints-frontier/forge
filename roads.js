@@ -510,7 +510,7 @@
     menu.addEventListener("mousedown", e => { const li = e.target.closest("li[data-i]"); if (li) { e.preventDefault(); pick(+li.dataset.i); } });
   }
   function fillPlanner() {
-    for (const id of ["plan-from", "plan-to", "plan-stop", "plan-avoid", "check-from", "check-to"]) { const el = $(id); if (el) sysbox(el); }
+    for (const id of ["plan-from", "plan-to", "plan-stop", "plan-avoid", "check-from"]) { const el = $(id); if (el) sysbox(el); }
     const home = M.ids.get(M.home); if (!$("plan-from").value && home) setSys("plan-from", home.id);
     renderPrio(); renderChips();
   }
@@ -581,8 +581,9 @@
     window.__lodgeImport({ name: p.name, goals }); window.__siteGo("lodge");
   }
   // ---------- Check a jump: one structure from one star, every legal target on the map ----------
-  function runChecker() {
-    const from = sysId("check-from"), structure = $("check-kind").value, target = sysId("check-to") || null;
+  let checkTarget = null;                        // the jump under test, picked from the list
+  function runChecker(target) {
+    const from = sysId("check-from"), structure = $("check-kind").value; checkTarget = target || null;
     if (!from) { $("check-status").textContent = "type the system you jump from and pick it from the matches."; return; }
     getPlanner();
     $("check-status").textContent = "checking…";
@@ -592,15 +593,16 @@
     if (m.error) { $("check-status").textContent = "the check failed: " + m.error; return; }
     checkRes = m; const from = sysId("check-from");
     $("check-status").textContent = `${m.legal.length} legal target${m.legal.length === 1 ? "" : "s"} within ${m.range} LY, ${m.blocked.length} in range but blocked`;
-    const li = (id, ly, cls, extra) => `<li class="${cls}"><b>${esc(starName(id))}</b> · ${ly} LY${extra || ""}</li>`;
+    const li = (id, ly, cls, extra) => `<li class="${cls}${m.target && m.target.id === id ? " hi" : ""}"><button type="button" class="jump" data-jump="${id}" title="test this jump"><b>${esc(starName(id))}</b> · ${ly} LY</button>${extra || ""}</li>`;
     let verdict = "";
     if (m.target) { const t = m.target, n = esc(starName(t.id));
       verdict = t.legal ? `<div class="roads-diag ok"><b>${n}</b>: a legal ${esc(m.structure)} jump, ${t.ly} LY.</div>`
         : !t.inRange ? `<div class="roads-diag"><b>${n}</b> is ${t.ly} LY away, beyond a ${esc(m.structure)} (${m.range} LY).${m.stepTo ? ` The legal hop that ends closest to it: <b>${esc(starName(m.stepTo))}</b>. <button type="button" data-stepto="${m.stepTo}">Step there</button>` : ""}</div>`
         : `<div class="roads-diag"><b>${n}</b> is ${t.ly} LY away, in range, but the shot is blocked by ${t.blockers.map(b => `<b>${esc(starName(b.id))}</b> (${b.ly} LY out)`).join(", ")}.${m.stepTo ? ` Closest legal hop toward it: <b>${esc(starName(m.stepTo))}</b>. <button type="button" data-stepto="${m.stepTo}">Step there</button>` : ""}</div>`; }
-    $("roads-check").innerHTML = verdict + `<div class="roads-dcols"><div><h4>Legal · ${m.legal.length}</h4><ul>${m.legal.slice(0, 60).map(([id, ly]) => li(id, ly, "ok")).join("") || "<li>none</li>"}${m.legal.length > 60 ? `<li class="roads-hint">and ${m.legal.length - 60} more</li>` : ""}</ul></div>` +
-      (/Catapult/.test(m.structure) ? `<div><h4>Blocked · ${m.blocked.length}</h4><ul>${m.blocked.slice(0, 60).map(([id, ly]) => li(id, ly, "bad", ` <button type="button" class="roads-quiet" data-why="${id}" title="who blocks it">why?</button>`)).join("") || "<li>none</li>"}${m.blocked.length > 60 ? `<li class="roads-hint">and ${m.blocked.length - 60} more</li>` : ""}</ul></div>` : "") +
-      `</div><div class="roads-hint">Green rings on the star map are legal targets, red ones are in range but blocked; a dashed circle is the interference sphere of the tested jump. Gates ignore interference. <button type="button" class="roads-quiet" data-checkclear="1">clear the marks</button></div>`;
+    const CAP = 80;
+    $("roads-check").innerHTML = verdict + `<div class="roads-dcols"><div><h4>Can jump to · ${m.legal.length}</h4><ul>${m.legal.slice(0, CAP).map(([id, ly]) => li(id, ly, "ok")).join("") || "<li>none within range</li>"}${m.legal.length > CAP ? `<li class="roads-hint">and ${m.legal.length - CAP} more, nearest first</li>` : ""}</ul></div>` +
+      (/Catapult/.test(m.structure) ? `<div><h4>In range, blocked · ${m.blocked.length}</h4><ul>${m.blocked.slice(0, CAP).map(([id, ly]) => li(id, ly, "bad")).join("") || "<li>none</li>"}${m.blocked.length > CAP ? `<li class="roads-hint">and ${m.blocked.length - CAP} more</li>` : ""}</ul></div>` : "") +
+      `</div><div class="roads-hint">Click a system to test that jump. Green rings on the star map can be jumped to, red ones are in range but blocked; the dashed circle is the interference sphere of the tested jump. Gates ignore interference. <button type="button" class="roads-quiet" data-checkclear="1">clear the marks</button></div>`;
     if (sf) { const marks = m.legal.map(([id]) => ({ id, cls: "ok" })).concat(m.blocked.map(([id]) => ({ id, cls: "bad" }))); if (m.target) marks.push({ id: m.target.id, cls: m.target.legal ? "ok" : "aim", label: starName(m.target.id) }); sf.markMany(marks); sf.sphere(m.target && m.target.inRange && !m.target.legal ? { a: from, b: m.target.id } : null); sf.fitTo([from].concat(m.target ? [m.target.id] : m.legal.slice(0, 12).map(x => x[0]))); }
   }
 
@@ -682,10 +684,10 @@
     if (b.dataset.copynote) { copyText(noteText(M.plans[+b.dataset.copynote]), "copied: paste it into a note in game."); return; }
     if (b.dataset.copytext) { copyText(discordText(M.plans[+b.dataset.copytext]), "copied for Discord."); return; }
     if (b.dataset.lodge) { toLodge(M.plans[+b.dataset.lodge]); return; }
-    if (b.id === "check-run") { runChecker(); return; }
-    if (b.dataset.stepto) { setSys("check-from", +b.dataset.stepto); runChecker(); return; }
-    if (b.dataset.why) { setSys("check-to", +b.dataset.why); runChecker(); return; }
-    if (b.dataset.checkclear) { if (sf) { sf.markMany([]); sf.sphere(null); } return; }
+    if (b.id === "check-run") { runChecker(checkTarget); return; }
+    if (b.dataset.jump) { runChecker(+b.dataset.jump === checkTarget ? null : +b.dataset.jump); return; }
+    if (b.dataset.stepto) { setSys("check-from", +b.dataset.stepto); runChecker(checkTarget); return; }
+    if (b.dataset.checkclear) { checkTarget = null; if (sf) { sf.markMany([]); sf.sphere(null); } $("roads-check").innerHTML = ""; $("check-status").textContent = ""; return; }
     if (b.dataset.plansave) { const l = listCopy(); l.plans = l.plans.filter(p => !p.draft); l.plans.push({ name: draft.name, note: draft.note, hops: draft.hops, mode: draft.mode, priorities: draft.priorities }); save(l, "Plan"); return; }
     if (b.dataset.plandrop) { draft = null; render(lastData); $("plan-status").textContent = "dropped."; return; }
     if (b.dataset.planremove) { const l = listCopy(); l.plans.splice(+b.dataset.planremove, 1); openPlan = null; save(l, "Plan"); return; }
@@ -727,6 +729,7 @@
     const t = e.target;
     if (t.dataset && (t.dataset.hopwho || t.dataset.hopby)) { const [i, n] = (t.dataset.hopwho || t.dataset.hopby).split(":").map(Number); const l = listCopy(), h = l.plans[i].hops[n]; if (t.dataset.hopwho) { if (t.value.trim()) h.who = t.value.trim().slice(0, 24); else delete h.who; } else { if (t.value) h.by = t.value; else delete h.by; } save(l, "Plan"); return; }
     if (t.dataset && t.dataset.priotick != null) { planPrio[+t.dataset.priotick][1] = t.checked ? 1 : 0; renderPrio(); return; }
+    if (t.id === "check-from" || t.id === "check-kind") { if (sysId("check-from")) runChecker(null); return; }
     if (t.id === "roads-from" || t.id === "roads-to") route();
   });
 
