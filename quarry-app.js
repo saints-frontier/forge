@@ -1,9 +1,10 @@
 /* The Quarry: two questions over one data set (window.QUARRY_DATA, from tools/export_quarry_data.py).
    Where do I get it?   ore -> the rocks that hold it, ranked by evidence; material -> how it is made, down to the
-                        ores and rocks (a tree that opens on demand); a rock -> where players say it sits.
-   What do I get from it?  rock -> its ores (measured cuts, the game's descriptions, player reports) and what each
-                        refines into; ore or material -> every recipe that uses it.
-   Evidence is never mixed: Measured (our mining) / The game says (the ore's own description) / Players report.
+                        ores and rocks (a tree that opens on demand); a rock -> what is known about finding it.
+   What do I get from it?  rock -> its ores (our measured cuts, the game's descriptions) and what each refines into;
+                        ore or material -> every recipe that uses it.
+   Evidence is never mixed: Measured (our own mining) / The game says (the ore's own description). No player reports
+   (user 2026-10-14).
    Every id the page uses starts with q- (the site is one page shared with the Forge and the Lodge). */
 (function () {
   "use strict";
@@ -32,7 +33,6 @@
   const facKind = f => D.facilityKind[f] || "build";
   const samplesOf = F => D.samples.filter(s => s.family === F);
   const gameOf = F => D.game.filter(g => g.rocks.includes(F));
-  const reportsOf = F => D.reports.filter(r => r.rock === F);
 
   function sourceTag(i) {
     const s = D.sources[i];
@@ -61,22 +61,20 @@
   }
 
   // ---------- evidence ----------
-  // rocks that hold an ore, strongest evidence first: a measured share beats the game's word, which beats a report
+  // rocks that hold an ore, strongest evidence first: a measured share beats the game's word
   function rankRocks(ore) {
     return FAMS.map(F => {
       const ms = samplesOf(F).filter(s => s.ores[ore]).sort((a, b) => b.ores[ore] / b.total - a.ores[ore] / a.total);
       const g = D.game.find(x => x.ore === ore && x.rocks.includes(F));
-      const rp = reportsOf(F).filter(r => r.ores.includes(ore));
-      if (!ms.length && !g && !rp.length) return null;
+      if (!ms.length && !g) return null;
       const share = ms.length ? ms[0].ores[ore] / ms[0].total : 0;
-      return { F, ms, g, rp, score: (ms.length ? 1000 + 1000 * share : 0) + (g ? LEVEL_RANK[g.level] * 10 : 0) + rp.length };
+      return { F, ms, g, score: (ms.length ? 1000 + 1000 * share : 0) + (g ? LEVEL_RANK[g.level] * 10 : 0) };
     }).filter(Boolean).sort((a, b) => b.score - a.score);
   }
   function oresOfRock(F) {
     const score = {};
     for (const s of samplesOf(F)) for (const o in s.ores) score[o] = (score[o] || 0) + 1000 + 1000 * s.ores[o] / s.total;
     for (const g of gameOf(F)) score[g.ore] = (score[g.ore] || 0) + LEVEL_RANK[g.level] * 10;
-    for (const r of reportsOf(F)) for (const o of r.ores) score[o] = (score[o] || 0) + 5;
     return Object.keys(score).sort((a, b) => score[b] - score[a]);
   }
   // every raw input an item can come down to, through any recipe (memoised; a loop through an item already on the
@@ -138,11 +136,6 @@
     const gs = gameOf(F).sort((a, b) => LEVEL_RANK[b.level] - LEVEL_RANK[a.level]);
     h += `<h3><span class="ev g">The game says</span></h3>` + (gs.length ? `<ul class="plain">${gs.map(g => `<li>${dot(g.ore)}${go(g.ore)}: ${esc(D.levels[g.level])}<div class="quote">\u201c${esc(g.quote)}.\u201d</div></li>`).join("")}</ul>`
       : `<p class="note">No ore's in-game description names ${esc(F)} asteroids.</p>`);
-    const rs = reportsOf(F);
-    h += `<h3><span class="ev p">Players report</span></h3>` + (rs.length ? `<ul class="plain">${rs.map(r => `<li>${r.ores.length ? r.ores.map(o => go(o)).join(", ") + ". " : ""}<span class="note" style="display:inline">${esc(r.text)}</span></li>`).join("")}</ul>`
-      : `<p class="note">No reports yet.</p>`);
-    const wh = D.where.filter(w => w.rocks.includes(F));
-    if (wh.length) h += `<h3>Where to look</h3>` + wh.map(w => `<p class="lead"><span class="ev p">Players report</span>${esc(w.text)}</p>`).join("");
     if (ores.length) {
       h += `<h3>Then refine it</h3>`;
       for (const o of ores) {
@@ -155,9 +148,6 @@
   function rockWhere(sub) {
     const F = sub.family;
     let h = head(`Where do I find ${esc(sub.name)}?`, "Where do I get it");
-    const wh = D.where.filter(w => w.rocks.includes(F));
-    h += wh.length ? wh.map(w => `<p class="lead"><span class="ev p">Players report</span>${esc(w.text)}</p>`).join("")
-      : `<p class="lead">No one has reported where ${esc(F)} rocks sit yet.</p>`;
     h += `<p class="note">Rocks sit in asteroid belts; their names show on scan labels and when you target one. The game's server picks what spawns where.</p>`;
     h += `<p class="lead" style="margin-top:12px">${go(sub.name, "what", "What comes out of " + sub.name + " \u2192")}</p>`;
     return h;
@@ -168,14 +158,12 @@
     h += `<div class="quote">\u201c${esc(D.desc[o] || "")}\u201d</div><p class="note">The game's own description of the ore.</p>`;
     h += `<h3>Rocks that hold it</h3>`;
     if (!rows.length) h += `<p class="note">No rock recorded yet.</p>`;
-    else h += `<div class="scroll"><table><thead><tr><th>Rock</th><th><span class="ev m">Measured</span></th><th><span class="ev g">The game says</span></th><th><span class="ev p">Players</span></th></tr></thead><tbody>`
+    else h += `<div class="scroll"><table><thead><tr><th>Rock</th><th><span class="ev m">Measured</span></th><th><span class="ev g">The game says</span></th></tr></thead><tbody>`
       + rows.map(r => {
         const b = r.ms[0];
         const m = b ? `${pct(b.ores[o] / b.total)} of a ${esc(b.rock)} <span class="sub">${n0(b.ores[o])} units in ${b.minutes} min${r.ms.length > 1 ? " \u00b7 " + r.ms.length + " cuts measured" : ""}</span>` : `<span class="sub">not measured</span>`;
         const g = r.g ? esc(D.levels[r.g.level]) : `<span class="sub">not named</span>`;
-        const tm = r.rp.filter(x => x.who === "tribe").length, pl = r.rp.length - tm;
-        const p = r.rp.length ? [pl ? "players" : "", tm ? "a tribe mate" : ""].filter(Boolean).join(" and ") : `<span class="sub">none</span>`;
-        return `<tr><td>${go(r.F)}</td><td>${m}</td><td>${g}</td><td>${p}</td></tr>`;
+        return `<tr><td>${go(r.F)}</td><td>${m}</td><td>${g}</td></tr>`;
       }).join("") + `</tbody></table></div>`;
     const ref = (uses[o] || []).filter(r => facKind(r.f) === "refine");
     if (ref.length) h += `<h3>It refines into</h3>` + ref.map(recipeLine).join("");
