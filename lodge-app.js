@@ -225,7 +225,7 @@
   // Workers (file://) it runs in the page.
   let worker = null, seq = 0; const pending = new Map();
   function startWorker() {
-    try { worker = new Worker("lodge-worker.js?v=825451b0"); } catch (e) { worker = null; return; }
+    try { worker = new Worker("lodge-worker.js?v=8dc8fcd6"); } catch (e) { worker = null; return; }
     worker.onmessage = e => { const cb = pending.get(e.data.id); pending.delete(e.data.id); if (cb) cb(e.data.error ? null : e.data.result); };
     worker.onerror = () => { worker = null; for (const cb of pending.values()) cb(null); pending.clear(); };
   }

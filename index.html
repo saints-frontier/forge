@@ -326,6 +326,82 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .pk-sec { font: 600 10px var(--mono); color: var(--dim); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; }
 .pk-none { padding: 10px 12px; color: var(--dim); font-size: 13px; }
 .toast { position: fixed; right: 18px; bottom: 18px; background: var(--panel); border: 1px solid var(--gold); color: var(--gold); padding: 10px 14px; font: 600 12px var(--mono); z-index: 9; }
+#tab-quarry .quarry button { text-transform: none; letter-spacing: 0; }
+#tab-quarry main.quarry { display: grid; gap: 14px; margin-top: 14px; }
+#tab-quarry .quarry .ask { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--line); padding: 14px; display: grid; gap: 12px; }
+#tab-quarry .quarry .askrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+#tab-quarry .quarry .qbox { position: relative; flex: 1 1 320px; min-width: 0; }
+#tab-quarry .quarry .qbox input { width: 100%; font: 16px var(--body); padding: 11px 12px; background: #0b0a0e; color: var(--fg); border: 1px solid var(--gold-soft); }
+#tab-quarry .quarry .qbox input:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; }
+#tab-quarry .quarry .qmenu { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; margin: 2px 0 0; padding: 4px 0; list-style: none; max-height: 320px; overflow: auto; background: #0b0a0e; border: 1px solid var(--gold-soft); box-shadow: 0 8px 24px rgba(0,0,0,.6); }
+#tab-quarry .quarry .qmenu li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 12px; cursor: pointer; font-size: 14px; color: var(--silver); }
+#tab-quarry .quarry .qmenu li b { color: var(--title); font-weight: 600; }
+#tab-quarry .quarry .qmenu li span { font: 11px var(--mono); color: var(--dim); white-space: nowrap; }
+#tab-quarry .quarry .qmenu li.hi, #tab-quarry .quarry .qmenu li:hover { background: rgba(227,34,44,.18); }
+#tab-quarry .quarry .qmenu li.none { color: var(--dim); cursor: default; }
+#tab-quarry .quarry .modes { display: flex; gap: 6px; flex-wrap: wrap; }
+#tab-quarry .quarry .mode { font: 700 12px var(--display); letter-spacing: 2px; text-transform: uppercase; padding: 10px 14px; background: var(--panel); color: var(--silver); border: 1px solid var(--line-strong); cursor: pointer; }
+#tab-quarry .quarry .mode[aria-pressed="true"] { color: var(--ink); background: var(--gold); border-color: var(--gold); }
+#tab-quarry .quarry .mode:focus-visible, #tab-quarry .quarry .chip:focus-visible, #tab-quarry .quarry .lk:focus-visible, #tab-quarry .quarry .ghost:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+#tab-quarry .quarry .browse { display: grid; gap: 7px; }
+#tab-quarry .quarry .browse > div { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+#tab-quarry .quarry .blabel { font: 600 10px var(--mono); letter-spacing: 3px; color: var(--red); text-transform: uppercase; min-width: 52px; }
+#tab-quarry .quarry .chip { font: 12px var(--mono); text-transform: none; letter-spacing: 0; padding: 3px 9px; background: #0b0a0e; color: var(--silver); border: 1px solid var(--line-strong); cursor: pointer; }
+#tab-quarry .quarry .chip:hover { border-color: var(--gold); color: var(--title); }
+#tab-quarry .quarry .chip i { display: inline-block; width: 8px; height: 8px; margin-right: 6px; vertical-align: 0; }
+#tab-quarry .quarry .answer { background: var(--panel); border: 1px solid var(--line); padding: 16px 18px 20px; min-width: 0; }
+#tab-quarry .quarry .crumbs { display: flex; gap: 10px; align-items: center; min-height: 22px; font: 11px var(--mono); color: var(--dim); letter-spacing: 1px; }
+#tab-quarry .quarry .ghost { font: 12px var(--mono); text-transform: none; letter-spacing: 0; padding: 3px 9px; background: none; color: var(--silver); border: 1px solid var(--line-strong); cursor: pointer; }
+#tab-quarry .quarry h2 { font: 900 clamp(20px, 2.6vw, 28px)/1.2 var(--display); color: var(--title); margin: 6px 0 4px; letter-spacing: .5px; text-wrap: balance; }
+#tab-quarry .quarry h2 .k { font: 600 11px var(--mono); letter-spacing: 3px; color: var(--red); text-transform: uppercase; display: block; margin-bottom: 4px; }
+#tab-quarry .quarry h3 { font: 800 12px var(--display); letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin: 22px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+#tab-quarry .quarry .lead { color: var(--silver); margin: 4px 0 0; max-width: 78ch; }
+#tab-quarry .quarry .note { font: 13px/1.5 var(--body); color: var(--dim); margin: 6px 0 0; max-width: 78ch; }
+#tab-quarry .quarry .lk { background: none; border: 0; padding: 0; color: var(--gold); font: inherit; text-transform: none; letter-spacing: 0; cursor: pointer; border-bottom: 1px dotted var(--gold-soft); text-align: left; }
+#tab-quarry .quarry .lk:hover { color: var(--title); border-bottom-color: var(--gold); }
+#tab-quarry .quarry .ev { display: inline-block; font: 600 10px var(--mono); letter-spacing: 1px; text-transform: uppercase; padding: 1px 6px; border: 1px solid; margin-right: 6px; white-space: nowrap; }
+#tab-quarry .quarry .ev.m { color: var(--good); }
+#tab-quarry .quarry .ev.g { color: var(--gold); }
+#tab-quarry .quarry .ev.p { color: var(--silver); }
+#tab-quarry .quarry .scroll { overflow-x: auto; }
+#tab-quarry .quarry table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+#tab-quarry .quarry th { text-align: left; font: 600 11px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--dim); padding: 4px 10px 6px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+#tab-quarry .quarry td { padding: 7px 10px 7px 0; border-bottom: 1px solid #1d1a22; vertical-align: top; font-size: 14px; }
+#tab-quarry .quarry td.num, #tab-quarry .quarry th.num { text-align: right; font-family: var(--mono); }
+#tab-quarry .quarry td .sub { display: block; font-size: 12px; color: var(--dim); }
+#tab-quarry .quarry .sample { border: 1px solid var(--line); background: #0d0c10; padding: 10px 12px; margin: 8px 0; }
+#tab-quarry .quarry .sample .hd { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+#tab-quarry .quarry .sample .hd b { font: 700 15px var(--display); color: var(--title); }
+#tab-quarry .quarry .sample .hd span { font: 12px var(--mono); color: var(--dim); }
+#tab-quarry .quarry .bar { display: flex; height: 12px; border: 1px solid var(--line-strong); overflow: hidden; margin: 8px 0 6px; background: #0b0a0e; }
+#tab-quarry .quarry .bar span { display: block; height: 100%; }
+#tab-quarry .quarry .mix { display: flex; flex-wrap: wrap; gap: 4px 14px; font: 12px var(--mono); color: var(--silver); }
+#tab-quarry .quarry .mix i { display: inline-block; width: 9px; height: 9px; margin-right: 5px; }
+#tab-quarry .quarry .quote { border-left: 2px solid var(--gold-soft); padding: 2px 0 2px 10px; margin: 6px 0; color: var(--silver); font-style: italic; max-width: 78ch; }
+#tab-quarry .quarry ul.plain { list-style: none; margin: 0; padding: 0; }
+#tab-quarry .quarry ul.plain li { padding: 5px 0; border-bottom: 1px solid #1d1a22; }
+#tab-quarry .quarry .rline { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid #1d1a22; }
+#tab-quarry .quarry .fac { font: 600 10px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--dim); border: 1px solid var(--line-strong); padding: 1px 6px; white-space: nowrap; }
+#tab-quarry .quarry .fac.refine { color: #7fb9d8; }
+#tab-quarry .quarry .fac.print { color: #d8a35a; }
+#tab-quarry .quarry .fac.build { color: #c88; }
+#tab-quarry .quarry .arrow { color: var(--dim); }
+#tab-quarry .quarry .t { font: 11px var(--mono); color: var(--dim); }
+#tab-quarry .quarry .unv { font: 600 10px var(--mono); color: var(--warn); border: 1px solid rgba(224,168,58,.5); padding: 0 5px; }
+#tab-quarry .quarry details.node { margin: 2px 0 2px 2px; padding-left: 12px; border-left: 1px solid var(--line-strong); }
+#tab-quarry .quarry details.node > summary { cursor: pointer; padding: 5px 0; list-style: none; }
+#tab-quarry .quarry details.node > summary::-webkit-details-marker { display: none; }
+#tab-quarry .quarry details.node > summary::before { content: "▸"; color: var(--gold); display: inline-block; width: 14px; }
+#tab-quarry .quarry details.node[open] > summary::before { content: "▾"; }
+#tab-quarry .quarry .leaf { padding: 5px 0 5px 14px; border-left: 1px solid var(--line-strong); margin-left: 2px; }
+#tab-quarry .quarry .leaf .src { font-size: 13px; color: var(--silver); }
+#tab-quarry .quarry .comes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+#tab-quarry .quarry .comes .chip { cursor: pointer; }
+#tab-quarry .quarry .lodge { margin-top: 14px; font: 700 12px var(--display); letter-spacing: 2px; text-transform: uppercase; padding: 9px 14px; background: var(--crimson); color: var(--title); border: 1px solid var(--red); cursor: pointer; }
+#tab-quarry .quarry .empty { color: var(--dim); border: 1px dashed var(--line); padding: 22px; text-align: center; }
+#tab-quarry .quarry .empty b { color: var(--title); font-weight: 600; }
+#tab-quarry .quarry .legend { font: 12px var(--mono); color: var(--dim); display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 0; }
+@media (max-width: 560px) { #tab-quarry .quarry .answer { padding: 12px; } #tab-quarry .quarry .mode { flex: 1 1 auto; } }
 /* The Pilgrim Roads (the tribe's road map), in the Forge's look */
 .roads-on .topctl, .roads-on .tier { display: none; }
 .roads-page { padding: 8px 0 20px; }
@@ -598,6 +674,13 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .lodge-page .gtitle { font: 900 clamp(28px, 3.6vw, 40px)/1.15 var(--deco); color: var(--gold); margin: 14px 0 6px; }
 .lodge-page .gintro { max-width: 78ch; font: 17px/1.6 var(--body); color: var(--silver); margin: 0 0 6px; }
 .lodge-page .lfoot { font: 11px var(--mono); color: var(--dim); letter-spacing: 1px; margin-top: 14px; }
+.quarry-on .topctl, .quarry-on .tier { display: none; }         /* nor does the Quarry */
+.quarry-page { padding: 8px 0 20px; }
+.quarry-page .gtitle { font: 900 clamp(28px, 3.6vw, 40px)/1.15 var(--deco); color: var(--gold); margin: 14px 0 6px; }
+.quarry-page .gintro { max-width: 78ch; font: 17px/1.6 var(--body); color: var(--silver); margin: 0 0 6px; }
+.quarry-page .lfoot { font: 11px var(--mono); color: var(--dim); letter-spacing: 1px; margin-top: 14px; }
+.q-wip { display: inline-block; vertical-align: middle; margin-left: 12px; padding: 3px 10px 2px; border: 1px solid var(--red); color: var(--red); font: 700 11px var(--mono); letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; }
+.q-wipnote { max-width: 78ch; margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid var(--red); background: rgba(227,34,44,.08); font: 13px/1.55 var(--body); color: var(--fg); }
 /* About us: portrait with golden wings on the left, the text in glowing gold on the right, sized to fit the screen */
 .about-on .topctl, .about-on .tier, .about-on .intro, .about-on footer, .about-on #nav-join { display: none; }
 .boot-about #tab-forge { display: none !important; }       /* first paint: About us, not the Forge underneath */   /* Discord link sits under the text */
@@ -637,7 +720,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 <div class="band" aria-hidden="true"></div>
 <div class="wrap">
   <span class="corner tl" aria-hidden="true">✠</span><span class="corner tr" aria-hidden="true">✠</span><span class="corner bl" aria-hidden="true">✠</span><span class="corner br" aria-hidden="true">✠</span>
-  <nav class="sidenav" aria-label="Pages"><button type="button" class="gobtn" id="nav-about">✠ About us</button><button type="button" class="gobtn" id="nav-guide">✠ Beginner's guide</button><button type="button" class="gobtn on" id="nav-forge">✠ The Forge</button><button type="button" class="gobtn" id="nav-lodge">✠ The Mason's Lodge</button><button type="button" class="gobtn" id="nav-roads">✠ The Pilgrim Roads</button><a class="gobtn" id="nav-join" href="https://discord.gg/wcveHb9zgA" target="_blank" rel="noopener">✠ Join the tribe</a></nav>
+  <nav class="sidenav" aria-label="Pages"><button type="button" class="gobtn" id="nav-about">✠ About us</button><button type="button" class="gobtn" id="nav-guide">✠ Beginner's guide</button><button type="button" class="gobtn on" id="nav-forge">✠ The Forge</button><button type="button" class="gobtn" id="nav-lodge">✠ The Mason's Lodge</button><button type="button" class="gobtn" id="nav-quarry">✠ The Quarry</button><button type="button" class="gobtn" id="nav-roads">✠ The Pilgrim Roads</button><a class="gobtn" id="nav-join" href="https://discord.gg/wcveHb9zgA" target="_blank" rel="noopener">✠ Join the tribe</a></nav>
   <header class="top">
     <img class="crest" id="crest" alt="The Saints" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
     <div class="brand"><span class="house">THE SAINTS</span><span class="eyebrow">EVE Frontier · Ship Fitting Tool</span><h1>SAINTS FORGE</h1></div>
@@ -671,7 +754,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 <circle cx="700" cy="560" r="230" fill="none" stroke="#9c7424" stroke-width="3"/>
 <image href="saints-crest.png" x="478" y="338" width="444" height="444" clip-path="url(#abclip)" preserveAspectRatio="xMidYMid slice"/>
 <text x="700.0" y="831.0" text-anchor="middle" font-family="Cinzel, Georgia, serif" font-size="32" font-weight="900" fill="#f0cf6a" stroke="#07070a" stroke-width="5" paint-order="stroke">✠</text><text x="473.1" y="438.0" text-anchor="middle" font-family="Cinzel, Georgia, serif" font-size="32" font-weight="900" fill="#f0cf6a" stroke="#07070a" stroke-width="5" paint-order="stroke">✠</text><text x="926.9" y="438.0" text-anchor="middle" font-family="Cinzel, Georgia, serif" font-size="32" font-weight="900" fill="#f0cf6a" stroke="#07070a" stroke-width="5" paint-order="stroke">✠</text>
-</svg><figcaption class="about-name"><span class="tag">[SAINT]</span> Veritas</figcaption></figure><div class="about-right"><h2 id="about-h" class="about-h">About us</h2><div class="about-text"><p>The Saints began in March 2025 as a tribe built to be a force for good in EVE Frontier.</p><p>The game has changed quite a bit since then but The Saints has remained a steadfast entity since its inception.</p><div class="about-div" aria-hidden="true">✠</div><p>Our tribe's ethos is based on Christian chivalric traditions but with a science fiction twist:</p><p class="about-quote">space knights who protect the innocent and stand against those who prey on them.</p><div class="about-div" aria-hidden="true">✠</div><p>We are <em>fighters, builders, and explorers</em> who form real bonds through cooperation, shared work, and the stories that come from fellowship in a hostile galaxy.</p></div><a class="about-join" href="https://discord.gg/wcveHb9zgA" target="_blank" rel="noopener">✠ Join us on Discord ✠</a></div></section><script>(function () { var seg = (/thesaintsforge\.com$/.test(location.hostname) || location.hostname === "localhost" || location.hostname === "127.0.0.1") ? (location.pathname.split("/").filter(Boolean).pop() || "").toLowerCase() : "", h = location.hash.slice(1); if (seg === "forge" || seg === "guide" || seg === "lodge" || seg === "roads" || (seg !== "aboutus" && h && h !== "about")) return; document.getElementById("tab-about").hidden = false; document.documentElement.classList.add("boot-about"); document.body.classList.add("about-on"); document.getElementById("nav-forge").classList.remove("on"); document.getElementById("nav-about").classList.add("on"); })();</script>
+</svg><figcaption class="about-name"><span class="tag">[SAINT]</span> Veritas</figcaption></figure><div class="about-right"><h2 id="about-h" class="about-h">About us</h2><div class="about-text"><p>The Saints began in March 2025 as a tribe built to be a force for good in EVE Frontier.</p><p>The game has changed quite a bit since then but The Saints has remained a steadfast entity since its inception.</p><div class="about-div" aria-hidden="true">✠</div><p>Our tribe's ethos is based on Christian chivalric traditions but with a science fiction twist:</p><p class="about-quote">space knights who protect the innocent and stand against those who prey on them.</p><div class="about-div" aria-hidden="true">✠</div><p>We are <em>fighters, builders, and explorers</em> who form real bonds through cooperation, shared work, and the stories that come from fellowship in a hostile galaxy.</p></div><a class="about-join" href="https://discord.gg/wcveHb9zgA" target="_blank" rel="noopener">✠ Join us on Discord ✠</a></div></section><script>(function () { var seg = (/thesaintsforge\.com$/.test(location.hostname) || location.hostname === "localhost" || location.hostname === "127.0.0.1") ? (location.pathname.split("/").filter(Boolean).pop() || "").toLowerCase() : "", h = location.hash.slice(1); if (seg === "forge" || seg === "guide" || seg === "lodge" || seg === "quarry" || seg === "roads" || (seg !== "aboutus" && h && h !== "about")) return; document.getElementById("tab-about").hidden = false; document.documentElement.classList.add("boot-about"); document.body.classList.add("about-on"); document.getElementById("nav-forge").classList.remove("on"); document.getElementById("nav-about").classList.add("on"); })();</script>
 <section id="tab-lodge" class="lodge-page" hidden><h2 class="gtitle">The Mason's Lodge</h2><p class="gintro">Say what you want to build. The Lodge breaks it down into what to gather, refine and print, in the order you'd do it, using the facilities you have and the least ore it can. Tick each step off as you go; your progress stays in this browser.</p><main class="lodge">
     <section class="pane" aria-labelledby="h-build">
       <h2 id="h-build">What are we building?</h2>
@@ -718,6 +801,26 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       </div>
     </section>
   </main><p class="lfoot"><span id="foot-data"></span> · recipes from the game's industry windows</p></section>
+<section id="tab-quarry" class="quarry-page" hidden><h2 class="gtitle">The Quarry <span class="q-wip">alpha test · under construction</span></h2><div class="q-wipnote"><b>Alpha test.</b> The Quarry is still being built. Most rocks have only been measured once or not at all, so treat the shares as a guide, and the page will keep changing. Mined a rock we have little on, or found something wrong? Tell us in Discord.</div><p class="gintro">Ask it both ways. Where do I get it: type any ore or material and see which rocks hold it and how it is made. What do I get from it: type a rock or an ore and see what comes out and what that turns into. Every answer says where it comes from: our own mining, the game's own descriptions, or what players report.</p><main class="quarry">
+    <section class="ask" aria-label="Ask the Quarry">
+      <div class="askrow">
+        <div class="qbox"><input id="q-in" type="text" placeholder="A rock, an ore or a material: Spall, Hydrated Gossan, Kerogen Tar…" autocomplete="off" spellcheck="false" aria-label="Rock, ore or material" aria-controls="q-menu"><ul id="q-menu" class="qmenu" role="listbox" hidden></ul></div>
+        <div class="modes" role="group" aria-label="Question">
+          <button type="button" class="mode" data-mode="where" aria-pressed="true">Where do I get it?</button>
+          <button type="button" class="mode" data-mode="what" aria-pressed="false">What do I get from it?</button>
+        </div>
+      </div>
+      <div class="browse">
+        <div><span class="blabel">Rocks</span><span id="q-rocks" class="chips"></span></div>
+        <div><span class="blabel">Ores</span><span id="q-ores" class="chips"></span></div>
+      </div>
+    </section>
+    <section class="answer" aria-live="polite">
+      <div class="crumbs"><button type="button" id="q-back" class="ghost" hidden>← back</button><span id="q-crumb"></span></div>
+      <div id="q-out"><div class="empty"><b>Ask away.</b><br>Type a rock, an ore or a material above, or pick one of the rocks and ores.</div></div>
+    </section>
+    <p class="legend"><span><span class="ev m">Measured</span>our own mining, from the game logs</span><span><span class="ev g">The game says</span>the ore's in-game description</span><span><span class="ev p">Players report</span>what players say they mined</span></p>
+  </main><p class="lfoot"><span id="q-foot"></span> · ores from the game's own descriptions, our mining and players' reports</p></section>
 <section id="tab-roads" class="roads-page" hidden>
   <h2 class="gtitle">The Pilgrim Roads <span class="roads-wip">alpha test · under construction</span></h2>
   <div class="roads-wipnote"><b>Alpha test.</b> This map is still being built. A road shows only when the launcher or gate carries its systems in its name in game, so some of our network is missing, and the page will keep changing. Found something wrong? Tell us in Discord.</div>
@@ -895,9 +998,9 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 (function () {
   // pages and their own addresses: thesaintsforge.com/aboutus, /forge, /guide (Cloudflare serves the page at each,
   // see _redirects). The GitHub Pages mirror can't, so there the page is in the hash (#about, #forge, #guide).
-  var pages = { about: "tab-about", guide: "tab-guide", forge: "tab-forge", lodge: "tab-lodge", roads: "tab-roads" };
-  var PATH = { about: "aboutus", guide: "guide", forge: "forge", lodge: "lodge", roads: "roads" };
-  var TITLE = { about: "About us · Saints Forge", guide: "Beginner's guide · Saints Forge", forge: "Saints Forge · EVE Frontier ship fitting", lodge: "The Mason's Lodge · Saints Forge", roads: "The Pilgrim Roads · Saints Forge" };
+  var pages = { about: "tab-about", guide: "tab-guide", forge: "tab-forge", lodge: "tab-lodge", quarry: "tab-quarry", roads: "tab-roads" };
+  var PATH = { about: "aboutus", guide: "guide", forge: "forge", lodge: "lodge", quarry: "quarry", roads: "roads" };
+  var TITLE = { about: "About us · Saints Forge", guide: "Beginner's guide · Saints Forge", forge: "Saints Forge · EVE Frontier ship fitting", lodge: "The Mason's Lodge · Saints Forge", quarry: "The Quarry · Saints Forge", roads: "The Pilgrim Roads · Saints Forge" };
   var usePaths = /thesaintsforge\.com$/.test(location.hostname) || location.hostname === "localhost" || location.hostname === "127.0.0.1";   // elsewhere (GitHub mirror, previews) pages live in the hash
   function el(id) { return document.getElementById(id); }
 
@@ -928,7 +1031,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
   function show(name) {
     document.documentElement.classList.remove("boot-about");
     for (var k in pages) { var p = el(pages[k]); if (p) p.hidden = k !== name; var b = el("nav-" + k); if (b) b.classList.toggle("on", k === name); }
-    document.body.classList.toggle("guide-on", name === "guide"); document.body.classList.toggle("about-on", name === "about"); document.body.classList.toggle("lodge-on", name === "lodge"); document.body.classList.toggle("roads-on", name === "roads");
+    document.body.classList.toggle("guide-on", name === "guide"); document.body.classList.toggle("about-on", name === "about"); document.body.classList.toggle("lodge-on", name === "lodge"); document.body.classList.toggle("quarry-on", name === "quarry"); document.body.classList.toggle("roads-on", name === "roads");
     // Brave/Chromium can leave a stale tile of a hidden page (a guide slab's noise texture) painted over the new page
     // (seen after Guide -> Forge, user 2026-10-09): give body a compositing layer for one frame so everything repaints
     document.body.style.willChange = "transform";
@@ -956,5 +1059,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=7bad40c6"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=511d1b55"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=0a3e7023"></script><script src="roads.js?v=b65cd94e"></script>
+<script src="lodge-data.js?v=ed4d2f02"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=8fdea247"></script><script src="quarry-data.js?v=a1773199"></script><script src="quarry-app.js?v=c523120e"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=0a3e7023"></script><script src="roads.js?v=b65cd94e"></script>
 </body></html>
