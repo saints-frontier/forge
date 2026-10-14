@@ -496,6 +496,19 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-diag button, .roads-plan .pacts button { font: 11px var(--mono); }
 #roads-check ul li.ok b { color: var(--good, #5bb36a); } #roads-check ul li.bad b { color: var(--red); } #roads-check ul li { font: 12px var(--mono); color: var(--silver); }
 
+/* system boxes: a text box with a list of matches under it */
+.sysbox { position: relative; display: inline-block; }
+.sysin { width: 160px; font: 13px var(--mono); text-transform: none; letter-spacing: 0; }
+.sysmenu { position: absolute; left: 0; top: 100%; z-index: 30; margin: 2px 0 0; padding: 4px 0; list-style: none; min-width: 250px; max-height: 260px; overflow: auto; background: #0b0a0e; border: 1px solid rgba(217,178,76,.45); box-shadow: 0 8px 24px rgba(0,0,0,.6); text-align: left; }
+.sysmenu li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 10px; font: 12px var(--mono); color: var(--silver); cursor: pointer; text-transform: none; letter-spacing: 0; white-space: nowrap; }
+.sysmenu li b { color: var(--title); font-weight: 600; } .sysmenu li span { color: var(--dim); font-size: 11px; }
+.sysmenu li.hi, .sysmenu li:hover { background: rgba(227,34,44,.18); } .sysmenu li.none { color: var(--dim); cursor: default; }
+.roads-group { display: inline-flex; gap: 0; border: 1px solid rgba(217,178,76,.35); border-radius: 3px; overflow: hidden; }
+.roads-group button { border-radius: 0; border: 0; border-right: 1px solid rgba(217,178,76,.25); }
+.roads-group button:last-child { border-right: 0; }
+.roads-prow .have { color: var(--good, #5bb36a); }
+.roads-have { font: 12px var(--mono); color: var(--silver); padding: 4px 0 6px; } .roads-have b { color: var(--title); } .roads-have .have { color: var(--good, #5bb36a); } .roads-have .k { color: var(--gold); } .roads-have .gap { color: var(--red); }
+
 .tribe { display: inline-flex; align-items: center; gap: 8px; margin-left: 6px; }
 .tribe-btn { font: 600 11px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-soft); padding: 7px 10px; text-decoration: none; background: var(--panel); white-space: nowrap;
   clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
@@ -709,14 +722,12 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     <div class="roads-detail" id="roads-detail" hidden></div>
     <div class="roads-tabs" role="toolbar" aria-label="More about the roads">
       <span class="roads-view" role="group" aria-label="Map view"><button type="button" data-view="stars" class="on">Stars</button><button type="button" data-view="flat">Flat</button></span>
-      <button type="button" data-panel="route">Find a road</button>
+      <span class="roads-group" role="group" aria-label="Roads tools"><button type="button" data-panel="route" title="A route over the roads we have built">Navigator</button><button type="button" data-panel="plan" data-plan="new" title="What to build or jump to get somewhere">Road infrastructure planner</button><button type="button" data-panel="check" title="One catapult or gate jump, checked against every star">Check a jump</button></span>
+      <span id="roads-plan-btns"></span>
       <button type="button" data-panel="fuel">Fuel<span id="roads-fuel-n"></span></button>
       <button type="button" data-panel="legend">Legend</button>
       <button type="button" data-panel="todo">Not on the map<span id="roads-unplaced-n"></span></button>
       <button type="button" data-panel="manage" id="roads-manage-btn" hidden>Manage</button>
-      <span id="roads-plan-btns"></span>
-      <button type="button" data-panel="plan" data-plan="new">Plan a road</button>
-      <button type="button" data-panel="check">Check a jump</button>
       <span class="roads-stamp" id="roads-stamp"></span>
       <button type="button" class="roads-quiet" id="roads-refresh" title="Read the chain again">↻</button>
     </div>
@@ -739,16 +750,16 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     </section>
     <section class="pane roads-panel" id="roads-p-plan" hidden>
       <div class="roads-planner" id="roads-planner">
-        <label>From <select id="plan-from" aria-label="From system"></select></label>
-        <label>To <select id="plan-to" aria-label="To system"></select></label>
-        <label>Plan <select id="plan-mode" aria-label="Plan type"><option value="access">Reach it: what to build or jump</option><option value="corridor">Gate corridor: a permanent two-way road, with the catapult access to build it</option><option value="tree">Network: every stop from the nearest road built before it</option></select></label>
+        <label>From <span class="sysbox"><input type="text" class="sysin" id="plan-from" placeholder="type a system" autocomplete="off" spellcheck="false" aria-label="From system"></span></label>
+        <label>To <span class="sysbox"><input type="text" class="sysin" id="plan-to" placeholder="type a system" autocomplete="off" spellcheck="false" aria-label="To system"></span></label>
+        <label>Plan <select id="plan-mode" aria-label="Plan type"><option value="access">Get there: what exists, what to build</option><option value="corridor">Gate corridor: a permanent two-way road, with the catapult access to build it</option><option value="tree">Network: every stop from the nearest road built before it</option></select></label>
         <label class="tick"><input type="checkbox" id="plan-round">Round trip</label>
         <button type="button" class="primary" id="plan-run">Find the road</button>
         <span class="roads-hint" id="plan-status"></span>
       </div>
       <div class="roads-planner">
-        <label>Stops <select id="plan-stop" aria-label="A stop on the way"></select><button type="button" class="roads-quiet" id="plan-stop-add">+ stop</button></label><span id="plan-stops" class="chips"></span>
-        <label>Avoid <select id="plan-avoid" aria-label="A system to avoid"></select><button type="button" class="roads-quiet" id="plan-avoid-add">+ avoid</button></label><span id="plan-avoids" class="chips"></span>
+        <label>Stops <span class="sysbox"><input type="text" class="sysin" id="plan-stop" placeholder="type a system" autocomplete="off" spellcheck="false" aria-label="A stop on the way"></span><button type="button" class="roads-quiet" id="plan-stop-add">+ stop</button></label><span id="plan-stops" class="chips"></span>
+        <label>Avoid <span class="sysbox"><input type="text" class="sysin" id="plan-avoid" placeholder="type a system" autocomplete="off" spellcheck="false" aria-label="A system to avoid"></span><button type="button" class="roads-quiet" id="plan-avoid-add">+ avoid</button></label><span id="plan-avoids" class="chips"></span>
       </div>
       <div class="roads-planner"><span class="roads-tools" id="plan-tools"><label><input type="checkbox" value="Heavy Catapult" checked>Heavy Catapult 250</label><label><input type="checkbox" value="Mini Catapult">Mini Catapult 60</label><label><input type="checkbox" value="Heavy Gate">Heavy Gate 365</label><label><input type="checkbox" value="Mini Gate">Mini Gate 105</label><label><input type="checkbox" value="Public Gate" checked>Public gates (in the client; state unknown)</label></span></div>
       <div class="roads-planner roads-prio"><span class="roads-hint">First wins:</span><ol id="plan-prio"></ol></div>
@@ -757,8 +768,8 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     <section class="pane roads-panel" id="roads-p-check" hidden>
       <div class="roads-planner">
         <label>Jump with <select id="check-kind" aria-label="Structure"><option value="Mini Catapult">Mini Catapult (60 LY)</option><option value="Heavy Catapult">Heavy Catapult (250 LY)</option><option value="Mini Gate">Mini Gate pair (105 LY)</option><option value="Heavy Gate">Heavy Gate pair (365 LY)</option></select></label>
-        <label>From <select id="check-from" aria-label="From system"></select></label>
-        <label>To <select id="check-to" aria-label="Target system"></select></label>
+        <label>From <span class="sysbox"><input type="text" class="sysin" id="check-from" placeholder="type a system" autocomplete="off" spellcheck="false" aria-label="From system"></span></label>
+        <label>To <span class="sysbox"><input type="text" class="sysin" id="check-to" placeholder="any: every legal hop" autocomplete="off" spellcheck="false" aria-label="Target system"></span></label>
         <button type="button" class="primary" id="check-run">Check</button>
         <span class="roads-hint" id="check-status"></span>
       </div>
@@ -939,5 +950,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=7bad40c6"></script><script src="lodge-planner.js?v=49bb0aa7"></script><script src="lodge-app.js?v=029bcdc7"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=f7cddb64"></script><script src="roads.js?v=04027569"></script>
+<script src="lodge-data.js?v=7bad40c6"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=511d1b55"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=bde24e3a"></script><script src="roads.js?v=8a22b133"></script>
 </body></html>

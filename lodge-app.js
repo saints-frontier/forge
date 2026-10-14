@@ -77,19 +77,30 @@
   }
   // under each goal: how the item is made with the ticked facilities, in runs. The number is items wanted; a recipe
   // that makes 10 per run turns 5 into 1 run of 10 with 5 spare, and a button rounds the goal up to whole runs.
+  // A part that only unticked facilities make is named here with its count and those facilities, the way the plan's
+  // blocked lines name it; the item itself is "not made" only when no ticked facility has a recipe for it.
+  const untickedOf = facs => facs.filter(f => !form.facilities.includes(f) && f !== "Build Mode").map(f => esc(facLabel(f)));
   function goalHints() {
     form.goals.forEach((g, i) => {
       const el = $("goals").querySelector(`[data-h="${i}"]`); if (!el) return;
       const item = ITEMS.find(x => x.toLowerCase() === String(g.item).trim().toLowerCase());
       if (!item || !(g.qty > 0)) { el.innerHTML = ""; return; }
       const r = P.planGreedy(D, { goals: [{ item, qty: g.qty }], facilities: form.facilities, mode: form.mode, salvage: form.salvage, routes: form.routes });   // quick: runs per item only
-      if (r.blocked.some(b => b.item === item)) { el.innerHTML = `<span class="bad">None of your ticked facilities makes ${esc(item)}.</span>`; return; }
+      const self = r.blocked.find(b => b.item === item);
+      if (self) { const tick = untickedOf(self.facilities); el.innerHTML = `<span class="bad">None of your ticked facilities makes ${esc(item)}.${tick.length ? ` Tick ${tick.join(" or ")}.` : ""}</span>`; return; }
       const step = r.steps.find(x => x.id === r.routes[item]);
       if (!step) { el.innerHTML = ""; return; }
       const per = step.recipe.out[item], runs = step.runs, made = runs * per, spare = made - g.qty, where = esc(facLabel(step.recipe.f));
-      if (per === 1) { el.innerHTML = `One per run on the ${where}: ${num(runs)} run${runs > 1 ? "s" : ""}.`; return; }
-      el.innerHTML = `Comes in runs of <b>${num(per)}</b> on the ${where}: ${num(g.qty)} → ${num(runs)} run${runs > 1 ? "s" : ""} = ${num(made)}` +
-        (spare > 0 ? `, ${num(spare)} spare. <button class="ghost mini" data-round="${i}" data-to="${made}">Make it ${num(made)}</button>` : ".");
+      let text = per === 1 ? `One per run on the ${where}: ${num(runs)} run${runs > 1 ? "s" : ""}.`
+        : `Comes in runs of <b>${num(per)}</b> on the ${where}: ${num(g.qty)} → ${num(runs)} run${runs > 1 ? "s" : ""} = ${num(made)}` +
+          (spare > 0 ? `, ${num(spare)} spare. <button class="ghost mini" data-round="${i}" data-to="${made}">Make it ${num(made)}</button>` : ".");
+      if (r.blocked.length) {                              // parts made only by unticked facilities, grouped by those facilities
+        const groups = new Map();
+        for (const b of r.blocked) { const k = untickedOf(b.facilities).join(" or "); (groups.get(k) || groups.set(k, []).get(k)).push(`${num(b.qty)} ${esc(b.item)}`); }
+        const parts = [...groups].map(([k, items]) => items.join(", ") + (k ? ` (${k})` : "")).join("; ");
+        text += ` <span class="bad">Not made by your ticked facilities: ${parts}. Tick those, or bring the parts.</span>`;
+      }
+      el.innerHTML = text;
     });
   }
   $("goals").addEventListener("input", e => {
@@ -214,7 +225,7 @@
   // Workers (file://) it runs in the page.
   let worker = null, seq = 0; const pending = new Map();
   function startWorker() {
-    try { worker = new Worker("lodge-worker.js?v=951819f6"); } catch (e) { worker = null; return; }
+    try { worker = new Worker("lodge-worker.js?v=825451b0"); } catch (e) { worker = null; return; }
     worker.onmessage = e => { const cb = pending.get(e.data.id); pending.delete(e.data.id); if (cb) cb(e.data.error ? null : e.data.result); };
     worker.onerror = () => { worker = null; for (const cb of pending.values()) cb(null); pending.clear(); };
   }
@@ -387,7 +398,7 @@
     lines = model(p);
     cover = {}; recompute();
     const alerts = [];
-    const allBlocked = !lines.length && p.blocked.length > 0;      // nothing can be made: "least ore: 0" would be a strange thing to say
+    const allBlocked = p.blocked.length > 0 && !p.gather.length;    // nothing to gather, parts blocked: "least ore: 0" would be a strange thing to say
     if (allBlocked) { /* the blocked lines below say why */ }
     else if (o.mode === "time") alerts.push(p.exact && p.proven      // "Fastest" used to be announced as "Least ore there is"
       ? `<div class="alert ok"><b>Quickest there is</b> for these goals, facilities and routes: ${dur(p.secs)} of machine time, ${num(p.ore)} ore. Nothing quicker exists.</div>`

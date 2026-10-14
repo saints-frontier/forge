@@ -7,13 +7,17 @@
    unknown: things no recipe makes), then the least ore (mode "ore") or the least facility time (mode "time"),
    counted all the way down; ties go to the faster recipe. "Ore first" treats salvage as found-only; "Ore + salvage"
    counts it like ore. Whole runs, by-products credited, a shortfall covered by an extra run of a recipe already in the
-   plan when that costs at most 3x a new chain (no tiny side-mines), then every run that is not needed is trimmed. */
+   plan when that costs at most 3x a new chain (no tiny side-mines), then every run that is not needed is trimmed.
+   A part that some facility makes but none of the ticked ones does is a "blocked" unit, dearer than any found unit:
+   the recipe that needs it is still planned and the part is reported blocked, as the exact planner does (a Heavy Gate
+   with only the starter pair ticked used to be reported as unmakeable itself, 2026-10-13). */
 (function (root) {
   "use strict";
-  const EPS = 1e-9, INF = [Infinity, Infinity];
+  const EPS = 1e-9, INF = [Infinity, Infinity, Infinity];
   const add = (o, k, v) => { o[k] = (o[k] || 0) + v; };
-  const better = (a, b) => a[0] < b[0] - EPS || (Math.abs(a[0] - b[0]) <= EPS && a[1] < b[1] - EPS);
-  const same = (a, b) => Math.abs(a[0] - b[0]) <= EPS && Math.abs(a[1] - b[1]) <= EPS;
+  // a cost is [blocked units, found-only units, ore units or facility seconds], compared in that order
+  const better = (a, b) => { for (let k = 0; k < 3; k++) { if (a[k] < b[k] - EPS) return true; if (a[k] > b[k] + EPS) return false; } return false; };
+  const same = (a, b) => a.every((v, k) => Math.abs(v - b[k]) <= EPS);
 
   function solve(D, opt) {
     const facs = new Set(opt.facilities || []); facs.add("Build Mode");
@@ -31,11 +35,12 @@
     const isRaw = item => !allMakers[item];
     const found = item => { const k = kindOf(item); return !(k === "mine" || k === "extract" || (k === "cut" && opt.salvage === "use")); };
 
-    // cost of one unit: [found-only units, ore units or facility seconds]
+    // cost of one unit: [blocked units, found-only units, ore units or facility seconds]
     const memo = {};
     function cost(item, stack) {
       if (memo[item]) return memo[item];
-      if (isRaw(item)) return memo[item] = [found(item) ? 1 : 0, time ? 0 : 1];
+      if (isRaw(item)) return memo[item] = [0, found(item) ? 1 : 0, time ? 0 : 1];
+      if (!makers[item]) return memo[item] = [1, 0, 0];      // made somewhere, by none of the ticked facilities: blocked
       if (stack.has(item)) return INF;
       stack.add(item);
       let best = INF, bestT = Infinity;
@@ -48,11 +53,11 @@
       return best;
     }
     function runCost(r, stack) {
-      let f = 0, p = time ? (r.t == null ? 999 : r.t) : 0;
-      for (const i in r.in) { const c = cost(i, stack || new Set()); f += r.in[i] * c[0]; p += r.in[i] * c[1]; }
-      return [f, p];
+      let bl = 0, f = 0, p = time ? (r.t == null ? 999 : r.t) : 0;
+      for (const i in r.in) { const c = cost(i, stack || new Set()); bl += r.in[i] * c[0]; f += r.in[i] * c[1]; p += r.in[i] * c[2]; }
+      return [bl, f, p];
     }
-    const perUnit = (r, item, stack) => { const c = runCost(r, stack); return [c[0] / r.out[item], c[1] / r.out[item]]; };
+    const perUnit = (r, item, stack) => runCost(r, stack).map(v => v / r.out[item]);
 
     // the chosen recipe per item (a pilot's own choice wins when it is still possible)
     const route = {}, options = {};
@@ -68,7 +73,7 @@
           const c = perUnit(r, item, new Set()), t = (r.t == null ? 999 : r.t) / r.out[item];
           if (better(c, bc) || (same(c, bc) && t < bt)) { best = r; bc = c; bt = t; }
         }
-        if (best && !isFinite(bc[0])) best = null;
+        if (best && !isFinite(bc[0])) best = null;       // only a recipe that needs its own output (a cycle) is dropped
       }
       return route[item] = best;
     }
@@ -117,7 +122,7 @@
             const s = byId[id];
             if (!k || s === r || !s.out[item]) continue;
             const m = Math.ceil(net / s.out[item] - EPS), sc = runCost(s).map(v => v * m);
-            if (banned.has(r.id) || (sc[0] <= rc[0] + EPS && sc[1] <= 3 * rc[1] + EPS)) { use = s; n = m; break; }
+            if (banned.has(r.id) || (sc[0] <= rc[0] + EPS && sc[1] <= rc[1] + EPS && sc[2] <= 3 * rc[2] + EPS)) { use = s; n = m; break; }
           }
         }
         runs.set(use.id, (runs.get(use.id) || 0) + n);

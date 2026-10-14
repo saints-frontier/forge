@@ -310,6 +310,8 @@
       load, setScene, fit, fitTo, fitAll, project, has: id => byId.has(id), position: P, oldName: id => { const i = byId.get(id); return names && i != null ? names[i] : null; },
       select(id) { selected = id; dirty = true; schedule(); },
       mark(id, label) { marked = id != null && byId.has(id) ? { id, label: label || "" } : null; dirty = true; schedule(); },
+      // the archived (Cycle 6) names, for the system boxes: names starting with q first, then names containing it
+      searchOld(q, limit) { const out = [], inc = []; if (!names) return out; q = String(q).toLowerCase(); for (let i = 0; i < n && out.length < limit; i++) { const nm = names[i]; if (!nm) continue; const l = nm.toLowerCase(); if (l.startsWith(q)) out.push({ id: ids[i], name: nm }); else if (inc.length < limit && l.includes(q)) inc.push({ id: ids[i], name: nm }); } return out.concat(inc).slice(0, limit); },
       markMany(list) { many = (list || []).filter(m => m && byId.has(m.id)); dirty = true; schedule(); },
       sphere(s) { sphereOf = s && byId.has(s.a) && byId.has(s.b) ? { a: s.a, b: s.b } : null; dirty = true; schedule(); },
       look(id, dist) { const p = P(id); if (p) { cam.target = p; if (dist) cam.dist = dist; dirty = true; schedule(); } },

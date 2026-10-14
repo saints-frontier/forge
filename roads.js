@@ -162,7 +162,7 @@
     // launch site has a Network Node of ours, else planned; a status set by hand on the page wins
     const chainRoad = new Set(); for (const r of roads) if (r.source !== "plan" && r.source !== "public") { chainRoad.add(r.from + ">" + r.to); if (r.twoWay) chainRoad.add(r.to + ">" + r.from); }
     for (const p of plans) for (const h of p.hops) { if (h.gap || h.free || h.kind === "Public Gate" || h.kind === "Our Road") continue; const auto = chainRoad.has(h.fromSys + ">" + h.toSys) ? "built" : (systems.has(h.fromSys) && systems.get(h.fromSys).nodes.length ? "progress" : "planned"); h.auto = !h.status; if (!h.status) h.status = auto; }
-    for (const r of roads) if (r.source === "plan") { const h = plans[r.plan].hops[r.n]; r.status = h.status === "built" ? "built" : h.status === "progress" ? "progress" : "planned"; }
+    for (const r of roads) if (r.source === "plan") { const h = plans[r.plan].hops[r.n]; r.status = h.free || h.kind === "Public Gate" || h.kind === "Our Road" ? "built" : h.status === "built" ? "built" : h.status === "progress" ? "progress" : "planned"; }
     let home = up(list.home); if (!systems.has(home)) home = [...systems.keys()].sort()[0] || "";
     const nodeSys = id => (id && info.has(id) && info.get(id).sys) || null, nodeGuess = id => !!(id && info.has(id) && info.get(id).basis === "inferred");
     const ef = { byId: efById, byName: efByName, notes: efNotes, count: efById.size, confirmed: [...efById.values()].filter(e => e.status === "confirmed").length, error: (d.names && d.names.error) || null, used: [...ids.values()].filter(k => k.ef).length };
@@ -429,7 +429,7 @@
     if (d.blockers && d.blockers.length) return `A direct ${esc(d.tool)} shot (${f0(d.ly)} LY) is blocked by ${d.blockers.map(x => `<b>${esc(starName(x.id))}</b>`).join(", ")}.`;
     return "";
   }
-  const hopKindText = h => h.gap ? "STARGATE NEEDED" : h.step === "gate" ? `BUILD ${esc(h.kind).toUpperCase()} PAIR` : h.kind === "Public Gate" ? "public gate · " + (STATE_TEXT[h.state || (gateRec(h.fromSys, h.toSys) || {}).state] || (gateRec(h.fromSys, h.toSys) ? "jumped before" : "state unknown")) : h.kind === "Our Road" ? "our road" : h.free ? esc(h.kind) + " · built above" : esc(h.kind);
+  const hopKindText = h => h.gap ? "STARGATE NEEDED" : h.step === "gate" ? `BUILD ${esc(h.kind).toUpperCase()} PAIR` : h.kind === "Public Gate" ? "public gate · " + (STATE_TEXT[h.state || (gateRec(h.fromSys, h.toSys) || {}).state] || (gateRec(h.fromSys, h.toSys) ? "jumped before" : "state unknown")) : h.kind === "Our Road" ? "our road · built" : h.free ? esc(h.kind) + " · built above" : "build " + esc(h.kind);
   const STATUS_TEXT = { planned: "planned", progress: "in progress", built: "built" };
   function drawPlans() {
     $("roads-plan-btns").innerHTML = M.plans.map(p => `<button type="button" data-panel="plan" data-plan="${p.i}">${esc(p.name)}${(M.list.plans[p.i] || {}).draft ? " (unsaved)" : ""}</button>`).join("");
@@ -440,7 +440,7 @@
     const raw = M.list.plans[i] || {}, isDraft = !!raw.draft, mode = raw.mode || "access";
     const fwd = p.hops.filter(h => h.leg !== "back"), back = p.hops.filter(h => h.leg === "back");
     const ly = fwd.reduce((a, h) => a + (h.ly || 0), 0), bill = planBill(fwd), bb = back.length ? planBill(back) : null;
-    const row = (h, k) => `<div class="roads-prow${h.step === "gate" ? " step" : ""}"><span>${k + 1}</span><span><b>${esc(h.fromSys)}</b></span><span><b>${esc(h.toSys)}</b></span><span class="${h.gap ? "gap" : h.kind === "Public Gate" ? "pub" : "k"}">${hopKindText(h)}</span><span class="ly">${(h.ly || 0).toFixed(1)}</span>` +
+    const row = (h, k) => `<div class="roads-prow${h.step === "gate" ? " step" : ""}"><span>${k + 1}</span><span><b>${esc(h.fromSys)}</b></span><span><b>${esc(h.toSys)}</b></span><span class="${h.gap ? "gap" : h.kind === "Public Gate" ? "pub" : h.free || h.kind === "Our Road" ? "have" : "k"}">${hopKindText(h)}</span><span class="ly">${(h.ly || 0).toFixed(1)}</span>` +
       (isDraft ? "" : `<span class="st ${h.status || "planned"}" ${isBuild(h) && M.canEdit ? `data-hopstatus="${i}:${h.n}"` : ""} title="${h.auto ? "read from the chain" : "set by hand"}">${isBuild(h) ? STATUS_TEXT[h.status || "planned"] + (h.auto ? " ·" : "") : ""}</span>` +
       `<span class="who">${isBuild(h) ? (M.canEdit ? `<input type="text" maxlength="24" placeholder="who builds" value="${esc(h.who || "")}" data-hopwho="${i}:${h.n}"><input type="date" value="${esc(h.by || "")}" data-hopby="${i}:${h.n}">` : esc([h.who, h.by].filter(Boolean).join(" · "))) : ""}</span>`) + `</div>`;
     const head = `<div class="roads-phead"><span>#</span><span>From</span><span>To</span><span>Build</span><span class="ly">LY</span>${isDraft ? "" : "<span>Status</span><span>Builder · by</span>"}</div>`;
@@ -454,7 +454,9 @@
     const backHtml = back.length ? `<div class="ph" style="margin-top:12px">The way home<small>${back.length} hops · ${f0(back.reduce((a, h) => a + (h.ly || 0), 0))} LY · ${bb.launchers} more launcher${bb.launchers === 1 ? "" : "s"}</small></div>` + head + back.map(row).join("") : "";
     const acts = `<div class="pacts">${M.canEdit ? (isDraft ? `<button type="button" class="primary" data-plansave="1">Keep this plan</button><button type="button" data-plandrop="1">Drop it</button>` : `<button type="button" data-planremove="${i}">Remove this plan</button>`) : ""}` +
       `<button type="button" data-copynote="${i}">Copy as in-game note</button><button type="button" data-copytext="${i}">Copy for Discord</button>${bill.launchers ? `<button type="button" data-lodge="${i}">⚒ Build it in the Lodge</button>` : ""}<span class="roads-hint" id="plan-copied"></span></div>`;
-    $("roads-plan").innerHTML = `<div class="roads-plan${isDraft ? "" : " saved"}"><div class="ph">${esc(p.name)}<small>${fwd.length} hops · ${f0(ly)} LY${raw.priorities ? " · " + raw.priorities.map(k => CRIT[k]).filter(Boolean).slice(0, 3).join(", ") : ""}</small></div>` +
+    const have = fwd.filter(h => !h.gap && (h.free || h.kind === "Our Road" || h.kind === "Public Gate")), ours = have.filter(h => h.kind === "Our Road" || h.free === true && h.kind !== "Public Gate").length, pubs = have.length - ours, todo = fwd.filter(isBuild).length;
+    const haveLine = `<div class="roads-have"><span class="have"><b>${have.length}</b> hop${have.length === 1 ? "" : "s"} over what exists</span>${have.length ? ` (${[ours ? `${ours} on our roads` : "", pubs ? `${pubs} through public gates` : ""].filter(Boolean).join(", ")})` : ""} · <span class="k"><b>${todo}</b> to build</span>${bill.gaps ? ` · <span class="gap">${bill.gaps} crossing${bill.gaps > 1 ? "s" : ""} no tool makes</span>` : ""}</div>`;
+    $("roads-plan").innerHTML = `<div class="roads-plan${isDraft ? "" : " saved"}"><div class="ph">${esc(p.name)}<small>${fwd.length} hops · ${f0(ly)} LY${raw.priorities ? " · " + raw.priorities.map(k => CRIT[k]).filter(Boolean).slice(0, 3).join(", ") : ""}</small></div>` + haveLine +
       (p.note ? `<div class="pnote">${esc(p.note)}</div>` : "") + diag + (dir ? `<div class="roads-hint">${dir}</div>` : "") + sheet + corridor + head + fwd.map(row).join("") + backHtml +
       `<div class="roads-hint">Systems marked (C6) carry their Cycle 6 name: their Cycle 7 name is not known yet; in the in-game note they open under their real name. Distances are straight lines from the archived positions.${isDraft ? "" : " Status comes from the chain when a launcher with the right name appears; click a status to set it by hand."}</div>` + acts + `</div>`;
     if (sf && view === "stars") { const ids = new Set(); for (const h of p.hops) { const a = M.ids.get(h.fromSys), b = M.ids.get(h.toSys); if (a) ids.add(a.id); if (b) ids.add(b.id); } sf.fitTo([...ids]); }
@@ -469,19 +471,47 @@
     planner.onerror = e => { planning = false; $("plan-run").disabled = false; $("plan-status").textContent = "the planner failed: " + (e.message || "worker error"); };
     return planner;
   }
-  function systemOptions(extra) {
-    const own = [...M.ids].filter(([, k]) => k.id && !k.c6).sort((a, b) => a[0].localeCompare(b[0])), have = new Set(own.map(([, k]) => k.id));
-    const more = [...M.ef.byName].filter(([, e]) => !have.has(e.id)).sort((a, b) => a[0].localeCompare(b[0]));
-    const mine = own.map(([n, k]) => `<option value="${k.id}">${esc(n)}</option>`).join("");
-    const grp = (label, rows) => rows.length ? `<optgroup label="${label}">${rows.map(([n, e]) => `<option value="${e.id}">${esc(n)}</option>`).join("")}</optgroup>` : "";
-    const pick = picked && !have.has(picked) && !M.ef.byId.has(picked) ? `<optgroup label="Picked on the map"><option value="${picked}">${esc(nameOfId(picked))}</option></optgroup>` : "";
-    return (extra || "") + (more.length ? `<optgroup label="Ours">${mine}</optgroup>` + grp("Charted on EF-Map", more.filter(([, e]) => e.status === "confirmed")) + grp("Uncharted: reported once", more.filter(([, e]) => e.status !== "confirmed")) : mine) + pick;
+  // ---------- the system boxes: type a name, pick it from the matches (ours, charted on EF-Map, reported once, a star
+  // picked on the map, any archived star by its Cycle 6 name, or a system number) ----------
+  function systemIndex() {
+    const rows = [], seen = new Set();
+    for (const [n, k] of M.ids) if (k.id && !k.c6 && !seen.has(k.id)) { seen.add(k.id); rows.push({ id: k.id, name: n, tag: "ours", rank: 0 }); }
+    for (const [n, e] of M.ef.byName) if (!seen.has(e.id)) { seen.add(e.id); rows.push({ id: e.id, name: n, tag: e.status === "confirmed" ? "charted" : "reported once", rank: e.status === "confirmed" ? 1 : 2 }); }
+    if (picked && !seen.has(picked)) rows.push({ id: picked, name: nameOfId(picked), tag: "picked on the map", rank: 3 });
+    return rows;
+  }
+  function sysSearch(q, limit) {
+    q = q.trim().toLowerCase(); if (!q) return [];
+    const idx = systemIndex(), out = [], seen = new Set();
+    const score = r => { if (String(r.id) === q) return 0; const n = r.name.toLowerCase(); return n === q ? 0 : n.startsWith(q) ? 1 : n.includes(q) ? 2 : 9; };   // a system number matches its system too
+    for (const r of idx) { const sc = score(r); if (sc < 9) out.push(Object.assign({ s: sc }, r)); }
+    if (/^[0-9]{8}$/.test(q)) { const id = +q; if (!idx.some(r => r.id === id) && sf && sf.has(id)) out.push({ id, name: nameOfId(id), tag: "by number", rank: 3, s: 0 }); }
+    out.sort((x, y) => x.s - y.s || x.rank - y.rank || x.name.localeCompare(y.name));
+    for (const r of out) seen.add(r.id);
+    if (sf && sf.searchOld && q.length >= 2 && out.length < limit) for (const r of sf.searchOld(q, limit)) if (!seen.has(r.id)) { seen.add(r.id); out.push({ id: r.id, name: r.name + " (C6)", tag: "uncharted · Cycle 6 name", rank: 4, s: 3 }); }
+    return out.slice(0, limit);
+  }
+  const sysId = id => +($(id).dataset.id || 0);
+  function setSys(id, sid) { const el = $(id); el.dataset.id = sid ? String(sid) : ""; el.value = sid ? nameOfId(sid) : ""; }
+  function sysbox(el) {
+    if (el.dataset.boxed) return; el.dataset.boxed = "1";
+    const menu = document.createElement("ul"); menu.className = "sysmenu"; menu.hidden = true; el.parentNode.appendChild(menu);
+    let rows = [], hi = -1;
+    const close = () => { menu.hidden = true; hi = -1; };
+    const pick = i => { const r = rows[i]; if (!r) return; el.dataset.id = String(r.id); el.value = r.name; close(); el.dispatchEvent(new Event("change", { bubbles: true })); };
+    const draw = () => { menu.innerHTML = rows.map((r, i) => `<li class="${i === hi ? "hi" : ""}" data-i="${i}"><b>${esc(r.name)}</b><span>${esc(r.tag)}</span></li>`).join("") || `<li class="none">no system matches</li>`; menu.hidden = false; };
+    el.addEventListener("input", () => { el.dataset.id = ""; rows = sysSearch(el.value, 12); hi = rows.length ? 0 : -1; if (el.value.trim()) draw(); else close(); });
+    el.addEventListener("focus", () => { if (el.value.trim() && !el.dataset.id) { rows = sysSearch(el.value, 12); hi = rows.length ? 0 : -1; draw(); } });
+    el.addEventListener("keydown", e => {
+      if (menu.hidden) { if (e.key === "Enter" && /^plan-(from|to)$/.test(el.id)) { e.preventDefault(); $("plan-run").click(); } return; }
+      if (e.key === "ArrowDown") { hi = Math.min(rows.length - 1, hi + 1); draw(); e.preventDefault(); } else if (e.key === "ArrowUp") { hi = Math.max(0, hi - 1); draw(); e.preventDefault(); }
+      else if (e.key === "Enter") { if (hi >= 0) pick(hi); e.preventDefault(); } else if (e.key === "Escape") close(); });
+    el.addEventListener("blur", () => setTimeout(() => { if (!el.dataset.id && rows.length && rows[0].s === 0) pick(0); close(); }, 150));   // the full name typed and left: it counts
+    menu.addEventListener("mousedown", e => { const li = e.target.closest("li[data-i]"); if (li) { e.preventDefault(); pick(+li.dataset.i); } });
   }
   function fillPlanner() {
-    const opts = systemOptions("");
-    for (const id of ["plan-from", "plan-to", "plan-stop", "plan-avoid", "check-from"]) { const s = $(id); if (!s) continue; const v = s.value; s.innerHTML = opts; if (v) s.value = v; }
-    const ct = $("check-to"); if (ct) { const v = ct.value; ct.innerHTML = systemOptions(`<option value="">(no target: show every legal hop)</option>`); ct.value = v; }
-    const home = M.ids.get(M.home); if (!$("plan-from").value && home) $("plan-from").value = home.id;
+    for (const id of ["plan-from", "plan-to", "plan-stop", "plan-avoid", "check-from", "check-to"]) { const el = $(id); if (el) sysbox(el); }
+    const home = M.ids.get(M.home); if (!$("plan-from").value && home) setSys("plan-from", home.id);
     renderPrio(); renderChips();
   }
   function renderPrio() {
@@ -502,8 +532,8 @@
   const WORKER_MSG = () => ({ stars: "stars.bin?v=2", gates: "gates.bin?v=3", catapults: "catapults.bin?v=1" });
   function runPlanner() {
     if (planning) return;
-    const from = +$("plan-from").value, to = +$("plan-to").value, tools = [...$("plan-tools").querySelectorAll("input:checked")].map(i => i.value), mode = $("plan-mode").value, roundTrip = $("plan-round").checked;
-    if (!from || !to || from === to) { $("plan-status").textContent = "pick two different systems."; return; }
+    const from = sysId("plan-from"), to = sysId("plan-to"), tools = [...$("plan-tools").querySelectorAll("input:checked")].map(i => i.value), mode = $("plan-mode").value, roundTrip = $("plan-round").checked;
+    if (!from || !to || from === to) { $("plan-status").textContent = !from || !to ? "type both systems and pick each from the matches." : "pick two different systems."; return; }
     if (!tools.some(t => t !== "Public Gate")) { $("plan-status").textContent = "tick at least one launcher to build; public gates alone only go where the network already leads."; }
     if (mode === "corridor" && !tools.some(t => /Gate$/.test(t) && t !== "Public Gate")) { $("plan-status").textContent = "a corridor is made of gate pairs: tick Mini Gate or Heavy Gate."; return; }
     const priorities = planPrio.filter(x => x[1]).map(x => x[0]);
@@ -552,15 +582,15 @@
   }
   // ---------- Check a jump: one structure from one star, every legal target on the map ----------
   function runChecker() {
-    const from = +$("check-from").value, structure = $("check-kind").value, target = +$("check-to").value || null;
-    if (!from) { $("check-status").textContent = "pick the system you jump from."; return; }
+    const from = sysId("check-from"), structure = $("check-kind").value, target = sysId("check-to") || null;
+    if (!from) { $("check-status").textContent = "type the system you jump from and pick it from the matches."; return; }
     getPlanner();
     $("check-status").textContent = "checking…";
     planner.postMessage(Object.assign({ type: "check", id: Date.now(), from, structure, target }, WORKER_MSG()));
   }
   function onChecked(m) {
     if (m.error) { $("check-status").textContent = "the check failed: " + m.error; return; }
-    checkRes = m; const from = +$("check-from").value;
+    checkRes = m; const from = sysId("check-from");
     $("check-status").textContent = `${m.legal.length} legal target${m.legal.length === 1 ? "" : "s"} within ${m.range} LY, ${m.blocked.length} in range but blocked`;
     const li = (id, ly, cls, extra) => `<li class="${cls}"><b>${esc(starName(id))}</b> · ${ly} LY${extra || ""}</li>`;
     let verdict = "";
@@ -644,8 +674,8 @@
     const b = e.target.closest("button"); if (!b || !M) return;
     if (b.dataset.ugroup) { unplacedBy = b.dataset.ugroup === "node" ? "node" : "builder"; try { localStorage.setItem("roads:unplacedBy", unplacedBy); } catch (e) {} drawUnplaced(); return; }
     if (b.id === "plan-run") { runPlanner(); return; }
-    if (b.id === "plan-stop-add") { const v = +$("plan-stop").value; if (v && !planStops.includes(v)) planStops.push(v); renderChips(); return; }
-    if (b.id === "plan-avoid-add") { const v = +$("plan-avoid").value; if (v && !planAvoid.includes(v)) planAvoid.push(v); renderChips(); return; }
+    if (b.id === "plan-stop-add") { const v = sysId("plan-stop"); if (v && !planStops.includes(v)) planStops.push(v); setSys("plan-stop", 0); renderChips(); return; }
+    if (b.id === "plan-avoid-add") { const v = sysId("plan-avoid"); if (v && !planAvoid.includes(v)) planAvoid.push(v); setSys("plan-avoid", 0); renderChips(); return; }
     if (b.dataset.chip) { const [k, i] = b.dataset.chip.split(":"); (k === "stop" ? planStops : planAvoid).splice(+i, 1); renderChips(); return; }
     if (b.dataset.prioup != null) { const i = +b.dataset.prioup; if (i > 0) { [planPrio[i - 1], planPrio[i]] = [planPrio[i], planPrio[i - 1]]; renderPrio(); } return; }
     if (b.dataset.priodown != null) { const i = +b.dataset.priodown; if (i < planPrio.length - 1) { [planPrio[i + 1], planPrio[i]] = [planPrio[i], planPrio[i + 1]]; renderPrio(); } return; }
@@ -653,8 +683,8 @@
     if (b.dataset.copytext) { copyText(discordText(M.plans[+b.dataset.copytext]), "copied for Discord."); return; }
     if (b.dataset.lodge) { toLodge(M.plans[+b.dataset.lodge]); return; }
     if (b.id === "check-run") { runChecker(); return; }
-    if (b.dataset.stepto) { $("check-from").value = b.dataset.stepto; runChecker(); return; }
-    if (b.dataset.why) { $("check-to").value = b.dataset.why; runChecker(); return; }
+    if (b.dataset.stepto) { setSys("check-from", +b.dataset.stepto); runChecker(); return; }
+    if (b.dataset.why) { setSys("check-to", +b.dataset.why); runChecker(); return; }
     if (b.dataset.checkclear) { if (sf) { sf.markMany([]); sf.sphere(null); } return; }
     if (b.dataset.plansave) { const l = listCopy(); l.plans = l.plans.filter(p => !p.draft); l.plans.push({ name: draft.name, note: draft.note, hops: draft.hops, mode: draft.mode, priorities: draft.priorities }); save(l, "Plan"); return; }
     if (b.dataset.plandrop) { draft = null; render(lastData); $("plan-status").textContent = "dropped."; return; }
