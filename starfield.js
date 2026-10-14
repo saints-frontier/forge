@@ -289,15 +289,15 @@
     const pickStar = (x, y) => { let best = null, bd = 9; for (let i = 0; i < n; i++) { const p = project([pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]]); if (!p) continue; const d = Math.hypot(p[0] - x, p[1] - y); if (d < bd) { bd = d; best = ids[i]; } } return best; };
     ov.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY, moved: false, pan: e.button === 2 || e.shiftKey, id: e.pointerId }; ov.setPointerCapture(e.pointerId); e.preventDefault(); });
     ov.addEventListener("pointermove", e => {
-      if (!drag) { const id = pickAt(e.offsetX, e.offsetY); if (id !== hovered) { hovered = id; ov.style.cursor = id ? "pointer" : "grab"; dirty = true; schedule(); if (opts.onHover) opts.onHover(id); } return; }
-      const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; drag.x = e.clientX; drag.y = e.clientY;
+      if (!drag) { const id = pickAt(e.offsetX, e.offsetY); if (id !== hovered) { hovered = id; ov.classList.toggle("over", !!id); /* the gauntlet lights up over a system (cursor rules: roads.css, tools/make_cursors.py) */ dirty = true; schedule(); if (opts.onHover) opts.onHover(id); } return; }
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) { drag.moved = true; ov.classList.add("drag"); } /* the closed gauntlet while the map is dragged */ drag.x = e.clientX; drag.y = e.clientY;
       if (drag.pan) { mat(); const s = 2 * Math.tan(LY_FOV / 2) * cam.dist / h;   // light-years per pixel at the target: the map follows the pointer
         const right = norm3(cross3(norm3([Math.sin(cam.yaw), 0, Math.cos(cam.yaw)]), [0, 1, 0])), up = [0, 1, 0];
         cam.target = [cam.target[0] + right[0] * dx * s + up[0] * dy * s, cam.target[1] + right[1] * dx * s + up[1] * dy * s, cam.target[2] + right[2] * dx * s + up[2] * dy * s]; }   // + right: this vector points to screen-left (the drag was mirrored sideways, user 2026-10-12)
       else { cam.yaw -= dx * 0.006; cam.pitch = Math.max(-1.5, Math.min(1.5, cam.pitch + dy * 0.006)); }
       dirty = true; schedule();
     });
-    const endDrag = e => { if (!drag) return; const d = drag; drag = null; if (!d.moved && e.type === "pointerup") { const id = pickAt(e.offsetX, e.offsetY); selected = id; dirty = true; schedule(); if (opts.onPick) opts.onPick(id); if (id == null && opts.onPickStar) opts.onPickStar(pickStar(e.offsetX, e.offsetY)); } };
+    const endDrag = e => { if (!drag) return; const d = drag; drag = null; ov.classList.remove("drag"); if (!d.moved && e.type === "pointerup") { const id = pickAt(e.offsetX, e.offsetY); selected = id; dirty = true; schedule(); if (opts.onPick) opts.onPick(id); if (id == null && opts.onPickStar) opts.onPickStar(pickStar(e.offsetX, e.offsetY)); } };
     ov.addEventListener("pointerup", endDrag); ov.addEventListener("pointercancel", endDrag);
     ov.addEventListener("contextmenu", e => e.preventDefault());
     // The wheel zooms only with Ctrl (or Cmd) held, as in the Forge: a plain wheel scrolls the page (user 2026-10-12: the

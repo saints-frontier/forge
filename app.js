@@ -560,7 +560,7 @@
     $("st-fuel").textContent = f(st.fuel); $("st-fuel-sub").textContent = st.burn > 0 ? `${st.burn.toFixed(2)}/min on ${state.fuelGrade} · ${isFinite(st.hours) ? st.hours.toFixed(1) + " h" : "—"}` + (st.burnBusy > st.burn + 0.005 ? ` · ${st.burnBusy.toFixed(2)}/min with everything running` : "") : "—";
     $("st-fuel-sub").title = "At rest the burn is the power drawn. Recharging the capacitor burns fuel as well: 1 MW for every GJ/s that flows back in, so weapons, repairers and a refill from empty all cost fuel.";
     $("st-cap").textContent = f(st.cap); $("st-cap-sub").textContent = `${f1(st.rech)} GJ/s est · ${f1(st.drain)} drain${st.stable ? " · stable" : " · " + (isFinite(st.lastMin) ? "runs dry in " + Math.round(st.lastMin) + " s" : "runs dry")}`;
-    $("st-hp").textContent = `~${f(st.hp)}`; $("st-hp-sub").textContent = `${st.repair} HP/s repair`;
+    $("st-hp").textContent = f(st.hp);   /* exact: hull 2,100 on both hulls and +375 a Brace match every fitting-screen reading (starter Reiver 2,100, stock LAI 2,100, Templar 2,475, Vesper 4,350) */ $("st-hp-sub").textContent = `${st.repair} HP/s repair`;
     // the big number is per second at full spool-up; the small line is per hit, as the combat log shows it
     $("st-dps").textContent = st.dps ? f(Math.round(st.dpsRamped)) : (st.mining ? `${st.mining}×` : "—");
     $("st-dps-sub").textContent = st.dps
@@ -568,7 +568,7 @@
       : (st.mining ? "mining lasers / extractors" : "no weapons");
     $("st-power").textContent = `${st.draw.toFixed(1)} / ${st.power}`; $("st-power-sub").textContent = "MW";
     // mass in tonnes (the fitting screen shows kg: 12,456 t = 12,456,000 kg); EM signature as the fitting screen shows it
-    const massChecked = state.hull === (D.models.mass || {}).verified_on;        // "~" until the hull's own mass is checked against the game
+    const massChecked = [].concat((D.models.mass || {}).verified_on || []).includes(state.hull);        // "~" until the hull's own mass is checked against the game
     $("st-mass").textContent = (massChecked ? "" : "~") + f(Math.round(st.mass / 1000));
     $("st-mass-sub").textContent = `tonnes: hull ${f(Math.round(st.hullMass / 1000))} + fit ${f(Math.round((st.mass - st.hullMass) / 1000))}`;
     $("st-mass-sub").title = `${f(st.mass)} kg, without cargo or ammunition. ` + (massChecked ? "Matches the game's fitting screen." : `The ${state.hull} hull's own mass is the client's number, not yet checked in game.`);
@@ -1186,7 +1186,7 @@
       $("card-save").addEventListener("click", saveCard);
       $("card-copy").addEventListener("click", copyCard);
     }
-    $("hull-sel").addEventListener("change", e => { if (busy()) { e.target.value = state.hull; return; } state.hull = e.target.value; startSolver(); cleanSlate(false); });
+    $("hull-sel").addEventListener("change", e => { if (busy()) { e.target.value = state.hull; return; } state.hull = e.target.value; startSolver(); const stock = D.presets.find(p => p.starter && p.hull === state.hull); if (stock) loadPreset(stock.n); else cleanSlate(false); });   /* a hull's stock fit, as the game builds it, when the edition has one */
     $("btn-own").addEventListener("click", () => cleanSlate(false));
     $("preset-sel").addEventListener("change", e => { if (e.target.value) loadPreset(e.target.value); e.target.value = ""; });
     $("fit-name").addEventListener("input", e => { state.name = e.target.value; syncUnsave(); });
