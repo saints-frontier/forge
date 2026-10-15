@@ -23,14 +23,20 @@
                 + '<label class="tribe-up" title="Replace every doctrine fit with an exported doctrine-payload.json">upload file<input type="file" accept="application/json,.json" hidden></label>' : "")
       + '<a class="tribe-out" href="/api/logout">log out</a>';
     var who = box.querySelector(".tribe-who");
+    // Make a card (the doctrine card design) is for Saints: the button is hidden in the public build until a login is
+    // seen, and the words of the doctrine cards come from the store (user 2026-10-15: the only Forge lives on the site)
+    var cardBtn = document.getElementById("btn-card");
+    if (cardBtn) cardBtn.hidden = false;
+    fetch("/api/cards", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && window.__forgeCardText) window.__forgeCardText(d); }).catch(function () {});
     function note(t) { var n = box.querySelector(".tribe-note"); if (!n) { n = document.createElement("span"); n.className = "tribe-note"; who.after(n); } n.textContent = t ? " · " + t : ""; }
     if (knight) box.querySelector(".tribe-up input").addEventListener("change", function (e) {
       var f = e.target.files && e.target.files[0]; if (!f) return;
       note("uploading " + f.name + "…");
       var sent = "";
-      f.text().then(function (text) { sent = text; return fetch("/api/doctrine", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: text }); })
+      f.text().then(function (text) { sent = text; var cards = /"cards"\s*:/.test(text) && !/"presets"\s*:/.test(text); return fetch(cards ? "/api/cards" : "/api/doctrine", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: text }); })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-        .then(function (x) { if (x.ok) { var d = null; try { d = JSON.parse(sent); } catch (e) {} if (d && Array.isArray(d.presets)) applied(d, x.d.fits + " doctrine fits stored", null); else { note(x.d.fits + " doctrine fits stored. Reloading…"); setTimeout(function () { location.reload(); }, 900); } } else note("not stored: " + (x.d && x.d.error || "error")); })
+        .then(function (x) { if (x.ok) { var d = null; try { d = JSON.parse(sent); } catch (e) {} if (d && d.cards && !d.presets) { note(x.d.cards + " ship cards stored"); if (window.__forgeCardText) window.__forgeCardText(d); } else if (d && Array.isArray(d.presets)) applied(d, x.d.fits + " doctrine fits stored", null); else { note(x.d.fits + " doctrine fits stored. Reloading…"); setTimeout(function () { location.reload(); }, 900); } } else note("not stored: " + (x.d && x.d.error || "error")); })
         .catch(function () { note("upload failed"); });
     });
     // "Set as doctrine" (Paladins, Knights, site keepers): the fit on screen goes into the store under a doctrine name,

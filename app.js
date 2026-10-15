@@ -965,6 +965,10 @@
 
   // ---------- the card dialog: the fit drawn in the doctrine-card design (cardgen.js), rendered to a PNG for Discord ----------
   let cardPng = null, cardTimer = null, downloads = undefined;
+  // On the website the WORDS of the doctrine cards come from the tribe store (/api/cards, logged-in Saints only),
+  // keyed by the fit's name; tribe.js hands them in through this hook (user 2026-10-15: the only Forge lives on the site).
+  let cardText = {};
+  window.__forgeCardText = d => { cardText = (d && d.cards && typeof d.cards === "object" && !Array.isArray(d.cards)) ? d.cards : {}; return Object.keys(cardText).length; };
   const CF = ["title", "role", "origin", "motto", "latin", "sigil", "weapon", "purpose", "how", "why"];
   function cardOpts() {
     const base = state.preset ? D.presets.find(p => p.n === state.preset) : null;
@@ -977,9 +981,11 @@
     if (!window.ForgeCard || !K) { setStatus("The card design did not load (card.js).", "bad"); return; }
     const base = state.preset ? D.presets.find(p => p.n === state.preset) : null;
     const doctrine = base && !state.dirty;
+    if (base && cardText[base.name] && !(K.text && K.text[base.n])) { K.text = K.text || {}; K.text[base.n] = cardText[base.name]; }   /* the site: words from the store */
     const t = ForgeCard.texts({ preset: base, counts: counts(state.placements), exterior: state.exterior, name: state.name, hull: state.hull, dirty: state.dirty, diff: diffVsBase(base) });
     const k = base ? K.doctrine.indexOf(base.n) : -1;
     t.sigil = doctrine && k >= 0 ? K.roman[k] : "✠";
+    if (doctrine && cardText[base.name] && cardText[base.name].sigil) t.sigil = cardText[base.name].sigil;
     CF.forEach(f => $("cf-" + f).value = t[f] || "");
     $("card-sub").textContent = doctrine ? `${base.name}: the doctrine card, with the live numbers.` : "A proposal card: edit the words, then render the PNG for Discord.";
     cardPng = null; $("card-png").hidden = true; $("card-save").hidden = true; $("card-copy").hidden = true; $("card-status").textContent = "";
@@ -996,14 +1002,18 @@
       const img = $("card-png"); if (img.src) URL.revokeObjectURL(img.src); img.src = URL.createObjectURL(cardPng); img.hidden = false;
       $("card-svg").innerHTML = "";
       if (downloads === undefined) downloads = (window.claude && window.claude.use) ? await window.claude.use("downloads").catch(() => null) : null;
-      $("card-save").hidden = !downloads; $("card-copy").hidden = !(navigator.clipboard && window.ClipboardItem);
-      st.textContent = `PNG ready (${(cardPng.size / 1024).toFixed(0)} KB, 2880 × 1800).` + (window.FORGE_FONTS ? "" : " The PNG uses Georgia where Cinzel is not embedded.") + (downloads ? "" : " Right-click the image to save or copy it.");
+      $("card-save").hidden = !(downloads || !window.claude); $("card-copy").hidden = !(navigator.clipboard && window.ClipboardItem);   /* a plain website downloads by itself */
+      st.textContent = `PNG ready (${(cardPng.size / 1024).toFixed(0)} KB, 2880 × 1800).` + (window.FORGE_FONTS ? "" : " The PNG uses Georgia where Cinzel is not embedded.") + ($("card-save").hidden ? " Right-click the image to save or copy it." : "");
       st.className = "status ok";
     } catch (e) { st.textContent = "Render failed: " + e.message; st.className = "status bad"; }
   }
   function cardFilename() { return (($("cf-title").value || "card").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "card") + "-saints-card.png"; }
   async function saveCard() {
-    if (!cardPng || !downloads) return; const st = $("card-status");
+    if (!cardPng) return; const st = $("card-status");
+    if (!downloads) {                                     // a plain website: the browser's own download (an artifact's sandbox blocked it, hence the capability below)
+      const a = document.createElement("a"); a.href = URL.createObjectURL(cardPng); a.download = cardFilename(); document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000); st.textContent = "Saved to your downloads."; st.className = "status ok"; return;
+    }
     try { await downloads.save({ filename: cardFilename(), data: cardPng }); st.textContent = "Saved."; st.className = "status ok"; }
     catch (e) { st.textContent = e && e.code === "declined" ? "Save cancelled." : "Could not save: " + (e && e.message || e); st.className = "status warn"; }
   }
@@ -1112,7 +1122,7 @@
   // "Build it in the Lodge" (its own button under the share row): every module of the fit becomes a goal of the Mason's Lodge. On the site the Lodge is the
   // next page over (window.__lodgeImport + window.__siteGo); stand-alone, the fit travels in the Lodge's link as
   // #build-<base64url JSON> (a link keeps only letters, digits, - and _ after the #).
-  const LODGE_URL = "https://claude.ai/artifact/GN4X4Zo2kfjPoWnoPuQ5cg";
+  const LODGE_URL = "https://www.thesaintsforge.com/lodge";       // the Lodge lives on the site only (user 2026-10-15)
   function lodgePayload() { return { name: state.name, hull: state.hull, goals: shopping().rows.map(r => ({ item: r.n, qty: r.k })) }; }
   function lodgeLink(p) {
     const b = btoa(unescape(encodeURIComponent(JSON.stringify(p)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");

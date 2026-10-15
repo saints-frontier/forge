@@ -747,6 +747,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       <button type="button" class="ghost" id="btn-unsave" title="Load a saved fit first: this removes it from the saved fits in this browser" disabled>Delete saved</button>
       <button type="button" id="btn-save">Save</button>
       <span id="tribe" class="tribe"></span>
+      <button type="button" class="primary" id="btn-card" hidden title="The doctrine card design, for Saints after the tribe login">Make a card</button>
     </div>
   </header>
 <section id="tab-about" class="about" hidden aria-labelledby="about-h"><figure class="about-left"><svg class="about-portrait" viewBox="100 80 1200 1110" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The Saints crest, the Crusader, with golden wings">
@@ -1021,9 +1022,35 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     <div class="tour-row"><label class="tour-check"><input type="checkbox" id="tour-never"> Don't show this again</label><span class="sp"></span><button type="button" id="tour-skip">Skip</button><button type="button" class="primary" id="tour-next">Next</button></div>
   </div>
 </div>
+<div class="modal" id="cardmodal" hidden>
+  <div class="mbox" role="dialog" aria-label="Ship card">
+    <div class="mhead"><span class="mt">Ship card</span><span class="ms" id="card-sub">The same design as the doctrine cards. Edit the words, then render the PNG for Discord.</span><button type="button" id="card-close">Close</button></div>
+    <div class="mbody">
+      <form class="mform" id="card-form" autocomplete="off">
+        <label for="cf-title">Name</label><input type="text" id="cf-title">
+        <label for="cf-role">Role</label><input type="text" id="cf-role">
+        <label for="cf-origin">The name's story</label><textarea id="cf-origin" rows="3"></textarea>
+        <label for="cf-motto">Motto</label><input type="text" id="cf-motto">
+        <div class="two"><div><label for="cf-latin">Latin ribbon</label><input type="text" id="cf-latin"></div><div><label for="cf-sigil">Sigil</label><input type="text" id="cf-sigil"></div></div>
+        <label for="cf-weapon">Weapons note</label><input type="text" id="cf-weapon" placeholder="Stutterguns ⇄ Needles">
+        <label for="cf-purpose">Purpose</label><textarea id="cf-purpose" rows="3"></textarea>
+        <label for="cf-how">How it works</label><textarea id="cf-how" rows="5"></textarea>
+        <label for="cf-why">Why this fit</label><textarea id="cf-why" rows="4"></textarea>
+        <div class="row" style="margin-top:8px"><button type="button" class="primary" id="card-render">Render PNG</button><button type="button" id="card-save" hidden>Save PNG</button><button type="button" id="card-copy" hidden>Copy image</button></div>
+        <div class="status" id="card-status"></div>
+      </form>
+      <div class="mprev">
+        <div id="card-svg"></div>
+        <img id="card-png" alt="Rendered card" hidden>
+      </div>
+    </div>
+  </div>
+</div>
 <script src="data.js?v=c4d324bd"></script>
-<script src="card.js?v=83e1285f"></script>
-<script src="app.js?v=cf8dafa0"></script>
+<script src="card.js?v=93fdc27d"></script>
+<script src="cardgen.js?v=73bdaf12"></script>
+<script src="fonts.js?v=b68a7c66"></script>
+<script src="app.js?v=1f65f07d"></script>
 <script>
 (function () {
   // pages and their own addresses: thesaintsforge.com/aboutus, /forge, /guide (Cloudflare serves the page at each,
@@ -1089,5 +1116,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=77eba702"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=a09e6b6e"></script><script src="quarry-data.js?v=de68476f"></script><script src="quarry-app.js?v=5742f9ca"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=429620dc"></script><script src="roads.js?v=c2b4b5a6"></script>
+<script src="lodge-data.js?v=77eba702"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=a09e6b6e"></script><script src="quarry-data.js?v=de68476f"></script><script src="quarry-app.js?v=5742f9ca"></script><script src="tribe.js?v=7a418530"></script><script src="starfield.js?v=429620dc"></script><script src="roads.js?v=c2b4b5a6"></script>
 </body></html>
