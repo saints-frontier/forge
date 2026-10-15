@@ -40,11 +40,16 @@
     if (!s) return makes[i] ? (D.section[i] || "material").toLowerCase() : "material";
     return { extract: "rift crude", cut: "salvage", loot: "loot", mine: "ore", unknown: "found" }[s.k] || "found";
   }
+  // rifts: crude by kind from our own rift sessions (D.rifts, data/rifts.json), the in-game names, what we learned
+  const R = D.rifts && D.rifts.kinds && D.rifts.kinds.length ? D.rifts : null;
+  const RIFT_NAMES = R ? R.names.map(n => n.rift) : [];
+  const riftKind = crude => R ? R.kinds.find(k => k.crude === crude) : null;
   const INDEX = [];
   for (const f of FAMS) INDEX.push({ name: f, tag: "rock" });
   const seenRock = new Set(FAMS);
   for (const a of D.rocks) if (!seenRock.has(a.rock)) { seenRock.add(a.rock); INDEX.push({ name: a.rock, tag: "rock" }); }
   for (const o of ORES) INDEX.push({ name: o, tag: "ore" });
+  if (R) { INDEX.push({ name: "Rifts", tag: "crude" }); for (const n of RIFT_NAMES) INDEX.push({ name: n, tag: "rift" }); }
   for (const i of ALL) if (!ORESET.has(i)) INDEX.push({ name: i, tag: sourceTag(i) });
 
   function subjectOf(name) {
@@ -53,6 +58,11 @@
     for (const f of FAMS) {
       if (lc === f.toLowerCase()) return { kind: "rock", name: f, family: f, prefix: "" };
       for (const p of PREF) if (lc === (p + " " + f).toLowerCase()) return { kind: "rock", name: p + " " + f, family: f, prefix: p };
+    }
+    if (R) {
+      if (lc === "rifts" || lc === "rift") return { kind: "rifts", name: "Rifts" };
+      const rn = RIFT_NAMES.find(n => n.toLowerCase() === lc);
+      if (rn) return { kind: "rift", name: rn };
     }
     const ore = ORES.find(o => o.toLowerCase() === lc);
     if (ore) return { kind: "ore", name: ore };
@@ -154,11 +164,62 @@
     h += usedIn(it, false);
     return h;
   }
+  // what 30 units of a crude become, and the fuel at the end of it, read off the recipes
+  function fuelChain(crude) {
+    const r = (uses[crude] || []).find(x => Object.keys(x.in).length === 1 && x.in[crude]);
+    if (!r) return null;
+    const per = r.in[crude], outs = Object.entries(r.out);
+    let fuel = null;
+    for (const [o, q] of outs) {
+      const f = (uses[o] || []).find(x => Object.keys(x.in).length === 1 && Object.keys(x.out).some(y => /Fuel$/.test(y)));
+      if (f) { const [fn, fq] = Object.entries(f.out).find(([y]) => /Fuel$/.test(y)); fuel = { from: o, q, fuel: fn, fin: f.in[o], fout: fq, perUnit: q / per * fq / f.in[o] }; break; }
+    }
+    return { per, outs, fuel };
+  }
+  const chainText = crude => {
+    const c = fuelChain(crude);
+    if (!c) return "";
+    let t = `${n0(c.per)} units become ${c.outs.map(([o, q]) => n0(q) + " " + o).join(" + ")}`;
+    if (c.fuel) t += `; ${n0(c.fuel.fin)} ${c.fuel.from} make ${n0(c.fuel.fout)} ${c.fuel.fuel}: about ${n0(Math.round(c.fuel.perUnit))} fuel a unit of crude`;
+    return t + ".";
+  };
+  function riftBlock(crude) {
+    const k = riftKind(crude);
+    if (!k) return "";
+    const bits = [k.n === 1 ? "1 rift session" : k.n + " rift sessions", n0(k.units) + " units", "~" + n0(k.per_min_one) + "/min per extractor"];
+    if (k.names.length) bits.push("from " + k.names.map(esc).join(", "));
+    const more = `${n0(k.cuts)} cuts in ${k.minutes} minutes of extracting, our own logs${k.desc ? ". The game: \u201c" + esc(k.desc) + "\u201d" : ""}`;
+    return `<h3>From rifts</h3><div class="meta">${bits.join(" \u00b7 ")} ${info(more)}</div>` + (chainText(crude) ? `<p class="note">${esc(chainText(crude))}</p>` : "");
+  }
   function rawView(sub) {
     const s = D.sources[sub.name];
     let h = head(sub.name, sourceTag(sub.name));
     h += `<div class="meta">${s ? esc(s.h) : "not made by any recipe we know"}</div>`;
+    h += riftBlock(sub.name);
     h += usedIn(sub.name, true);
+    return h;
+  }
+  function riftsView() {
+    let h = head("Rifts", "Crude", info("Crude comes out of rifts with a Crude Extractor and a lens, not a laser. Numbers are from our own game logs; rates are per extractor."));
+    h += `<div class="meta">what each kind of crude gives, and what it becomes</div>`;
+    h += `<div class="rows">` + R.kinds.map(k => {
+      const c = fuelChain(k.crude);
+      const fuel = c && c.fuel ? `${n0(Math.round(c.fuel.perUnit))} ${esc(c.fuel.fuel)} a unit` : "";
+      return `<div class="row"><span class="nm">${go(k.crude)}<span class="dim small"> ${k.n}\u00d7${k.names.length ? " \u00b7 " + k.names.map(esc).join(", ") : ""}</span></span><span class="pc">${n0(k.units)} units</span><span class="pc dim">${fuel}</span></div>`;
+    }).join("") + `</div>`;
+    h += `<h3>By name in space</h3><div class="rows">` + R.names.map(n => `<div class="row"><span class="nm">${go(n.rift)}<span class="dim small"> gave ${n.crude.map(c => esc(c.replace("Crude - ", ""))).join(", ")}</span></span><span class="pc dim">${n.n}\u00d7</span></div>`).join("") + `</div>`;
+    h += `<h3>Good to know</h3><ul class="facts">` + R.facts.map(f => `<li>${esc(f)}</li>`).join("") + `</ul>`;
+    return h;
+  }
+  function riftNameView(sub) {
+    const n = R.names.find(x => x.rift === sub.name);
+    let h = head(sub.name, "Rift");
+    const bits = [n.n === 1 ? "1 session" : n.n + " sessions", n0(n.units) + " units"];
+    if (n.former && n.former.length) bits.push("earlier builds called it " + n.former.map(esc).join(" / "));
+    h += `<div class="meta">${bits.join(" \u00b7 ")}</div>`;
+    h += `<h3>It gave</h3><div class="rows">` + n.crude.map(c => { const k = riftKind(c); const s = k ? k.sessions.filter(x => x.rift === sub.name) : []; const u = s.reduce((a, x) => a + x.units, 0);
+      return `<div class="row"><span class="nm">${go(c)}</span><span class="pc">${n0(u)} units</span><span class="pc dim">${s.length}\u00d7</span></div>`; }).join("") + `</div>`;
+    h += `<p class="note">${esc("Other " + sub.name + "s may give the other grade: the log line says which.")}</p>`;
     return h;
   }
 
@@ -180,7 +241,7 @@
     $("q-browse").hidden = on;
     if (!on) { try { localStorage.removeItem("quarry:last"); } catch (e) {} return; }
     $("q-in").value = cur.name;
-    $("q-out").innerHTML = ({ rock: rockView, ore: oreView, item: itemView, raw: rawView })[cur.kind](cur);
+    $("q-out").innerHTML = ({ rock: rockView, ore: oreView, item: itemView, raw: rawView, rifts: riftsView, rift: riftNameView })[cur.kind](cur);
     $("q-back").hidden = !hist.length;
     try { localStorage.setItem("quarry:last", JSON.stringify({ name: cur.name })); } catch (e) {}
   }
@@ -230,16 +291,75 @@
   // ---------- start ----------
   $("q-rocks").innerHTML = FAMS.map(f => go(f)).join("");
   $("q-ores").innerHTML = ORES.map(o => `<button type="button" class="lk" data-go="${esc(o)}">${dot(o)}${esc(o)}</button>`).join("");
+  if ($("q-rifts")) { $("q-rifts").innerHTML = R ? [go("Rifts", "what rifts give")].concat(RIFT_NAMES.map(n => go(n))).concat(R.kinds.map(k => go(k.crude, k.crude.replace("Crude - ", "")))).join("") : ""; if ($("q-riftrow")) $("q-riftrow").hidden = !R; }
   $("q-foot").textContent = "data of " + D.generated;
   const CR = D.contributors || [];
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const day = d => { const p = String(d).split("-"); return p.length === 3 ? `${+p[2]} ${MON[+p[1] - 1]} ${p[0]}` : esc(d); };
-  if (CR.length && $("q-roll")) {
+  function drawRoll() {
+    if (!CR.length || !$("q-roll")) return;
     $("q-roll").innerHTML = CR.map(c => `<div class="who"><span class="nm">${esc(c.name)}</span>`
       + (c.samples || []).map(s => `<span class="what">${go(s.rock)} \u00b7 ${n0(s.units)} units \u00b7 ${day(s.date)}</span>`).join("") + `</div>`).join("");
     $("q-credit").hidden = false;
   }
+  drawRoll();
   let last = null;
   try { last = JSON.parse(localStorage.getItem("quarry:last") || "null"); } catch (e) {}
   if (!(last && last.name && open(last.name, false))) render();
+
+  // ---------- the tribe's sessions from the site store ----------
+  // The Quarry companion (frontier-toolkit `python frontier.py quarry`) reads the rock's name off the screen while a
+  // Saint mines and sends each run to /api/quarry at the end of the session (user 2026-10-15). Every run is one rock;
+  // they join the baked averages here exactly as the exporter would: each rock counted once, shares averaged over
+  // rocks, the contributor named on the Roll. GET /api/quarry is public (no character names, no times, no systems).
+  const splitRock = name => { const p = String(name).split(" "); return p.length > 1 && PREF.includes(p[0]) ? [p[0], p.slice(1).join(" ")] : ["", name]; };
+  function mergeRuns(runs) {
+    const byRock = {};
+    let used = 0;
+    for (const r of runs || []) {
+      if (!r || typeof r.rock !== "string" || !r.ores || typeof r.ores !== "object") continue;
+      const tot = Object.values(r.ores).reduce((a, b) => a + (+b || 0), 0);
+      if (!(tot > 0)) continue;
+      used++;
+      (byRock[r.rock] = byRock[r.rock] || []).push({ share: Object.fromEntries(Object.entries(r.ores).filter(([o]) => ORESET.has(o)).map(([o, q]) => [o, q / tot])),
+        rate: r.minutes > 0 ? tot / r.minutes : null, units: tot, by: typeof r.by === "string" ? r.by : "", date: String(r.date || "").slice(0, 10) });
+    }
+    for (const [rock, rs] of Object.entries(byRock)) {
+      let a = D.rocks.find(x => x.rock === rock);
+      if (!a) {
+        const [prefix, family] = splitRock(rock);
+        a = { rock, prefix, family, n: 0, units: 0, share: {}, per_min: null, by: [], note: "" };
+        D.rocks.push(a);
+        if (!FAMS.includes(family)) { FAMS.push(family); INDEX.push({ name: family, tag: "rock" }); }
+        if (!seenRock.has(rock)) { seenRock.add(rock); INDEX.push({ name: rock, tag: "rock" }); }
+      }
+      const n = a.n + rs.length, share = {};
+      for (const o of new Set([...Object.keys(a.share), ...rs.flatMap(r => Object.keys(r.share))]))
+        share[o] = (a.n * (a.share[o] || 0) + rs.reduce((s, r) => s + (r.share[o] || 0), 0)) / n;
+      a.share = Object.fromEntries(Object.entries(share).sort((x, y) => y[1] - x[1]).map(([o, v]) => [o, Math.round(v * 10000) / 10000]));
+      const rates = rs.filter(r => r.rate).map(r => r.rate), had = a.per_min ? a.n : 0;
+      if (had + rates.length) a.per_min = Math.round(((a.per_min || 0) * had + rates.reduce((s, x) => s + x, 0)) / (had + rates.length));
+      a.units += rs.reduce((s, r) => s + r.units, 0);
+      a.n = n;
+      for (const r of rs) if (r.by && !a.by.includes(r.by)) a.by.push(r.by);
+      // the Roll of Honour
+      for (const r of rs) {
+        if (!r.by) continue;
+        let c = CR.find(x => x.name === r.by);
+        if (!c) { c = { name: r.by, samples: [] }; CR.push(c); }
+        let s = c.samples.find(x => x.rock === rock);
+        if (!s) { s = { rock, date: r.date, units: 0, n: 0 }; c.samples.push(s); }
+        s.units += r.units; s.n += 1; if (r.date > s.date) s.date = r.date;
+      }
+    }
+    for (const c of CR) c.samples.sort((x, y) => y.units - x.units);
+    CR.sort((x, y) => x.name.localeCompare(y.name));
+    drawRoll();
+    if (cur) render();
+    if ($("q-foot") && used) $("q-foot").textContent = "data of " + D.generated + " + " + used + " tribe session" + (used === 1 ? "" : "s");
+    return used;
+  }
+  window.__quarryMerge = mergeRuns;        // the site's test hook (and tribe.js, should it ever hand runs in)
+  if (/thesaintsforge\.com$|^localhost$|^127\.0\.0\.1$/.test(location.hostname) && window.fetch)
+    fetch("/api/quarry", { credentials: "omit" }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.ok && Array.isArray(d.runs)) mergeRuns(d.runs); }).catch(() => {});
 })();
