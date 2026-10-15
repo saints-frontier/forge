@@ -68,6 +68,7 @@
     let scene = { systems: [], roads: [] }, lines = [], lineCount = 0, marks = [], markCount = 0, polylines = [];
     let selected = null, hovered = null, marked = null;
     let many = [], sphereOf = null;             // Check a jump: rings for every legal / blocked target, the sphere of the tested jump
+    let starDim = 1;                            // Chart the uncharted: the background stars dimmed so only the targets stand out
     let gateVerts = 0, gatePairs = 0, gateAdj = new Map(), gatesOn = true;      // the public stargate network: id -> [neighbour ids]
     const cam = { target: [0, 0, 0], dist: 9000, yaw: 0.6, pitch: 0.35 };
     let w = 1, h = 1, dpr = 1, dirty = true, raf = 0;
@@ -175,7 +176,7 @@
       mat();
       gl.viewport(0, 0, gl3.width, gl3.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
       if (n) {
-        gl.useProgram(starProg); gl.uniformMatrix4fv(uloc(starProg, "uVP"), false, VP); gl.uniform1f(uloc(starProg, "uDpr"), dpr); gl.uniform1f(uloc(starProg, "uFade"), cam.dist * 1.4); const dim = Math.max(0.32, Math.min(1, 2500 / cam.dist)); gl.uniform1f(uloc(starProg, "uScale"), 0.75 + 0.25 * dim); gl.uniform1f(uloc(starProg, "uDim"), dim);
+        gl.useProgram(starProg); gl.uniformMatrix4fv(uloc(starProg, "uVP"), false, VP); gl.uniform1f(uloc(starProg, "uDpr"), dpr); gl.uniform1f(uloc(starProg, "uFade"), cam.dist * 1.4); const dim = Math.max(0.32, Math.min(1, 2500 / cam.dist)); gl.uniform1f(uloc(starProg, "uScale"), 0.75 + 0.25 * dim); gl.uniform1f(uloc(starProg, "uDim"), dim * starDim);
         gl.bindBuffer(gl.ARRAY_BUFFER, starBuf); const ap = loc(starProg, "aPos"); gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap, 3, gl.FLOAT, false, 0, 0);
         gl.bindBuffer(gl.ARRAY_BUFFER, glowBuf); const ag = loc(starProg, "aGlowHue"); gl.enableVertexAttribArray(ag); gl.vertexAttribPointer(ag, 2, gl.FLOAT, false, 0, 0);
         gl.drawArrays(gl.POINTS, 0, n);
@@ -232,8 +233,8 @@
         if (c) { let px = 0; for (const k of [[r, 0, 0], [0, r, 0], [0, 0, r]]) { const q = project([mid[0] + k[0], mid[1] + k[1], mid[2] + k[2]]); if (q) px = Math.max(px, Math.hypot(q[0] - c[0], q[1] - c[1])); }
           ctx.beginPath(); ctx.arc(c[0], c[1], px, 0, Math.PI * 2); ctx.strokeStyle = "#f1e9d2"; ctx.lineWidth = 1; ctx.setLineDash([4, 5]); ctx.globalAlpha = 0.55; ctx.stroke(); ctx.globalAlpha = 0.08; ctx.fillStyle = "#f1e9d2"; ctx.fill(); ctx.globalAlpha = 1; ctx.setLineDash([]);
           const a = project(A), b = project(B); if (a && b) { ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.strokeStyle = "#d9b24c"; ctx.lineWidth = 1.2; ctx.setLineDash([2, 4]); ctx.stroke(); ctx.setLineDash([]); } } } }
-      for (const m of many) { const p = project(P(m.id)); if (!p) continue; const col = m.cls === "ok" ? "#7ec98b" : m.cls === "bad" ? "#e3222c" : "#d9b24c", R = m.cls === "aim" ? 9 : 5;
-        ctx.beginPath(); ctx.arc(p[0], p[1], R, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.lineWidth = m.cls === "aim" ? 2 : 1.4; ctx.globalAlpha = 0.9; ctx.stroke(); ctx.globalAlpha = 1;
+      for (const m of many) { const p = project(P(m.id)); if (!p) continue; const col = m.cls === "ok" ? "#7ec98b" : m.cls === "bad" ? "#e3222c" : m.cls === "unc" ? "#8fb8e8" : "#d9b24c", R = m.cls === "aim" ? 9 : m.cls === "tour" ? 7 : m.cls === "unc" ? 4 : 5;
+        ctx.beginPath(); ctx.arc(p[0], p[1], R, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.lineWidth = m.cls === "aim" || m.cls === "tour" ? 2 : 1.4; ctx.globalAlpha = 0.9; ctx.stroke(); ctx.globalAlpha = 1;
         if (m.label) { ctx.font = `600 12px ${display}`; ctx.fillStyle = "rgba(7,7,10,.8)"; ctx.fillText(m.label, p[0] + R + 7, p[1] + 1); ctx.fillStyle = col; ctx.fillText(m.label, p[0] + R + 6, p[1]); } }
       // rings and labels. In priority order (selected, home, ours, the rest, plan waypoints): far from the camera a
       // system close to one already drawn (34 px at galaxy scale, 10 px mid-way, never up close) folds into it (the leader's label gains "+N"); a label whose box would
@@ -313,6 +314,11 @@
       // the archived (Cycle 6) names, for the system boxes: names starting with q first, then names containing it
       searchOld(q, limit) { const out = [], inc = []; if (!names) return out; q = String(q).toLowerCase(); for (let i = 0; i < n && out.length < limit; i++) { const nm = names[i]; if (!nm) continue; const l = nm.toLowerCase(); if (l.startsWith(q)) out.push({ id: ids[i], name: nm }); else if (inc.length < limit && l.includes(q)) inc.push({ id: ids[i], name: nm }); } return out.concat(inc).slice(0, limit); },
       markMany(list) { many = (list || []).filter(m => m && byId.has(m.id)); dirty = true; schedule(); },
+      dimStars(on) { starDim = on ? 0.1 : 1; dirty = true; schedule(); },
+      /* every star within r light-years of a star: [[id, ly], ...], nearest first (Chart the uncharted) */
+      near(id, r) { const i = byId.get(id); if (i == null || !pos) return []; const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2], r2 = r * r, out = [];
+        for (let k = 0; k < n; k++) { if (k === i) continue; const dx = pos[k * 3] - x, dy = pos[k * 3 + 1] - y, dz = pos[k * 3 + 2] - z, d2 = dx * dx + dy * dy + dz * dz; if (d2 <= r2) out.push([ids[k], Math.sqrt(d2)]); }
+        return out.sort((a, b) => a[1] - b[1]); },
       sphere(s) { sphereOf = s && byId.has(s.a) && byId.has(s.b) ? { a: s.a, b: s.b } : null; dirty = true; schedule(); },
       look(id, dist) { const p = P(id); if (p) { cam.target = p; if (dist) cam.dist = dist; dirty = true; schedule(); } },
       view(pitchDeg) { cam.pitch = pitchDeg * Math.PI / 180; dirty = true; schedule(); },

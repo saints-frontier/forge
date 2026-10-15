@@ -592,6 +592,16 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #roads-check ul li.hi button.jump { background: rgba(227,34,44,.18); outline: 1px solid rgba(217,178,76,.5); }
 #roads-check .roads-dcols ul { max-height: 340px; overflow: auto; }
 
+/* Chart the uncharted: the run as a numbered list, the counts line, the paste box for links copied in game */
+#roads-chart ol { list-style: none; margin: 6px 0 8px; padding: 0; max-height: 420px; overflow: auto; }
+#roads-chart li { padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+#roads-chart button.jump { background: none; border: 0; padding: 2px 4px; font: 13px var(--mono); color: var(--silver); cursor: pointer; text-align: left; border-radius: 3px; }
+#roads-chart button.jump:hover { background: rgba(255,255,255,.07); }
+#roads-chart h4 { margin: 10px 0 2px; }
+.roads-chart-counts { font: 12px var(--mono); color: var(--dim); margin: 6px 0 2px; }
+.roads-chart-save { margin-top: 12px; display: grid; gap: 6px; }
+.roads-chart-save textarea { width: 100%; font: 12px var(--mono); background: #0b0a0e; color: var(--fg); border: 1px solid var(--line-strong); padding: 6px 8px; resize: vertical; }
+
 .tribe { display: inline-flex; align-items: center; gap: 8px; margin-left: 6px; }
 .tribe-btn { font: 600 11px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-soft); padding: 7px 10px; text-decoration: none; background: var(--panel); white-space: nowrap;
   clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
@@ -832,7 +842,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     <div class="roads-detail" id="roads-detail" hidden></div>
     <div class="roads-tabs" role="toolbar" aria-label="More about the roads">
       <span class="roads-view" role="group" aria-label="Map view"><button type="button" data-view="stars" class="on">Stars</button><button type="button" data-view="flat">Flat</button></span>
-      <span class="roads-group" role="group" aria-label="Roads tools"><button type="button" data-panel="route" title="A route over the roads we have built">Navigator</button><button type="button" data-panel="plan" data-plan="new" title="What to build or jump to get somewhere">Road infrastructure planner</button><button type="button" data-panel="check" title="One catapult or gate jump, checked against every star">Check a jump</button></span>
+      <span class="roads-group" role="group" aria-label="Roads tools"><button type="button" data-panel="route" title="A route over the roads we have built">Navigator</button><button type="button" data-panel="plan" data-plan="new" title="What to build or jump to get somewhere">Road infrastructure planner</button><button type="button" data-panel="check" title="One catapult or gate jump, checked against every star">Check a jump</button><button type="button" data-panel="chart" title="Every uncharted system you can reach, and a run through them">Chart the uncharted</button></span>
       <span id="roads-plan-btns"></span>
       <button type="button" data-panel="fuel">Fuel<span id="roads-fuel-n"></span></button>
       <button type="button" data-panel="legend">Legend</button>
@@ -884,6 +894,22 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       </div>
       <div class="roads-note-top">Pick where you jump from and what with: every system the jump can reach appears below and lights up green on the star map; in range but blocked by a star is red. Click one to test that jump. Every star counts, charted or not.</div>
       <div id="roads-check"></div>
+    </section>
+    <section class="pane roads-panel" id="roads-p-chart" hidden>
+      <div class="roads-planner">
+        <label>From <span class="sysbox"><input type="text" class="sysin" id="chart-from" placeholder="type a system" autocomplete="off" spellcheck="false" aria-label="Start the run from"></span></label>
+        <label>Reach <select id="chart-reach" aria-label="What counts as reachable"><option value="gates">Public gates and our roads</option><option value="ly">Every star within a distance</option></select></label>
+        <label id="chart-ly-wrap" hidden>within <input type="number" id="chart-ly" min="20" max="1000" step="10" value="150" aria-label="Light-years"> LY</label>
+        <label>Visit up to <input type="number" id="chart-n" min="1" max="60" step="1" value="20" aria-label="How many systems in the run"></label>
+        <label class="tick"><input type="checkbox" id="chart-only" checked>Show only these on the star map</label>
+        <span class="roads-hint" id="chart-status"></span>
+      </div>
+      <div class="roads-note-top"><b>Uncharted</b> = nobody has the system's name and number for sure: not on EF-Map's community map with two players agreeing, and not copied from the game by a Saint. Pick where you start: every uncharted system you can reach is listed and ringed on the star map, and the run visits them nearest first, one hop at a time. To chart one: in game, drag the system's star from the map into a chat window, select the link and right-click Copy selected with formatting; paste the links below and the system is ours.</div>
+      <div id="roads-chart"></div>
+      <div class="roads-chart-save" id="chart-save" hidden>
+        <textarea id="chart-paste" rows="3" placeholder="Paste the system links you copied in game (Copy selected with formatting)" spellcheck="false" aria-label="System links from the game"></textarea>
+        <div><button type="button" class="primary" id="chart-paste-save">Save the charted systems</button> <span class="roads-hint" id="chart-paste-note"></span></div>
+      </div>
     </section>
     <section class="pane roads-panel" id="roads-p-todo" hidden>
       <div class="roads-note-top">The map shows only what the chain says, and the chain knows a road by the names written in game. A launcher appears when its name carries both systems, like <b>ABC|D11 &gt; XYZ|K22</b>; a gate pair when both gates read <b>ABC|D11 &lt;&gt; XYZ|K22</b>. A name with one system is read as the destination. Renames show here within about five minutes.</div>
@@ -1059,5 +1085,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=ed4d2f02"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=8fdea247"></script><script src="quarry-data.js?v=c2a55e51"></script><script src="quarry-app.js?v=39cda883"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=0a3e7023"></script><script src="roads.js?v=b65cd94e"></script>
+<script src="lodge-data.js?v=ed4d2f02"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=8fdea247"></script><script src="quarry-data.js?v=c2a55e51"></script><script src="quarry-app.js?v=39cda883"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=429620dc"></script><script src="roads.js?v=583ebdd4"></script>
 </body></html>

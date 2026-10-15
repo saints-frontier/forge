@@ -368,7 +368,7 @@
       // uncharted (user 2026-10-12): a faint dashed mark, named "uncharted" under the pointer.
       const placed = new Set(systems.map(x => x.id)); let chartedN = 0, waitingN = 0;
       for (const [id, e] of M.ef.byId) { if (!s.has(id) || placed.has(id)) continue; const ok = e.status === "confirmed"; if (ok) chartedN++; else waitingN++;
-        if (showCharted) systems.push(ok ? { id, name: e.name, cls: "charted", sub: "" } : { id, name: "uncharted", cls: "uncharted", sub: "" }); }
+        if (showCharted && !chartOn) systems.push(ok ? { id, name: e.name, cls: "charted", sub: "" } : { id, name: "uncharted", cls: "uncharted", sub: "" }); }
       const cb = $("roads-stars").querySelector('[data-sf="charted"]'); if (cb) { cb.hidden = !(chartedN + waitingN); cb.textContent = `Charted · ${chartedN.toLocaleString("en-US")}`; cb.classList.toggle("on", showCharted); }
       const roads = [];
       for (const r of M.roads) { const a = M.ids.get(r.from), b = M.ids.get(r.to); if (a && b) roads.push({ a: a.id, b: b.id, kind: r.kind, twoWay: r.twoWay, online: r.online, source: r.inferred ? "inferred" : r.source, status: r.status || "built" }); }
@@ -510,7 +510,7 @@
     menu.addEventListener("mousedown", e => { const li = e.target.closest("li[data-i]"); if (li) { e.preventDefault(); pick(+li.dataset.i); } });
   }
   function fillPlanner() {
-    for (const id of ["plan-from", "plan-to", "plan-stop", "plan-avoid", "check-from"]) { const el = $(id); if (el) sysbox(el); }
+    for (const id of ["plan-from", "plan-to", "plan-stop", "plan-avoid", "check-from", "chart-from"]) { const el = $(id); if (el) sysbox(el); }
     const home = M.ids.get(M.home); if (!$("plan-from").value && home) setSys("plan-from", home.id);
     renderPrio(); renderChips();
   }
@@ -606,6 +606,112 @@
     if (sf) { const marks = m.legal.map(([id]) => ({ id, cls: "ok" })).concat(m.blocked.map(([id]) => ({ id, cls: "bad" }))); if (m.target) marks.push({ id: m.target.id, cls: m.target.legal ? "ok" : "aim", label: starName(m.target.id) }); sf.markMany(marks); sf.sphere(m.target && m.target.inRange && !m.target.legal ? { a: from, b: m.target.id } : null); sf.fitTo([from].concat(m.target ? [m.target.id] : m.legal.slice(0, 12).map(x => x[0]))); }
   }
 
+  // ---------- Chart the uncharted: every uncharted system in reach, and a run through them (user 2026-10-14) ----------
+  // Uncharted = no sure name for the system: not copied from the game by a Saint and not charted on EF-Map (two players
+  // agreeing). Reach = the public gates (one a Saint found dormant left out) plus our own roads (catapults one way), or
+  // every star within a straight-line distance. The run: the nearest target from where you stand, again and again.
+  let chartOn = false, chartRes = null;
+  const CHART_WORD = { unknown: "nobody has reported it", reported: "one report on EF-Map", disputed: "disputed name on EF-Map" };
+  function chartState(id, own) {
+    if (own.has(id)) return "ours";
+    const e = M.ef.byId.get(id);
+    return !e ? "unknown" : e.status === "confirmed" ? "charted" : e.status === "conflict" ? "disputed" : "reported";
+  }
+  function chartName(id) {
+    const e = M.ef.byId.get(id), old = sf && sf.oldName(id);
+    return e && e.status !== "confirmed" ? e.name + " (reported)" : old ? old + " (C6)" : String(id);
+  }
+  const lyBetween = (a, b) => { const p = sf && sf.position(a), q = sf && sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : 0; };
+  function chartNext() {
+    const key = (a, b) => Math.min(a, b) + ":" + Math.max(a, b);
+    const dormant = new Set(gateStateList().filter(g => g.state === "dormant").map(g => key(g.a, g.b)));
+    const ours = new Map(), add = (a, b) => { if (!ours.has(a)) ours.set(a, []); ours.get(a).push(b); };
+    for (const r of ownRoads()) { add(r.a, r.b); if (r.twoWay) add(r.b, r.a); }
+    return id => (sf.gatesOf(id) || []).filter(x => !dormant.has(key(id, x))).concat(ours.get(id) || []);
+  }
+  function chartBfs(start, next) {
+    const dist = new Map([[start, 0]]), prev = new Map(), q = [start];
+    for (let i = 0; i < q.length; i++) { const x = q[i]; for (const y of next(x)) if (!dist.has(y)) { dist.set(y, dist.get(x) + 1); prev.set(y, x); q.push(y); } }
+    return { dist, prev };
+  }
+  const chartPath = (prev, start, id) => { const p = [id]; while (p[0] !== start && prev.has(p[0])) p.unshift(prev.get(p[0])); return p; };
+  function runChart() {
+    if (!M || !sf) { $("chart-status").textContent = "the star map is still loading."; return; }
+    const from = sysId("chart-from");
+    if (!from) { $("chart-status").textContent = "type the system you start from and pick it from the matches."; return; }
+    const reach = $("chart-reach").value, R = Math.max(20, Math.min(1000, +$("chart-ly").value || 150)), N = Math.max(1, Math.min(60, Math.round(+$("chart-n").value || 20)));
+    $("chart-ly-wrap").hidden = reach !== "ly";
+    const own = new Set([...M.ids.values()].filter(k => k.id && !k.c6).map(k => k.id)), next = chartNext();
+    let pool;
+    if (reach === "gates") { const { dist } = chartBfs(from, next); pool = [...dist.keys()].filter(id => id !== from).map(id => ({ id, hops: dist.get(id) })); }
+    else pool = sf.near(from, R).map(([id, ly]) => ({ id, ly }));
+    const cand = pool.filter(c => { const st = chartState(c.id, own); return st !== "ours" && st !== "charted"; });
+    const tour = [], left = new Set(cand.map(c => c.id));
+    let cur = from;
+    while (tour.length < N && left.size) {
+      let best = null;
+      if (reach === "gates") {
+        const { dist, prev } = chartBfs(cur, next);
+        for (const id of left) { const d = dist.get(id); if (d == null) continue; const l = lyBetween(cur, id); if (!best || d < best.hops || (d === best.hops && l < best.ly)) best = { id, hops: d, ly: l, path: chartPath(prev, cur, id) }; }
+      } else for (const id of left) { const l = lyBetween(cur, id); if (!best || l < best.ly) best = { id, ly: l }; }
+      if (!best) break;
+      tour.push(best); left.delete(best.id); cur = best.id;
+    }
+    chartRes = { from, reach, R, reachN: pool.length, cand, tour, own };
+    drawChart();
+  }
+  function drawChart() {
+    const c = chartRes; if (!c) return;
+    const by = { unknown: 0, reported: 0, disputed: 0 };
+    for (const x of c.cand) by[chartState(x.id, c.own)]++;
+    $("chart-status").textContent = (c.reach === "gates" ? `${c.reachN} systems reachable by public gates and our roads` : `${c.reachN} stars within ${c.R} LY`) + ` · ${c.cand.length} uncharted`;
+    const counts = `<div class="roads-chart-counts">${by.unknown} nobody has reported · ${by.reported} reported once · ${by.disputed} disputed · ${c.own.size} systems charted by Saints so far</div>`;
+    if (!c.cand.length) { $("roads-chart").innerHTML = counts + `<div class="roads-hint">Everything in reach is charted. Try another start or a wider reach.</div>`; chartMarks(); return; }
+    const rows = c.tour.map((t, k) => {
+      const st = chartState(t.id, c.own), via = c.reach === "gates" ? `${t.hops} jump${t.hops === 1 ? "" : "s"} from the stop before` : `${f0(t.ly)} LY from the stop before`;
+      const through = c.reach === "gates" && t.path && t.path.length > 2 ? ` via ${t.path.slice(1, -1).map(x => esc(starName(x))).join(", ")}` : "";
+      return `<li><button type="button" class="jump" data-chartgo="${t.id}"><b>${k + 1}. ${esc(chartName(t.id))}</b></button> <span class="roads-hint">${CHART_WORD[st]} · ${via}${through}</span></li>`;
+    }).join("");
+    const more = c.cand.length - c.tour.length;
+    $("roads-chart").innerHTML = counts + `<h4>The run · ${c.tour.length} stop${c.tour.length === 1 ? "" : "s"}</h4><ol>${rows}</ol>`
+      + (more > 0 ? `<div class="roads-hint">${more} more uncharted in reach${c.tour.length < +$("chart-n").value ? ": not reachable from the last stop (one-way roads)" : ": raise Visit up to"}. All of them are ringed on the star map.</div>` : "")
+      + (c.reach === "ly" ? `<div class="roads-hint">Straight-line targets: how you get there (a catapult, a gate) is up to you.</div>` : `<div class="roads-hint">Public gates are listed by the game client; whether one works, has no fuel on the far side or lies dormant only a jump tells.</div>`)
+      + `<div class="roads-copy"><button type="button" data-chartcopy="note">Copy as in-game note</button> <button type="button" data-chartcopy="discord">Copy for Discord</button> <span class="roads-hint" id="chart-copied"></span></div>`;
+    chartMarks();
+  }
+  function chartMarks() {
+    const c = chartRes; if (!sf || !c || !chartOn) return;
+    const only = $("chart-only").checked, inTour = new Set(c.tour.map(t => t.id));
+    sf.dimStars(only);
+    const marks = c.cand.filter(x => !inTour.has(x.id)).slice(0, 600).map(x => ({ id: x.id, cls: "unc" }));
+    c.tour.forEach((t, k) => marks.push({ id: t.id, cls: "tour", label: String(k + 1) }));
+    marks.push({ id: c.from, cls: "aim", label: "start" });
+    sf.markMany(marks); sf.sphere(null);
+    sf.fitTo([c.from].concat(c.tour.slice(0, 30).map(t => t.id)));
+  }
+  function setChart(on) {
+    if (on === chartOn) return;
+    chartOn = on;
+    if (!on) { if (sf) { sf.markMany([]); sf.dimStars(false); } drawStars(); return; }
+    $("chart-save").hidden = !(M && M.canEdit);
+    if (M && !sysId("chart-from")) { const home = M.ids.get(M.home); if (home) setSys("chart-from", home.id); }
+    if (view !== "stars") setView("stars"); else drawStars();
+    starsReady().then(s => { if (s && chartOn) runChart(); });
+  }
+  function chartNote() {
+    const c = chartRes;
+    return `The Saints · charting run from ${nameOfId(c.from).replace(/ \(C6\)$/, "")}\n` + c.tour.map((t, k) => `${k + 1}. ${gameLink(t.id, chartName(t.id).replace(/ \((C6|reported)\)$/, ""))}`).join("\n");
+  }
+  function chartDiscord() {
+    const c = chartRes;
+    return `**Charting run** from ${nameOfId(c.from).replace(/ \(C6\)$/, "")} · ${c.tour.length} uncharted systems\n` + c.tour.map((t, k) => `${k + 1}. ${chartName(t.id)}${c.reach === "gates" ? ` · ${t.hops} jump${t.hops === 1 ? "" : "s"}` : ` · ${f0(t.ly)} LY`}`).join("\n") + `\nThe Pilgrim Roads: https://www.thesaintsforge.com/roads`;
+  }
+  async function chartCopy(text, note) {
+    const out = $("chart-copied");
+    try { await navigator.clipboard.writeText(text); if (out) out.textContent = note; }
+    catch (e) { const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); if (out) out.textContent = note; } catch (e2) { if (out) out.textContent = "copy failed: select the text by hand."; } ta.remove(); }
+  }
+
   function drawUnplaced() {
     const el = $("roads-unplaced"); $("roads-unplaced-n").textContent = M.unplaced.length ? ` · ${M.unplaced.length}` : "";
     const long = M.roads.filter(r => r.tooFar);
@@ -644,6 +750,7 @@
     stamp(d);
     $("roads-manage-btn").hidden = !M.canEdit; if (!M.canEdit) $("roads-p-manage").hidden = true;
     setView(view); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); drawPlans(); fillPlanner(); if (openPlan != null && M.plans[openPlan]) drawPlan(openPlan);
+    if (chartOn) { $("chart-save").hidden = !M.canEdit; starsReady().then(s => { if (s && chartOn) runChart(); }); }
     const ed = $("roads-editor"); ed.hidden = !M.canEdit; $("roads-gate-form").hidden = !M.canEdit;
     if (M.canEdit) $("roads-json").value = JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, gates: M.list.gates || [], plans: (M.list.plans || []).filter(p => !p.draft) }, null, 1);
   }
@@ -696,7 +803,18 @@
       if (b.dataset.plan === "new") { openPlan = null; $("roads-plan").innerHTML = ""; } else if (b.dataset.plan != null) drawPlan(+b.dataset.plan); else openPlan = null;
       root.querySelectorAll(".roads-panel").forEach(x => { x.hidden = true; }); root.querySelectorAll(".roads-tabs [data-panel]").forEach(x => x.classList.remove("on"));
       if (open) { want.hidden = false; b.classList.add("on"); }
+      setChart(!$("roads-p-chart").hidden);
       return;
+    }
+    if (b.dataset.chartgo && sf) { const id = +b.dataset.chartgo; sf.look(id, 400); sf.mark(id, chartName(id)); return; }
+    if (b.dataset.chartcopy && chartRes) { if (b.dataset.chartcopy === "note") chartCopy(chartNote(), "copied: paste it into a note in game."); else chartCopy(chartDiscord(), "copied for Discord."); return; }
+    if (b.id === "chart-paste-save") {
+      const text = $("chart-paste").value, found = new Map();
+      for (const m of text.matchAll(/showinfo:5\/\/(\d{8})["']?\s*>\s*([^<\]\r\n]+?)\s*<\/(?:url|a)>/gi)) found.set(up(m[2]), +m[1]);
+      if (!found.size) { $("chart-paste-note").textContent = "No system link found. Copy it with formatting from the game."; return; }
+      const l = listCopy(); for (const [name, id] of found) l.systems[name] = { id, sure: true };
+      $("chart-paste-note").textContent = `${found.size} charted: ${[...found.keys()].join(", ")}`; $("chart-paste").value = "";
+      save(l, "Charted systems"); return;
     }
     if (b.id === "roads-refresh") { load(true); return; }
     if (b.dataset.view) { setView(b.dataset.view); return; }
@@ -730,6 +848,8 @@
     if (t.dataset && (t.dataset.hopwho || t.dataset.hopby)) { const [i, n] = (t.dataset.hopwho || t.dataset.hopby).split(":").map(Number); const l = listCopy(), h = l.plans[i].hops[n]; if (t.dataset.hopwho) { if (t.value.trim()) h.who = t.value.trim().slice(0, 24); else delete h.who; } else { if (t.value) h.by = t.value; else delete h.by; } save(l, "Plan"); return; }
     if (t.dataset && t.dataset.priotick != null) { planPrio[+t.dataset.priotick][1] = t.checked ? 1 : 0; renderPrio(); return; }
     if (t.id === "check-from" || t.id === "check-kind") { if (sysId("check-from")) runChecker(null); return; }
+    if (t.id === "chart-from" || t.id === "chart-reach" || t.id === "chart-ly" || t.id === "chart-n") { if (chartOn) runChart(); return; }
+    if (t.id === "chart-only") { chartMarks(); if (!t.checked && sf) sf.dimStars(false); return; }
     if (t.id === "roads-from" || t.id === "roads-to") route();
   });
 
