@@ -284,8 +284,11 @@
   $("q-ores").innerHTML = ORES.map(o => `<button type="button" class="chip" data-go="${esc(o)}">${dot(o)}${esc(o)}</button>`).join("");
   $("q-foot").textContent = "data of " + D.generated;
   const CR = D.contributors || [];
-  if (CR.length && $("q-credit")) {
-    $("q-credit").innerHTML = `<span class="ctitle">Contributors</span>` + CR.map(c => `<span><b>${esc(c.name)}</b> measured ${c.rocks.map(x => go(x)).join(", ")}</span>`).join("");
+  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const day = d => { const p = String(d).split("-"); return p.length === 3 ? `${+p[2]} ${MON[+p[1] - 1]} ${p[0]}` : esc(d); };
+  if (CR.length && $("q-roll")) {
+    $("q-roll").innerHTML = CR.map(c => `<div class="who"><span class="nm">${esc(c.name)}</span>`
+      + (c.samples || []).map(s => `<span class="what">${go(s.rock)} \u00b7 ${n0(s.units)} units \u00b7 ${day(s.date)}</span>`).join("") + `</div>`).join("");
     $("q-credit").hidden = false;
   }
   let last = null;

@@ -400,9 +400,22 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #tab-quarry .quarry .lodge { margin-top: 14px; font: 700 12px var(--display); letter-spacing: 2px; text-transform: uppercase; padding: 9px 14px; background: var(--crimson); color: var(--title); border: 1px solid var(--red); cursor: pointer; }
 #tab-quarry .quarry .empty { color: var(--dim); border: 1px dashed var(--line); padding: 22px; text-align: center; }
 #tab-quarry .quarry .empty b { color: var(--title); font-weight: 600; }
-#tab-quarry .quarry .credit { font: 13px var(--body); color: var(--silver); display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 4px 0 0; }
-#tab-quarry .quarry .credit .ctitle { font: 11px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--gold); }
-#tab-quarry .quarry .credit b { color: var(--gold); font-weight: 600; }
+#tab-quarry .quarry .honour { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px 20px; align-items: center; padding: 16px 20px;
+  border: 1px solid var(--gold); outline: 1px solid rgba(217,178,76,.22); outline-offset: 4px; box-shadow: 0 0 26px rgba(217,178,76,.14);
+  background: radial-gradient(ellipse at 0 0, rgba(143,17,24,.45), transparent 62%), linear-gradient(180deg, #19141c, #0c0a0f); }
+#tab-quarry .quarry .honour::before, #tab-quarry .quarry .honour::after { content: "✠"; position: absolute; top: -9px; color: var(--gold); font: 700 14px/16px var(--display); background: var(--ink); padding: 0 6px; }
+#tab-quarry .quarry .honour::before { left: 18px; }
+#tab-quarry .quarry .honour::after { right: 18px; }
+#tab-quarry .quarry .honour .medal { width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--gold); display: grid; place-items: center; color: var(--gold); font: 900 28px var(--display);
+  background: radial-gradient(circle, #a0141c, #4a070b); box-shadow: 0 0 0 4px rgba(217,178,76,.18), 0 0 22px rgba(217,178,76,.4); }
+#tab-quarry .quarry .honour .hsub { font: 600 10px var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--red); }
+#tab-quarry .quarry .honour .htitle { font: 900 clamp(22px, 2.8vw, 30px)/1.1 var(--deco); letter-spacing: 1px; margin: 2px 0 10px;
+  background: linear-gradient(#fff6e0, var(--title) 50%, var(--gold)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+#tab-quarry .quarry .honour .roll { display: flex; flex-wrap: wrap; gap: 10px 28px; }
+#tab-quarry .quarry .honour .who { border-left: 2px solid var(--gold); padding: 2px 0 2px 12px; min-width: 0; }
+#tab-quarry .quarry .honour .who .nm { display: block; font: 800 22px/1.2 var(--display); color: var(--gold); letter-spacing: 1px; text-shadow: 0 0 12px rgba(217,178,76,.35); }
+#tab-quarry .quarry .honour .who .what { display: block; font: 13px/1.5 var(--body); color: var(--silver); }
+@media (max-width: 560px) { #tab-quarry .quarry .honour { padding: 14px; gap: 10px 14px; } #tab-quarry .quarry .honour .medal { width: 46px; height: 46px; font-size: 20px; } }
 #tab-quarry .quarry .legend { font: 12px var(--mono); color: var(--dim); display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 0; }
 @media (max-width: 560px) { #tab-quarry .quarry .answer { padding: 12px; } #tab-quarry .quarry .mode { flex: 1 1 auto; } }
 /* The Pilgrim Roads (the tribe's road map), in the Forge's look */
@@ -828,12 +841,19 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
         <div><span class="blabel">Ores</span><span id="q-ores" class="chips"></span></div>
       </div>
     </section>
+    <section class="honour" id="q-credit" aria-label="Contributors" hidden>
+      <div class="medal" aria-hidden="true">✠</div>
+      <div class="hbody">
+        <div class="hsub">Contributors · measured from their own game logs</div>
+        <div class="htitle">Roll of Honour</div>
+        <div class="roll" id="q-roll"></div>
+      </div>
+    </section>
     <section class="answer" aria-live="polite">
       <div class="crumbs"><button type="button" id="q-back" class="ghost" hidden>← back</button><span id="q-crumb"></span></div>
       <div id="q-out"><div class="empty"><b>Ask away.</b><br>Type a rock, an ore or a material above, or pick one of the rocks and ores.</div></div>
     </section>
     <p class="legend"><span><span class="ev m">Measured</span>our own mining, from the game logs</span><span><span class="ev g">The game says</span>the ore's in-game description</span></p>
-    <p class="credit" id="q-credit" hidden></p>
   </main><p class="lfoot"><span id="q-foot"></span> · ores from the game's own descriptions and our own mining</p></section>
 <section id="tab-roads" class="roads-page" hidden>
   <h2 class="gtitle">The Pilgrim Roads <span class="roads-wip">alpha test · under construction</span></h2>
@@ -1090,5 +1110,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=ed4d2f02"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=8fdea247"></script><script src="quarry-data.js?v=cfc555aa"></script><script src="quarry-app.js?v=5c0ad183"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=429620dc"></script><script src="roads.js?v=c2b4b5a6"></script>
+<script src="lodge-data.js?v=ed4d2f02"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=8fdea247"></script><script src="quarry-data.js?v=e70d92f3"></script><script src="quarry-app.js?v=0a225665"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=429620dc"></script><script src="roads.js?v=c2b4b5a6"></script>
 </body></html>
