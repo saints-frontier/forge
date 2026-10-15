@@ -160,7 +160,14 @@
   function counts(pl) { const c = {}; pl.forEach(p => c[p[0]] = (c[p[0]] || 0) + 1); return c; }
 
   // ---------- stats ----------
-  function recharge(nCaps, trickle) { const r = D.models.recharge; return (nCaps > 0 ? r.a * Math.pow(nCaps, r.b) : 0) + trickle; }
+  // Capacitor recharge (corrected 2026-10-15 after Lacal of [WOLF]: "your cap regen is limited by your power generator,
+  // not number of capacitors"): every Capacitor, and the Blackstart Cell, refills at 1.2 GJ/s (the client's rechargeRate
+  // 0.0012), but the charge comes from the Power Generator, so together they never get more than it has left after the
+  // modules' draw. Our readings agree: 2 Capacitors 2.4, 4 + the Cell 6.0, 13 Capacitors 12.9 GJ/s with 2.1 of 15 MW drawn
+  // (13 x 1.2 would be 15.6). The Cell's starlight trickle needs no generator and comes on top. The old curve
+  // (1.286 n^0.9) bent through that capped reading and promised 17-21 GJ/s to fits of 18-22 Capacitors.
+  const PER_UNIT = () => D.models.recharge.per_unit || 1.2;
+  function recharge(nUnits, trickle, free) { return Math.min(nUnits * PER_UNIT(), Math.max(0, free)) + trickle; }
   function stats() { return statsOf(state.hull, state.placements, state.exterior); }
   // what n EM Scramblers online leave of the signature: measured for 1-3, each one past the table helps as little as the last step
   function emMult(n) { const t = (D.models.em || {}).scrambler_mult || [1]; if (n < t.length) return t[n]; const last = t[t.length - 1], step = t.length > 1 ? last / t[t.length - 2] : 1; return last * Math.pow(Math.max(step, 0.85), n - t.length + 1); }
@@ -183,7 +190,8 @@
       mass += (e.mass || 0) * k; drain += (e.drain || 0) * kd; dps += (e.dps || 0) * kp; dpsRamped += (e.dps_ramped || e.dps || 0) * kp; if (e.mining) mining += Math.min(k, isW ? Math.max(kd, kp) : k);
       if (e.dps && e.cycle_s && kp) hits.push({ name: n, k: kp, perHit: Math.round((e.dps_ramped || e.dps) * e.cycle_s), cycle: e.cycle_s, ramps: !!e.dps_ramped }); }
     const nCaps = c["Capacitor"] || 0, nCells = c["Blackstart Cell"] || 0;
-    const rech = recharge(nCaps + nCells, trickle);
+    const pw = power || D.models.power_mw, free = Math.max(0, pw - draw);      /* what the generator has left to refill with */
+    const rech = recharge(nCaps + nCells, trickle, free), rechMax = free + trickle, capLimited = (nCaps + nCells) * PER_UNIT() > free + 1e-9;
     const factor = D.models.fuel.factor[state.fuelGrade];
     const burn = draw * 60 / factor;                         // units per minute
     // EM signature at rest (measured model, data.js models.em): hull + Power Generator + each Capacitor + each module that
@@ -202,13 +210,15 @@
     // drain running the burn is the draw plus what the Capacitors can put back (the drain itself, or the recharge if smaller)
     const burnBusy = (draw + Math.min(drain, rech)) * 60 / factor;
     emParts.sort((a, b) => b[1] - a[1]);
-    return { cells, total, free: total - cells, hold: hold(placements), fuel, cap, hp, repair, draw, power: power || D.models.power_mw, drain, rech, nCaps, hits,
+    return { cells, total, free: total - cells, hold: hold(placements), fuel, cap, hp, repair, draw, power: power || D.models.power_mw, drain, rech, rechMax, capLimited, free, trickle, nCaps, hits,
              mass, hullMass, em, emHull, emRaw, emDark, emWith, emParts: emParts.filter(p => p[1] > 0), emCaps: emStore, emPower: emOther, scramblers, burnBusy, refill: cap / factor,
              burn, hours: burn > 0 ? fuel / burn / 60 : Infinity, dps, dpsRamped, mining, payload, stable: rech >= drain, lastMin: drain > rech ? cap / (drain - rech) : Infinity };
   }
-  function capsNeeded(drain, trickle) { const r = D.models.recharge; if (drain <= trickle) return 0; return Math.ceil(Math.pow((drain - trickle) / r.a, 1 / r.b)); }
+  // units that refill `drain`; past what the generator can give (free) no number of them will: then the count that takes
+  // all it can give (more only add storage)
+  function capsNeeded(drain, trickle, free) { if (drain <= trickle) return 0; const n = Math.ceil((Math.min(drain - trickle, free)) / PER_UNIT() - 1e-9); return Math.max(0, n); }
   // Capacitors a fit needs for this drain, given its Blackstart Cells (each recharges like a Capacitor, plus its trickle)
-  function capsWanted(drain, c) { const cells = c["Blackstart Cell"] || 0; return Math.max(0, capsNeeded(drain, cells * 0.3) - cells); }
+  function capsWanted(drain, c, free) { const cells = c["Blackstart Cell"] || 0; return Math.max(0, capsNeeded(drain, cells * 0.3, free) - cells); }
   const f1 = x => (Math.round(x * 10 + 1e-6) / 10).toFixed(1);     // one decimal, halves up: the tile, the checks and Compare agree (5.05 read 5.0 here and 5.1 there)
   const overPower = st => Math.round(st.draw * 100) > Math.round(st.power * 100);    // 15.000000000000002 MW is not over 15
   // What should I change? One line per thing a new rider wishes they had known, with the fix as a button.
@@ -216,8 +226,9 @@
   function hints(st) {
     const c = counts(state.placements), ext = state.exterior, out = [];
     const has = n => (c[n] || 0) > 0;
-    if (!st.stable) { const need = Math.max(1, capsWanted(st.drain, c) - st.nCaps);
-      out.push({ text: `Capacitor runs dry in ${isFinite(st.lastMin) ? Math.round(st.lastMin) + " s" : "no time"} with everything on. Run it empty and you cannot warp away.`, add: Array(need).fill("Capacitor"), label: `Add ${need} Capacitor${need > 1 ? "s" : ""}` }); }
+    if (!st.stable) { const need = capsWanted(st.drain, c, st.free) - st.nCaps, dry = isFinite(st.lastMin) ? Math.round(st.lastMin) + " s" : "no time";
+      if (st.drain > st.rechMax + 1e-9) out.push({ text: `Capacitor runs dry in ${dry} with everything on, and more Capacitors cannot fix it: the Power Generator has ${f1(st.free)} MW left to refill with, everything on drains ${f1(st.drain)} GJ/s. Run fewer things at once${need > 0 ? ", or add " + need + " Capacitor" + (need > 1 ? "s" : "") + " to use all it can give" : ""}.`, add: need > 0 ? Array(need).fill("Capacitor") : null, label: `Add ${need} Capacitor${need > 1 ? "s" : ""}` });
+      else { const n = Math.max(1, need); out.push({ text: `Capacitor runs dry in ${dry} with everything on. Run it empty and you cannot warp away.`, add: Array(n).fill("Capacitor"), label: `Add ${n} Capacitor${n > 1 ? "s" : ""}` }); } }
     if (!engineCount(c) && (D.base_ship.engines || []).length) out.push({ text: "No engine: the ship cannot fly.", add: [D.base_ship.engines[0]], label: "Add an engine" });
     if (!has("Hull Repairer")) out.push({ text: "No Hull Repairer: nothing heals you in the field. One repairs ~25 HP/s, your best survival module.", add: ["Hull Repairer"], label: "Add one" });
     if (!has("Leap")) out.push({ text: "No Leap: no burst of speed to hop between nearby sites or to break away.", add: ["Leap"], label: "Add a Leap" });
@@ -559,7 +570,7 @@
     $("st-hold").textContent = f(st.hold); $("st-hold-sub").textContent = st.payload ? `+ ${st.payload} m³ in Launch Bays` : `${Math.floor(st.hold / D.models.field_sentry_m3)} Field Sentries`;
     $("st-fuel").textContent = f(st.fuel); $("st-fuel-sub").textContent = st.burn > 0 ? `${st.burn.toFixed(2)}/min on ${state.fuelGrade} · ${isFinite(st.hours) ? st.hours.toFixed(1) + " h" : "—"}` + (st.burnBusy > st.burn + 0.005 ? ` · ${st.burnBusy.toFixed(2)}/min with everything running` : "") : "—";
     $("st-fuel-sub").title = "At rest the burn is the power drawn. Recharging the capacitor burns fuel as well: 1 MW for every GJ/s that flows back in, so weapons, repairers and a refill from empty all cost fuel.";
-    $("st-cap").textContent = f(st.cap); $("st-cap-sub").textContent = `${f1(st.rech)} GJ/s est · ${f1(st.drain)} drain${st.stable ? " · stable" : " · " + (isFinite(st.lastMin) ? "runs dry in " + Math.round(st.lastMin) + " s" : "runs dry")}`;
+    $("st-cap").textContent = f(st.cap); $("st-cap-sub").textContent = `${f1(st.rech)} GJ/s est${st.capLimited ? " (generator's limit)" : ""} · ${f1(st.drain)} drain${st.stable ? " · stable" : " · " + (isFinite(st.lastMin) ? "runs dry in " + Math.round(st.lastMin) + " s" : "runs dry")}`;
     $("st-hp").textContent = f(st.hp);   /* exact: hull 2,100 on both hulls and +375 a Brace match every fitting-screen reading (starter Reiver 2,100, stock LAI 2,100, Templar 2,475, Vesper 4,350) */ $("st-hp-sub").textContent = `${st.repair} HP/s repair`;
     // the big number is per second at full spool-up; the small line is per hit, as the combat log shows it
     $("st-dps").textContent = st.dps ? f(Math.round(st.dpsRamped)) : (st.mining ? `${st.mining}×` : "—");
@@ -587,8 +598,8 @@
     const hs = hints(st), hb = $("hints");
     if (hb) hb.innerHTML = hs.length ? `<div class="hh">What should I change?</div>` + hs.map((h, i) => `<div class="hint"><span>${esc(h.text)}</span>${h.add || h.ext ? `<button type="button" data-hint="${i}">${esc(h.label)}</button>` : ""}</div>`).join("")
                              : `<div class="hh">What should I change?</div><div class="hint ok"><span>Nothing stands out: this ship can travel, dock, refuel, see and defend itself.</span></div>`;
-    $("cap-stable-n").textContent = capsWanted(st.drain, counts(state.placements));
-    $("st-caprech-note").textContent = `recharge model: ${D.models.recharge.a}·n^${D.models.recharge.b}, fitted to in-game readings at 2, 5 and 13 units (a Blackstart Cell counts as one)`;
+    $("cap-stable-n").textContent = capsWanted(st.drain, counts(state.placements), st.free);
+    $("st-caprech-note").textContent = `recharge: ${PER_UNIT()} GJ/s per Capacitor (a Blackstart Cell counts as one), never more than the Power Generator has left: ${f1(st.free)} of ${f1(st.power)} MW. More Capacitors past that add storage, not recharge.`;
   }
   function renderHeader() { if (!K) return; const th = K.themes[state.hull].theme; $("tier").textContent = `✠ ${th.name} · ${th.tier} ✠`; }
   function render() { renderGrid(); renderPalette(); renderStats(); renderSelection(); renderHeader(); $("fit-name").value = state.name; $("hull-sel").value = state.hull; $("free-count").textContent = ""; syncKeepInputs(); record(); syncUnsave();
@@ -668,13 +679,15 @@
   // when the hull is tight), and keep that many as the minimum so a later Forge never trades them away.
   async function makeCapStable() {
     if (running || pool) return;
-    const st = stats(), have = st.nCaps, need = capsWanted(st.drain, counts(state.placements));
-    if (st.stable || need <= have) { state.minCaps = Math.max(state.minCaps, have); syncKeepInputs(); setStatus(`Already cap-stable with ${have} Capacitor${have === 1 ? "" : "s"} (${f1(st.rech)} GJ/s est ≥ ${f1(st.drain)} drain).`, "ok"); return; }
+    const st = stats(), have = st.nCaps, need = capsWanted(st.drain, counts(state.placements), st.free), never = st.drain > st.rechMax + 1e-9;
+    if (never && need <= have) { state.minCaps = Math.max(state.minCaps, have); syncKeepInputs(); setStatus(`No number of Capacitors keeps up: everything on drains ${f1(st.drain)} GJ/s and the Power Generator has ${f1(st.free)} MW to refill with. Your ${have} already take all it can give; run fewer things at once.`, "warn"); return; }
+    if (!never && (st.stable || need <= have)) { state.minCaps = Math.max(state.minCaps, have); syncKeepInputs(); setStatus(`Already cap-stable with ${have} Capacitor${have === 1 ? "" : "s"} (${f1(st.rech)} GJ/s est ≥ ${f1(st.drain)} drain).`, "ok"); return; }
     let added = 0;
     for (let k = have; k < need; k++) { if (!(await addModule("Capacitor", true))) break; added++; }
     const now = stats();
     state.minCaps = now.nCaps; syncKeepInputs();         // addModule moved the minimum with each Capacitor; show it
-    if (now.stable) setStatus(`Cap-stable: ${added} Capacitor${added === 1 ? "" : "s"} added, ${now.nCaps} in all (${f1(now.rech)} GJ/s est ≥ ${f1(now.drain)} drain). Keeping ${now.nCaps} as the minimum.`, "ok");
+    if (never && now.nCaps >= need) setStatus(`${added} Capacitor${added === 1 ? "" : "s"} added: ${now.nCaps} take all the Power Generator can give (${f1(now.rech)} GJ/s), still short of the ${f1(now.drain)} GJ/s drain with everything on. Run fewer things at once.`, "warn");
+    else if (now.stable) setStatus(`Cap-stable: ${added} Capacitor${added === 1 ? "" : "s"} added, ${now.nCaps} in all (${f1(now.rech)} GJ/s est ≥ ${f1(now.drain)} drain). Keeping ${now.nCaps} as the minimum.`, "ok");
     else setStatus(`Room for only ${added} of the ${need - have} Capacitors needed. Remove something, or set Capacitor priority high and Forge with "Keep at least ${need}".`, "warn");
   }
   // ◀ ▶ on the stat tiles: each stat has the module that raises it, and a smaller one to try when that does not fit
