@@ -327,11 +327,11 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .pk-none { padding: 10px 12px; color: var(--dim); font-size: 13px; }
 .toast { position: fixed; right: 18px; bottom: 18px; background: var(--panel); border: 1px solid var(--gold); color: var(--gold); padding: 10px 14px; font: 600 12px var(--mono); z-index: 9; }
 #tab-quarry .quarry button { text-transform: none; letter-spacing: 0; }
-#tab-quarry main.quarry { display: grid; gap: 14px; margin-top: 14px; }
-#tab-quarry .quarry .ask { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--line); padding: 14px; display: grid; gap: 12px; }
-#tab-quarry .quarry .askrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
-#tab-quarry .quarry .qbox { position: relative; flex: 1 1 320px; min-width: 0; }
-#tab-quarry .quarry .qbox input { width: 100%; font: 16px var(--body); padding: 11px 12px; background: #0b0a0e; color: var(--fg); border: 1px solid var(--gold-soft); }
+#tab-quarry .quarry [hidden] { display: none !important; }
+#tab-quarry main.quarry { display: grid; gap: 18px; margin-top: 16px; max-width: 920px; }
+#tab-quarry .quarry .ask { display: grid; gap: 14px; }
+#tab-quarry .quarry .qbox { position: relative; min-width: 0; }
+#tab-quarry .quarry .qbox input { width: 100%; font: 17px var(--body); padding: 13px 14px; background: #0b0a0e; color: var(--fg); border: 1px solid var(--gold-soft); }
 #tab-quarry .quarry .qbox input:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; }
 #tab-quarry .quarry .qmenu { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; margin: 2px 0 0; padding: 4px 0; list-style: none; max-height: 320px; overflow: auto; background: #0b0a0e; border: 1px solid var(--gold-soft); box-shadow: 0 8px 24px rgba(0,0,0,.6); }
 #tab-quarry .quarry .qmenu li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 12px; cursor: pointer; font-size: 14px; color: var(--silver); }
@@ -339,67 +339,55 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #tab-quarry .quarry .qmenu li span { font: 11px var(--mono); color: var(--dim); white-space: nowrap; }
 #tab-quarry .quarry .qmenu li.hi, #tab-quarry .quarry .qmenu li:hover { background: rgba(227,34,44,.18); }
 #tab-quarry .quarry .qmenu li.none { color: var(--dim); cursor: default; }
-#tab-quarry .quarry .modes { display: flex; gap: 6px; flex-wrap: wrap; }
-#tab-quarry .quarry .mode { font: 700 12px var(--display); letter-spacing: 2px; text-transform: uppercase; padding: 10px 14px; background: var(--panel); color: var(--silver); border: 1px solid var(--line-strong); cursor: pointer; }
-#tab-quarry .quarry .mode[aria-pressed="true"] { color: var(--ink); background: var(--gold); border-color: var(--gold); }
-#tab-quarry .quarry .mode:focus-visible, #tab-quarry .quarry .chip:focus-visible, #tab-quarry .quarry .lk:focus-visible, #tab-quarry .quarry .ghost:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
-#tab-quarry .quarry .browse { display: grid; gap: 7px; }
-#tab-quarry .quarry .browse > div { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
-#tab-quarry .quarry .blabel { font: 600 10px var(--mono); letter-spacing: 3px; color: var(--red); text-transform: uppercase; min-width: 52px; }
-#tab-quarry .quarry .chip { font: 12px var(--mono); text-transform: none; letter-spacing: 0; padding: 3px 9px; background: #0b0a0e; color: var(--silver); border: 1px solid var(--line-strong); cursor: pointer; }
-#tab-quarry .quarry .chip:hover { border-color: var(--gold); color: var(--title); }
-#tab-quarry .quarry .chip i { display: inline-block; width: 8px; height: 8px; margin-right: 6px; vertical-align: 0; }
-#tab-quarry .quarry .answer { background: var(--panel); border: 1px solid var(--line); padding: 16px 18px 20px; min-width: 0; }
-#tab-quarry .quarry .crumbs { display: flex; gap: 10px; align-items: center; min-height: 22px; font: 11px var(--mono); color: var(--dim); letter-spacing: 1px; }
-#tab-quarry .quarry .ghost { font: 12px var(--mono); text-transform: none; letter-spacing: 0; padding: 3px 9px; background: none; color: var(--silver); border: 1px solid var(--line-strong); cursor: pointer; }
-#tab-quarry .quarry h2 { font: 900 clamp(20px, 2.6vw, 28px)/1.2 var(--display); color: var(--title); margin: 6px 0 4px; letter-spacing: .5px; text-wrap: balance; }
-#tab-quarry .quarry h2 .k { font: 600 11px var(--mono); letter-spacing: 3px; color: var(--red); text-transform: uppercase; display: block; margin-bottom: 4px; }
-#tab-quarry .quarry h3 { font: 800 12px var(--display); letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin: 22px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
-#tab-quarry .quarry .lead { color: var(--silver); margin: 4px 0 0; max-width: 78ch; }
-#tab-quarry .quarry .note { font: 13px/1.5 var(--body); color: var(--dim); margin: 6px 0 0; max-width: 78ch; }
-#tab-quarry .quarry .lk { background: none; border: 0; padding: 0; color: var(--gold); font: inherit; text-transform: none; letter-spacing: 0; cursor: pointer; border-bottom: 1px dotted var(--gold-soft); text-align: left; }
+#tab-quarry .quarry .browse { display: grid; gap: 8px; }
+#tab-quarry .quarry .browse > div { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+#tab-quarry .quarry .blabel { font: 600 10px var(--mono); letter-spacing: 3px; color: var(--red); text-transform: uppercase; min-width: 50px; }
+#tab-quarry .quarry .links { display: flex; flex-wrap: wrap; gap: 4px 16px; min-width: 0; flex: 1; }
+#tab-quarry .quarry .browse .lk { display: inline-flex; align-items: center; color: var(--silver); border-bottom: 0; font-size: 14px; }
+#tab-quarry .quarry .browse .lk:hover { color: var(--gold); }
+#tab-quarry .quarry .lk { background: none; border: 0; padding: 0; color: var(--gold); font: inherit; text-transform: none; letter-spacing: 0; cursor: pointer; text-align: left; border-bottom: 1px dotted var(--gold-soft); }
 #tab-quarry .quarry .lk:hover { color: var(--title); border-bottom-color: var(--gold); }
-#tab-quarry .quarry .ev { display: inline-block; font: 600 10px var(--mono); letter-spacing: 1px; text-transform: uppercase; padding: 1px 6px; border: 1px solid; margin-right: 6px; white-space: nowrap; }
-#tab-quarry .quarry .ev.m { color: var(--good); }
-#tab-quarry .quarry .ev.g { color: var(--gold); }
-#tab-quarry .quarry .ev.p { color: var(--silver); }
-#tab-quarry .quarry .scroll { overflow-x: auto; }
-#tab-quarry .quarry table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-#tab-quarry .quarry th { text-align: left; font: 600 11px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--dim); padding: 4px 10px 6px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
-#tab-quarry .quarry td { padding: 7px 10px 7px 0; border-bottom: 1px solid #1d1a22; vertical-align: top; font-size: 14px; }
-#tab-quarry .quarry td.num, #tab-quarry .quarry th.num { text-align: right; font-family: var(--mono); }
-#tab-quarry .quarry td .sub { display: block; font-size: 12px; color: var(--dim); }
-#tab-quarry .quarry .sample { border: 1px solid var(--line); background: #0d0c10; padding: 10px 12px; margin: 8px 0; }
-#tab-quarry .quarry .sample .hd { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
-#tab-quarry .quarry .sample .hd b { font: 700 15px var(--display); color: var(--title); }
-#tab-quarry .quarry .sample .hd span { font: 12px var(--mono); color: var(--dim); }
-#tab-quarry .quarry .bar { display: flex; height: 12px; border: 1px solid var(--line-strong); overflow: hidden; margin: 8px 0 6px; background: #0b0a0e; }
-#tab-quarry .quarry .bar span { display: block; height: 100%; }
-#tab-quarry .quarry .mix { display: flex; flex-wrap: wrap; gap: 4px 14px; font: 12px var(--mono); color: var(--silver); }
-#tab-quarry .quarry .mix i { display: inline-block; width: 9px; height: 9px; margin-right: 5px; }
-#tab-quarry .quarry .quote { border-left: 2px solid var(--gold-soft); padding: 2px 0 2px 10px; margin: 6px 0; color: var(--silver); font-style: italic; max-width: 78ch; }
-#tab-quarry .quarry ul.plain { list-style: none; margin: 0; padding: 0; }
-#tab-quarry .quarry ul.plain li { padding: 5px 0; border-bottom: 1px solid #1d1a22; }
-#tab-quarry .quarry .rline { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid #1d1a22; }
-#tab-quarry .quarry .fac { font: 600 10px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--dim); border: 1px solid var(--line-strong); padding: 1px 6px; white-space: nowrap; }
-#tab-quarry .quarry .fac.refine { color: #7fb9d8; }
-#tab-quarry .quarry .fac.print { color: #d8a35a; }
-#tab-quarry .quarry .fac.build { color: #c88; }
+#tab-quarry .quarry .lk:focus-visible, #tab-quarry .quarry .chip:focus-visible, #tab-quarry .quarry .navb:focus-visible, #tab-quarry .quarry summary:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+#tab-quarry .quarry .dot { display: inline-block; width: 9px; height: 9px; margin-right: 8px; border-radius: 2px; vertical-align: 0; flex: none; }
+#tab-quarry .quarry .answer { background: var(--panel); border: 1px solid var(--line); padding: 18px 22px 22px; min-width: 0; }
+#tab-quarry .quarry .nav { display: flex; gap: 8px; margin-bottom: 8px; }
+#tab-quarry .quarry .navb { font: 12px var(--mono); padding: 3px 9px; background: none; color: var(--dim); border: 1px solid var(--line-strong); cursor: pointer; }
+#tab-quarry .quarry .navb:hover { color: var(--title); border-color: var(--gold-soft); }
+#tab-quarry .quarry .kind { font: 600 10px var(--mono); letter-spacing: 3px; color: var(--red); text-transform: uppercase; }
+#tab-quarry .quarry h2 { font: 900 clamp(22px, 2.8vw, 30px)/1.2 var(--display); color: var(--title); margin: 2px 0 4px; letter-spacing: .5px; text-wrap: balance; }
+#tab-quarry .quarry h3 { font: 600 10px var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin: 22px 0 8px; }
+#tab-quarry .quarry .meta { font: 13px var(--mono); color: var(--dim); margin: 0 0 14px; }
+#tab-quarry .quarry .note { font: 13px/1.5 var(--body); color: var(--silver); margin: 12px 0 0; max-width: 70ch; border-left: 2px solid var(--gold-soft); padding-left: 10px; }
+#tab-quarry .quarry .key { font: 11px var(--mono); color: var(--dim); margin: 8px 0 0; }
+#tab-quarry .quarry .rows { display: grid; gap: 7px; }
+#tab-quarry .quarry .row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, 220px) 46px; gap: 14px; align-items: center; font-size: 14px; }
+#tab-quarry .quarry .row .nm { display: flex; align-items: center; min-width: 0; }
+#tab-quarry .quarry .row .gonly { grid-column: 2 / 4; font: 12px var(--mono); color: var(--dim); }
+#tab-quarry .quarry .mbar { display: block; height: 8px; background: #0b0a0e; border: 1px solid var(--line); }
+#tab-quarry .quarry .mbar > span { display: block; height: 100%; }
+#tab-quarry .quarry .minibar { display: flex; height: 8px; border: 1px solid var(--line); overflow: hidden; }
+#tab-quarry .quarry .minibar > span { display: block; height: 100%; }
+#tab-quarry .quarry .pc { font: 13px var(--mono); text-align: right; color: var(--title); font-variant-numeric: tabular-nums; }
+#tab-quarry .quarry .dim { color: var(--dim); }
+#tab-quarry .quarry .small { font: 11px var(--mono); }
+#tab-quarry .quarry .row .nm .small { margin-left: 7px; white-space: nowrap; }
+#tab-quarry .quarry .gtag { color: var(--gold); font-size: 10px; margin-left: 6px; cursor: help; }
+#tab-quarry .quarry .rline { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 4px 12px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid #1d1a22; font-size: 14px; }
+#tab-quarry .quarry .fac { font: 11px var(--mono); color: var(--dim); }
 #tab-quarry .quarry .arrow { color: var(--dim); }
-#tab-quarry .quarry .t { font: 11px var(--mono); color: var(--dim); }
-#tab-quarry .quarry .unv { font: 600 10px var(--mono); color: var(--warn); border: 1px solid rgba(224,168,58,.5); padding: 0 5px; }
-#tab-quarry .quarry details.node { margin: 2px 0 2px 2px; padding-left: 12px; border-left: 1px solid var(--line-strong); }
-#tab-quarry .quarry details.node > summary { cursor: pointer; padding: 5px 0; list-style: none; }
-#tab-quarry .quarry details.node > summary::-webkit-details-marker { display: none; }
-#tab-quarry .quarry details.node > summary::before { content: "▸"; color: var(--gold); display: inline-block; width: 14px; }
-#tab-quarry .quarry details.node[open] > summary::before { content: "▾"; }
-#tab-quarry .quarry .leaf { padding: 5px 0 5px 14px; border-left: 1px solid var(--line-strong); margin-left: 2px; }
-#tab-quarry .quarry .leaf .src { font-size: 13px; color: var(--silver); }
-#tab-quarry .quarry .comes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-#tab-quarry .quarry .comes .chip { cursor: pointer; }
-#tab-quarry .quarry .lodge { margin-top: 14px; font: 700 12px var(--display); letter-spacing: 2px; text-transform: uppercase; padding: 9px 14px; background: var(--crimson); color: var(--title); border: 1px solid var(--red); cursor: pointer; }
-#tab-quarry .quarry .empty { color: var(--dim); border: 1px dashed var(--line); padding: 22px; text-align: center; }
-#tab-quarry .quarry .empty b { color: var(--title); font-weight: 600; }
+#tab-quarry .quarry .unv { font: 600 11px var(--mono); color: var(--warn); cursor: help; }
+#tab-quarry .quarry .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+#tab-quarry .quarry .chip { font: 12px var(--mono); padding: 3px 9px; background: #0b0a0e; color: var(--silver); border: 1px solid var(--line-strong); cursor: pointer; display: inline-flex; align-items: center; }
+#tab-quarry .quarry .chip:hover { border-color: var(--gold); color: var(--title); }
+#tab-quarry .quarry details.info { display: inline-block; position: relative; vertical-align: middle; }
+#tab-quarry .quarry details.info > summary { list-style: none; cursor: pointer; display: inline-grid; place-items: center; width: 17px; height: 17px; border: 1px solid var(--line-strong); border-radius: 50%; font: italic 600 11px/1 Georgia, serif; color: var(--dim); }
+#tab-quarry .quarry details.info > summary::-webkit-details-marker { display: none; }
+#tab-quarry .quarry details.info[open] > summary, #tab-quarry .quarry details.info > summary:hover { color: var(--gold); border-color: var(--gold-soft); }
+#tab-quarry .quarry details.info .pop { position: absolute; z-index: 20; left: 0; top: 24px; width: min(360px, 80vw); padding: 10px 12px; background: #0b0a0e; border: 1px solid var(--gold-soft); box-shadow: 0 8px 24px rgba(0,0,0,.6); font: 13px/1.5 var(--body); color: var(--silver); letter-spacing: 0; text-transform: none; }
+#tab-quarry .quarry details.fold { margin-top: 18px; }
+#tab-quarry .quarry details.fold > summary { cursor: pointer; font: 600 10px var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--gold); }
+#tab-quarry .quarry .lodge { margin-top: 18px; font: 700 12px var(--display); letter-spacing: 2px; text-transform: uppercase; padding: 9px 14px; background: var(--crimson); color: var(--title); border: 1px solid var(--red); cursor: pointer; }
+@media (max-width: 560px) { #tab-quarry .quarry .answer { padding: 14px; } #tab-quarry .quarry .row { grid-template-columns: minmax(0, 1fr) 70px 40px; gap: 10px; } #tab-quarry .quarry .rline { grid-template-columns: 1fr; } }
 #tab-quarry .quarry .honour { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px 20px; align-items: center; padding: 16px 20px;
   border: 1px solid var(--gold); outline: 1px solid rgba(217,178,76,.22); outline-offset: 4px; box-shadow: 0 0 26px rgba(217,178,76,.14);
   background: radial-gradient(ellipse at 0 0, rgba(143,17,24,.45), transparent 62%), linear-gradient(180deg, #19141c, #0c0a0f); }
@@ -416,8 +404,6 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #tab-quarry .quarry .honour .who .nm { display: block; font: 800 22px/1.2 var(--display); color: var(--gold); letter-spacing: 1px; text-shadow: 0 0 12px rgba(217,178,76,.35); }
 #tab-quarry .quarry .honour .who .what { display: block; font: 13px/1.5 var(--body); color: var(--silver); }
 @media (max-width: 560px) { #tab-quarry .quarry .honour { padding: 14px; gap: 10px 14px; } #tab-quarry .quarry .honour .medal { width: 46px; height: 46px; font-size: 20px; } }
-#tab-quarry .quarry .legend { font: 12px var(--mono); color: var(--dim); display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 0; }
-@media (max-width: 560px) { #tab-quarry .quarry .answer { padding: 12px; } #tab-quarry .quarry .mode { flex: 1 1 auto; } }
 /* The Pilgrim Roads (the tribe's road map), in the Forge's look */
 .roads-on .topctl, .roads-on .tier { display: none; }
 .roads-page { padding: 8px 0 20px; }
@@ -827,19 +813,17 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       </div>
     </section>
   </main><p class="lfoot"><span id="foot-data"></span> · recipes from the game's industry windows</p></section>
-<section id="tab-quarry" class="quarry-page" hidden><h2 class="gtitle">The Quarry <span class="q-wip">alpha test · under construction</span></h2><div class="q-wipnote"><b>Alpha test.</b> The Quarry is still being built. Most rocks have only been measured once or not at all, so treat the shares as a guide, and the page will keep changing. Mined a rock we have little on, or found something wrong? Tell us in Discord.</div><p class="gintro">Ask it both ways. Where do I get it: type any ore or material and see which rocks hold it and how it is made. What do I get from it: type a rock or an ore and see what comes out and what that turns into. Every answer says where it comes from: our own mining or the game's own descriptions.</p><main class="quarry">
+<section id="tab-quarry" class="quarry-page" hidden><h2 class="gtitle">The Quarry <span class="q-wip">alpha test · under construction</span></h2><div class="q-wipnote"><b>Alpha test.</b> The Quarry is still being built. Most rocks have only been measured once or not at all, so treat the shares as a guide, and the page will keep changing. Mined a rock we have little on, or found something wrong? Tell us in Discord.</div><p class="gintro">Type a rock to see what comes out of it, or an ore or material to see where it comes from.</p><main class="quarry">
     <section class="ask" aria-label="Ask the Quarry">
-      <div class="askrow">
-        <div class="qbox"><input id="q-in" type="text" placeholder="A rock, an ore or a material: Spall, Hydrated Gossan, Kerogen Tar…" autocomplete="off" spellcheck="false" aria-label="Rock, ore or material" aria-controls="q-menu"><ul id="q-menu" class="qmenu" role="listbox" hidden></ul></div>
-        <div class="modes" role="group" aria-label="Question">
-          <button type="button" class="mode" data-mode="where" aria-pressed="true">Where do I get it?</button>
-          <button type="button" class="mode" data-mode="what" aria-pressed="false">What do I get from it?</button>
-        </div>
+      <div class="qbox"><input id="q-in" type="text" placeholder="Rock, ore or material: Pitch, Primitive Rime Shards, Kerogen Tar…" autocomplete="off" spellcheck="false" aria-label="Rock, ore or material" aria-controls="q-menu"><ul id="q-menu" class="qmenu" role="listbox" hidden></ul></div>
+      <div class="browse" id="q-browse">
+        <div><span class="blabel">Rocks</span><span id="q-rocks" class="links"></span></div>
+        <div><span class="blabel">Ores</span><span id="q-ores" class="links"></span></div>
       </div>
-      <div class="browse">
-        <div><span class="blabel">Rocks</span><span id="q-rocks" class="chips"></span></div>
-        <div><span class="blabel">Ores</span><span id="q-ores" class="chips"></span></div>
-      </div>
+    </section>
+    <section class="answer" id="q-answer" aria-live="polite" hidden>
+      <div class="nav"><button type="button" id="q-back" class="navb" hidden>← back</button><button type="button" id="q-home" class="navb">all rocks and ores</button></div>
+      <div id="q-out"></div>
     </section>
     <section class="honour" id="q-credit" aria-label="Contributors" hidden>
       <div class="medal" aria-hidden="true">✠</div>
@@ -849,11 +833,6 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
         <div class="roll" id="q-roll"></div>
       </div>
     </section>
-    <section class="answer" aria-live="polite">
-      <div class="crumbs"><button type="button" id="q-back" class="ghost" hidden>← back</button><span id="q-crumb"></span></div>
-      <div id="q-out"><div class="empty"><b>Ask away.</b><br>Type a rock, an ore or a material above, or pick one of the rocks and ores.</div></div>
-    </section>
-    <p class="legend"><span><span class="ev m">Measured</span>our own mining, from the game logs</span><span><span class="ev g">The game says</span>the ore's in-game description</span></p>
   </main><p class="lfoot"><span id="q-foot"></span> · ores from the game's own descriptions and our own mining</p></section>
 <section id="tab-roads" class="roads-page" hidden>
   <h2 class="gtitle">The Pilgrim Roads <span class="roads-wip">alpha test · under construction</span></h2>
@@ -1110,5 +1089,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=ed4d2f02"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=8fdea247"></script><script src="quarry-data.js?v=3864d531"></script><script src="quarry-app.js?v=0a225665"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=429620dc"></script><script src="roads.js?v=c2b4b5a6"></script>
+<script src="lodge-data.js?v=ed4d2f02"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=8fdea247"></script><script src="quarry-data.js?v=51fe53a4"></script><script src="quarry-app.js?v=5742f9ca"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=429620dc"></script><script src="roads.js?v=c2b4b5a6"></script>
 </body></html>

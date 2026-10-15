@@ -1,10 +1,11 @@
-/* The Quarry: two questions over one data set (window.QUARRY_DATA, from tools/export_quarry_data.py).
-   Where do I get it?   ore -> the rocks that hold it, ranked by evidence; material -> how it is made, down to the
-                        ores and rocks (a tree that opens on demand); a rock -> what is known about finding it.
-   What do I get from it?  rock -> its ores (our measured cuts, the game's descriptions) and what each refines into;
-                        ore or material -> every recipe that uses it.
-   Evidence is never mixed: Measured (our own mining, or a Saint's game log, credited by name) / The game says (the
-   ore's own description). No player reports or hearsay (user 2026-10-14).
+/* The Quarry: where every ore comes from and what every rock gives (window.QUARRY_DATA, tools/export_quarry_data.py).
+   One page per subject, both ways at once: a rock shows what comes out of it; an ore shows the rocks that hold it and
+   what it refines into; a material shows how it is made and what uses it; loot and salvage say where they are found.
+   Little text on screen (user 2026-10-15: "too busy ... info is good but thats too much text"): bars and short labels,
+   details behind an (i) or a fold, no mode switch, no nested trees (click an ingredient to open it).
+   Evidence is never mixed: measured (our own mining, or a Saint's game log, credited by name) / the game says (the
+   ore's in-game description). No player reports or hearsay (user 2026-10-14). Measured = ONE AVERAGE per rock name
+   (D.rocks; passes on one rock pooled, every rock counts once), never the single passes (user 2026-10-15).
    Every id the page uses starts with q- (the site is one page shared with the Forge and the Lodge). */
 (function () {
   "use strict";
@@ -14,13 +15,13 @@
 
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const n0 = x => Math.round(x).toLocaleString("en-US");
-  const pct = x => Math.round(x * 100) + "%";
+  const pct = x => (x > 0 && x < 0.005 ? "<1" : Math.round(x * 100)) + "%";
   const ORES = D.ores, ORESET = new Set(ORES), FAMS = D.families, PREF = D.prefixes;
   const COLOR = { "Crustal Anorthosite Crystals": "#cfc6ae", "Massive Ataxite Matrix": "#8fa6bf", "Hydrated Gossan Matrix": "#3fa0d0",
     "Irradiated Anthraxolite Veins": "#e07b2e", "Irradiated Cryoconite Nodules": "#9a78e0", "Primordial Anthraxolite Sludge": "#9c6a40",
     "Primitive Rime Shards": "#bfeaf0", "Native Reef Nodules": "#d9b24c" };
   const LEVEL_RANK = { rich: 6, main: 5, common: 4, carries: 3, some: 2, traces: 1 };
-  const KIND_HEAD = { refine: "Refine it", print: "Print with it", build: "Build with it" };
+  const KIND_ORDER = { refine: 0, print: 1, build: 2 };
 
   // ---------- indexes ----------
   const makes = {}, uses = {};
@@ -31,7 +32,7 @@
   const ALL = [...new Set([...Object.keys(makes), ...Object.keys(uses), ...ORES])].sort((a, b) => a.localeCompare(b));
   const facLabel = f => D.facilities[f] || f;
   const facKind = f => D.facilityKind[f] || "build";
-  const samplesOf = F => D.samples.filter(s => s.family === F);
+  const avgsOf = F => D.rocks.filter(a => a.family === F);
   const gameOf = F => D.game.filter(g => g.rocks.includes(F));
 
   function sourceTag(i) {
@@ -42,7 +43,7 @@
   const INDEX = [];
   for (const f of FAMS) INDEX.push({ name: f, tag: "rock" });
   const seenRock = new Set(FAMS);
-  for (const s of D.samples) if (!seenRock.has(s.rock)) { seenRock.add(s.rock); INDEX.push({ name: s.rock, tag: "rock" }); }
+  for (const a of D.rocks) if (!seenRock.has(a.rock)) { seenRock.add(a.rock); INDEX.push({ name: a.rock, tag: "rock" }); }
   for (const o of ORES) INDEX.push({ name: o, tag: "ore" });
   for (const i of ALL) if (!ORESET.has(i)) INDEX.push({ name: i, tag: sourceTag(i) });
 
@@ -60,23 +61,6 @@
     return null;
   }
 
-  // ---------- evidence ----------
-  // rocks that hold an ore, strongest evidence first: a measured share beats the game's word
-  function rankRocks(ore) {
-    return FAMS.map(F => {
-      const ms = samplesOf(F).filter(s => s.ores[ore]).sort((a, b) => b.ores[ore] / b.total - a.ores[ore] / a.total);
-      const g = D.game.find(x => x.ore === ore && x.rocks.includes(F));
-      if (!ms.length && !g) return null;
-      const share = ms.length ? ms[0].ores[ore] / ms[0].total : 0;
-      return { F, ms, g, score: (ms.length ? 1000 + 1000 * share : 0) + (g ? LEVEL_RANK[g.level] * 10 : 0) };
-    }).filter(Boolean).sort((a, b) => b.score - a.score);
-  }
-  function oresOfRock(F) {
-    const score = {};
-    for (const s of samplesOf(F)) for (const o in s.ores) score[o] = (score[o] || 0) + 1000 + 1000 * s.ores[o] / s.total;
-    for (const g of gameOf(F)) score[g.ore] = (score[g.ore] || 0) + LEVEL_RANK[g.level] * 10;
-    return Object.keys(score).sort((a, b) => score[b] - score[a]);
-  }
   // every raw input an item can come down to, through any recipe (memoised; a loop through an item already on the
   // path stops there)
   const rawMemo = {};
@@ -93,145 +77,112 @@
   }
 
   // ---------- pieces ----------
-  const go = (name, mode, label) => `<button type="button" class="lk" data-go="${esc(name)}"${mode ? ` data-mode="${mode}"` : ""}>${esc(label || name)}</button>`;
-  const dot = o => COLOR[o] ? `<i style="background:${COLOR[o]}"></i>` : "";
-  const qty = (q, name) => `${n0(q)} ${go(name)}`;
-  function head(title, kicker) { return `<h2><span class="k">${esc(kicker)}</span>${title}</h2>`; }
+  const go = (name, label) => `<button type="button" class="lk" data-go="${esc(name)}">${esc(label || name)}</button>`;
+  const dot = o => `<i class="dot" style="background:${COLOR[o] || "#666"}"></i>`;
+  const info = text => `<details class="info"><summary aria-label="More">i</summary><div class="pop">${text}</div></details>`;
+  const head = (title, kind, more) => `<div class="kind">${esc(kind)}</div><h2>${esc(title)}${more ? " " + more : ""}</h2>`;
+  const bar = (f, color) => `<span class="mbar"><span style="width:${Math.max(1, f * 100).toFixed(1)}%;background:${color}"></span></span>`;
   function recipeLine(r) {
-    const k = facKind(r.f);
-    const ins = Object.entries(r.in).map(([i, q]) => qty(q, i)).join(" + ");
-    const outs = Object.entries(r.out).map(([o, q]) => qty(q, o)).join(" + ");
-    return `<div class="rline"><span class="fac ${k}">${esc(facLabel(r.f))}</span>${ins} <span class="arrow">\u2192</span> ${outs}`
-      + (r.t ? ` <span class="t">${n0(r.t)} s</span>` : "") + (r.u ? ` <span class="unv" title="not yet confirmed on this facility">unverified</span>` : "") + `</div>`;
+    const side = o => Object.entries(o).map(([i, q]) => `${n0(q)} ${go(i)}`).join(" + ");
+    return `<div class="rline"><span class="fac" title="${esc(facKind(r.f))}">${esc(facLabel(r.f))}</span><span class="rx">${side(r.in)} <span class="arrow">\u2192</span> ${side(r.out)}`
+      + (r.u ? ` <span class="unv" title="not yet confirmed on this facility">?</span>` : "") + `</span></div>`;
   }
-  function recipesByKind(rs) {
-    const by = {};
-    for (const r of rs) (by[facKind(r.f)] = by[facKind(r.f)] || []).push(r);
-    return ["refine", "print", "build"].filter(k => by[k]).map(k => `<h3>${KIND_HEAD[k]}</h3>` + by[k].map(recipeLine).join("")).join("");
-  }
-  function sampleHtml(s) {
-    const word = s.kind === "bore" ? "bored straight through" : "mining run";
-    const ores = Object.entries(s.ores).sort((a, b) => b[1] - a[1]);
-    const bar = ores.map(([o, q]) => `<span style="width:${(q / s.total * 100).toFixed(2)}%;background:${COLOR[o] || "#666"}" title="${esc(o)} ${pct(q / s.total)}"></span>`).join("");
-    return `<div class="sample"><div class="hd"><b>${esc(s.rock)}</b><span>${word} \u00b7 ${esc(s.date)} \u00b7 ${s.minutes} min \u00b7 ${n0(s.total)} units${s.per_min ? " \u00b7 " + n0(s.per_min) + " a minute" : ""}${s.by ? " \u00b7 measured by " + esc(s.by) : ""}</span></div>`
-      + `<div class="bar" role="img" aria-label="${esc(ores.map(([o, q]) => o + " " + pct(q / s.total)).join(", "))}">${bar}</div>`
-      + `<div class="mix">${ores.map(([o, q]) => `<span>${dot(o)}${go(o)} ${n0(q)} (${pct(q / s.total)})</span>`).join("")}</div>`
-      + (s.note ? `<p class="note">${esc(s.note)}</p>` : "") + `</div>`;
-  }
-  function rocksLine(ore, n) {
-    const rows = rankRocks(ore).slice(0, n);
-    return rows.length ? rows.map(r => go(r.F)).join(", ") : "no rock recorded yet";
+  const byKind = rs => rs.slice().sort((a, b) => KIND_ORDER[facKind(a.f)] - KIND_ORDER[facKind(b.f)]);
+  const usedIn = (name, open) => {
+    const rs = uses[name] || [];
+    if (!rs.length) return "";
+    return open ? `<h3>Used in</h3>` + byKind(rs).map(recipeLine).join("")
+      : `<details class="fold"><summary>Used in ${rs.length} recipe${rs.length === 1 ? "" : "s"}</summary>${byKind(rs).map(recipeLine).join("")}</details>`;
+  };
+  // the line under a rock's name: how many rocks, how fast; the long words sit in the (i)
+  function measuredMeta(a) {
+    const bits = [a.n === 1 ? "1 rock" : a.n + " rocks", "~" + n0(a.per_min || 0) + "/min"];
+    if (a.by && a.by.length) bits.push("by " + a.by.map(esc).join(", "));
+    const more = `${a.n === 1 ? "Measured on one rock" : "The average of " + a.n + " rocks we measured, every rock counted once"}: ${n0(a.units)} units. Units a minute depend on the ship's lasers and lens.`;
+    return `<div class="meta">${bits.join(" \u00b7 ")} ${info(esc(more))}</div>`;
   }
 
   // ---------- views ----------
-  function rockWhat(sub) {
-    const F = sub.family, P = sub.prefix, ores = oresOfRock(F);
-    let h = head(`What comes out of ${esc(sub.name)}`, "What do I get from it");
-    h += ores.length ? `<div class="comes">${ores.map(o => `<button type="button" class="chip" data-go="${esc(o)}">${dot(o)}${esc(o)}</button>`).join("")}</div>`
-      : `<p class="lead">Nothing is recorded for ${esc(F)} yet.</p>`;
-    if (P) h += `<p class="note">The prefix (${esc(P)}) comes from the game's server and changes the mix, so ${esc(P)} ${esc(F)} cuts come first below.</p>`;
-    const ss = samplesOf(F).sort((a, b) => (b.prefix === P) - (a.prefix === P) || b.total - a.total);
-    h += `<h3><span class="ev m">Measured</span></h3>` + (ss.length ? ss.map(sampleHtml).join("") + `<p class="note">Units a minute depend on the ship's lasers and lens.</p>`
-      : `<p class="note">Nobody has measured a ${esc(F)} yet.</p>`);
-    const gs = gameOf(F).sort((a, b) => LEVEL_RANK[b.level] - LEVEL_RANK[a.level]);
-    h += `<h3><span class="ev g">The game says</span></h3>` + (gs.length ? `<ul class="plain">${gs.map(g => `<li>${dot(g.ore)}${go(g.ore)}: ${esc(D.levels[g.level])}<div class="quote">\u201c${esc(g.quote)}.\u201d</div></li>`).join("")}</ul>`
-      : `<p class="note">No ore's in-game description names ${esc(F)} asteroids.</p>`);
-    if (ores.length) {
-      h += `<h3>Then refine it</h3>`;
-      for (const o of ores) {
-        const rs2 = (uses[o] || []).filter(r => facKind(r.f) === "refine");
-        h += `<p class="lead" style="margin-top:12px">${dot(o)}<b>${go(o)}</b></p>` + (rs2.length ? rs2.map(recipeLine).join("") : `<p class="note">No refining recipe recorded.</p>`);
-      }
-    }
+  function rockView(sub) {
+    const F = sub.family, a = D.rocks.find(x => x.rock === sub.name);
+    const gs = gameOf(F);
+    const said = o => gs.find(g => g.ore === o);
+    let h = head(sub.name, "Rock");
+    const rows = [];
+    if (a) for (const [o, f] of Object.entries(a.share)) rows.push({ o, f });
+    for (const g of gs) if (!rows.some(r => r.o === g.ore)) rows.push({ o: g.ore, f: 0 });
+    rows.sort((x, y) => y.f - x.f || LEVEL_RANK[(said(y.o) || {}).level] - LEVEL_RANK[(said(x.o) || {}).level]);
+    h += a ? measuredMeta(a) : `<div class="meta">not measured yet</div>`;
+    h += `<div class="rows">` + rows.map(r => {
+      const g = said(r.o);
+      const tag = g ? `<span class="gtag" title="The game says: ${esc(D.levels[g.level])} (\u201c${esc(g.quote)}\u201d)">\u25c6</span>` : "";
+      return `<div class="row"><span class="nm">${dot(r.o)}${go(r.o)}${tag}</span>${r.f ? bar(r.f, COLOR[r.o] || "#888") + `<span class="pc">${pct(r.f)}</span>` : `<span class="gonly">game says: ${esc(D.levels[g.level])}</span>`}</div>`;
+    }).join("") + `</div>`;
+    if (gs.length) h += `<p class="key"><span class="gtag">\u25c6</span> named in the game's own ore description</p>`;
+    if (a && a.note) h += `<p class="note">${esc(a.note)}</p>`;
+    const others = avgsOf(F).filter(x => x.rock !== sub.name).sort((x, y) => y.n - x.n || y.units - x.units);
+    if (others.length) h += `<h3>Other ${esc(F)}</h3><div class="rows">` + others.map(x => {
+      const segs = Object.entries(x.share).map(([o, f]) => `<span style="width:${(f * 100).toFixed(1)}%;background:${COLOR[o] || "#666"}" title="${esc(o)} ${pct(f)}"></span>`).join("");
+      return `<div class="row"><span class="nm">${go(x.rock)}</span><span class="minibar">${segs}</span><span class="pc dim">${x.n}\u00d7</span></div>`;
+    }).join("") + `</div>`;
     return h;
   }
-  function rockWhere(sub) {
-    const F = sub.family;
-    let h = head(`Where do I find ${esc(sub.name)}?`, "Where do I get it");
-    h += `<p class="note">Rocks sit in asteroid belts; their names show on scan labels and when you target one. The game's server picks what spawns where.</p>`;
-    h += `<p class="lead" style="margin-top:12px">${go(sub.name, "what", "What comes out of " + sub.name + " \u2192")}</p>`;
+  function oreView(sub) {
+    const o = sub.name;
+    let h = head(o, "Ore", info(`<i>\u201c${esc(D.desc[o] || "")}\u201d</i><br>The game's own description.`));
+    const meas = D.rocks.filter(a => a.share[o]).sort((x, y) => y.share[o] - x.share[o]);
+    const famsMeasured = new Set(meas.map(a => a.family));
+    const gameOnly = D.game.filter(g => g.ore === o).flatMap(g => g.rocks.filter(F => !famsMeasured.has(F)).map(F => ({ F, g })));
+    h += `<h3>Found in</h3>`;
+    if (!meas.length && !gameOnly.length) h += `<div class="meta">no rock recorded yet</div>`;
+    h += `<div class="rows">` + meas.map(a => `<div class="row"><span class="nm">${go(a.rock)}<span class="dim small"> ${a.n}\u00d7${a.by && a.by.length ? " \u00b7 by " + a.by.map(esc).join(", ") : ""}</span></span>${bar(a.share[o], COLOR[o] || "#888")}<span class="pc">${pct(a.share[o])}</span></div>`).join("")
+      + gameOnly.map(({ F, g }) => `<div class="row"><span class="nm">${go(F)}</span><span class="gonly">game says: ${esc(D.levels[g.level])}</span></div>`).join("") + `</div>`;
+    if (meas.length) h += `<p class="key">share of the rock, average of the rocks we measured (N\u00d7 = how many)</p>`;
+    const ref = byKind(uses[o] || []);
+    if (ref.length) h += `<h3>Becomes</h3>` + ref.map(recipeLine).join("");
     return h;
   }
-  function oreWhere(sub) {
-    const o = sub.name, rows = rankRocks(o);
-    let h = head(`Where do I get ${esc(o)}?`, "Where do I get it");
-    h += `<div class="quote">\u201c${esc(D.desc[o] || "")}\u201d</div><p class="note">The game's own description of the ore.</p>`;
-    h += `<h3>Rocks that hold it</h3>`;
-    if (!rows.length) h += `<p class="note">No rock recorded yet.</p>`;
-    else h += `<div class="scroll"><table><thead><tr><th>Rock</th><th><span class="ev m">Measured</span></th><th><span class="ev g">The game says</span></th></tr></thead><tbody>`
-      + rows.map(r => {
-        const b = r.ms[0];
-        const m = b ? `${pct(b.ores[o] / b.total)} of a ${esc(b.rock)} <span class="sub">${n0(b.ores[o])} units in ${b.minutes} min${r.ms.length > 1 ? " \u00b7 " + r.ms.length + " cuts measured" : ""}${b.by ? " \u00b7 measured by " + esc(b.by) : ""}</span>` : `<span class="sub">not measured</span>`;
-        const g = r.g ? esc(D.levels[r.g.level]) : `<span class="sub">not named</span>`;
-        return `<tr><td>${go(r.F)}</td><td>${m}</td><td>${g}</td></tr>`;
-      }).join("") + `</tbody></table></div>`;
-    const ref = (uses[o] || []).filter(r => facKind(r.f) === "refine");
-    if (ref.length) h += `<h3>It refines into</h3>` + ref.map(recipeLine).join("");
-    return h;
-  }
-  function rawHint(item) {
-    if (ORESET.has(item)) return `ore \u00b7 in ${rocksLine(item, 3)}`;
-    const s = D.sources[item];
-    return s ? esc(s.h) : "not made by any recipe we know";
-  }
-  function nodeHtml(item, q, depth) {
-    const label = `${n0(q)} ${go(item)}`;
-    if (!makes[item]) return `<div class="leaf">${label} <span class="src">\u00b7 ${rawHint(item)}</span></div>`;
-    const n = makes[item].length;
-    return `<details class="node" data-item="${esc(item)}" data-depth="${depth}"><summary>${label} <span class="t">${n === 1 ? "one way to make it" : n + " ways to make it"}</span></summary><div class="kids"></div></details>`;
-  }
-  function kidsHtml(item, depth) {
-    return makes[item].map(r => `<div class="way">${recipeLine(r)}${Object.entries(r.in).map(([i, q]) => nodeHtml(i, q, depth + 1)).join("")}</div>`).join("");
-  }
-  function itemWhere(sub) {
+  function itemView(sub) {
     const it = sub.name;
-    let h = head(`Where do I get ${esc(it)}?`, "Where do I get it");
+    let h = head(it, D.section[it] || "Material");
+    h += `<h3>Made from</h3>` + byKind(makes[it]).map(recipeLine).join("");
     const raw = [...rawOf(it)];
     const ores = raw.filter(x => ORESET.has(x)), other = raw.filter(x => !ORESET.has(x));
-    if (ores.length) h += `<p class="lead">It can come down to these ores:</p><div class="comes">${ores.map(o => `<button type="button" class="chip" data-go="${esc(o)}">${dot(o)}${esc(o)}</button>`).join("")}</div>`
-      + `<ul class="plain" style="margin-top:8px">${ores.map(o => `<li>${dot(o)}${esc(o)}: ${rocksLine(o, 3)}</li>`).join("")}</ul>`;
-    if (other.length) h += `<p class="lead" style="margin-top:10px">${ores.length ? "Or from" : "It comes from"}: ${other.map(x => `${go(x)} <span class="note" style="display:inline">(${esc(sourceTag(x))})</span>`).join(", ")}</p>`;
-    h += `<h3>How it is made</h3><p class="note">Each line is one way to make it; open an ingredient to see how that is made, down to the rock.</p>` + kidsHtml(it, 0);
+    if (ores.length || other.length) h += `<h3>Comes down to</h3><div class="chips">` + ores.map(o => `<button type="button" class="chip" data-go="${esc(o)}">${dot(o)}${esc(o)}</button>`).join("")
+      + other.map(x => `<button type="button" class="chip" data-go="${esc(x)}" title="${esc(sourceTag(x))}">${esc(x)}</button>`).join("") + `</div>`;
     if (window.__lodgeImport && window.__siteGo) h += `<button type="button" class="lodge" data-lodge="${esc(it)}">\u2692 Plan it in the Lodge</button>`;
+    h += usedIn(it, false);
     return h;
   }
-  function rawWhere(sub) {
-    let h = head(`Where do I get ${esc(sub.name)}?`, "Where do I get it");
-    h += `<p class="lead">${rawHint(sub.name)}</p>`;
-    if (uses[sub.name]) h += `<p class="lead" style="margin-top:12px">${go(sub.name, "what", "What it is used for \u2192")}</p>`;
-    return h;
-  }
-  function usesView(sub) {
-    const rs = uses[sub.name] || [];
-    let h = head(`What do I get from ${esc(sub.name)}?`, "What do I get from it");
-    if (sub.kind === "ore") h += `<p class="lead">${dot(sub.name)}Found in ${rocksLine(sub.name, 4)}.</p>`;
-    h += rs.length ? recipesByKind(rs) : `<p class="lead">No recipe we know uses ${esc(sub.name)}.</p>`;
+  function rawView(sub) {
+    const s = D.sources[sub.name];
+    let h = head(sub.name, sourceTag(sub.name));
+    h += `<div class="meta">${s ? esc(s.h) : "not made by any recipe we know"}</div>`;
+    h += usedIn(sub.name, true);
     return h;
   }
 
   // ---------- state ----------
-  let cur = null, mode = "where";
+  let cur = null;
   const hist = [];
-  function open(name, m, push) {
+  function open(name, push) {
     const sub = subjectOf(name);
     if (!sub) return false;
-    if (push !== false && cur) hist.push({ name: cur.name, mode });
+    if (push !== false && cur && cur.name !== sub.name) hist.push(cur.name);
     cur = sub;
-    mode = m || (sub.kind === "rock" ? "what" : "where");
     render();
     return true;
   }
+  function home() { cur = null; hist.length = 0; $("q-in").value = ""; render(); }
   function render() {
-    document.querySelectorAll(".quarry .mode").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
-    if (!cur) return;
+    const on = !!cur;
+    $("q-answer").hidden = !on;
+    $("q-browse").hidden = on;
+    if (!on) { try { localStorage.removeItem("quarry:last"); } catch (e) {} return; }
     $("q-in").value = cur.name;
-    const v = mode === "where"
-      ? ({ rock: rockWhere, ore: oreWhere, item: itemWhere, raw: rawWhere })[cur.kind](cur)
-      : (cur.kind === "rock" ? rockWhat(cur) : usesView(cur));
-    $("q-out").innerHTML = v;
+    $("q-out").innerHTML = ({ rock: rockView, ore: oreView, item: itemView, raw: rawView })[cur.kind](cur);
     $("q-back").hidden = !hist.length;
-    $("q-crumb").textContent = hist.length ? hist.slice(-3).map(x => x.name).join(" \u203a ") + " \u203a " + cur.name : "";
-    try { localStorage.setItem("quarry:last", JSON.stringify({ name: cur.name, mode })); } catch (e) {}
+    try { localStorage.setItem("quarry:last", JSON.stringify({ name: cur.name })); } catch (e) {}
   }
 
   // ---------- the search box ----------
@@ -266,22 +217,19 @@
   root.addEventListener("click", e => {
     const b = e.target.closest("button");
     if (!b || !root.contains(b)) return;
-    if (b.classList.contains("mode")) { mode = b.dataset.mode; if (cur) render(); else document.querySelectorAll(".quarry .mode").forEach(x => x.setAttribute("aria-pressed", String(x === b))); return; }
-    if (b.id === "q-back") { const p = hist.pop(); if (p) open(p.name, p.mode, false); return; }
+    if (b.id === "q-back") { const p = hist.pop(); if (p) open(p, false); return; }
+    if (b.id === "q-home") { home(); return; }
     if (b.dataset.lodge && window.__lodgeImport && window.__siteGo) { window.__lodgeImport({ name: b.dataset.lodge, goals: [{ item: b.dataset.lodge, qty: 1 }] }); window.__siteGo("lodge"); return; }
-    if (b.dataset.go) { open(b.dataset.go, b.dataset.mode || null); window.scrollTo({ top: root.getBoundingClientRect().top + window.scrollY - 10, behavior: "smooth" }); }
+    if (b.dataset.go) { open(b.dataset.go); window.scrollTo({ top: root.getBoundingClientRect().top + window.scrollY - 10, behavior: "smooth" }); }
   });
-  // the tree fills a branch the first time it is opened (toggle does not bubble: listen in the capture phase)
-  $("q-out").addEventListener("toggle", e => {
-    const d = e.target;
-    if (!(d instanceof HTMLDetailsElement) || !d.open || !d.dataset.item) return;
-    const kids = d.querySelector(":scope > .kids");
-    if (kids && !kids.dataset.done) { kids.innerHTML = kidsHtml(d.dataset.item, +d.dataset.depth); kids.dataset.done = "1"; }
-  }, true);
+  // one (i) open at a time; a click elsewhere closes it
+  document.addEventListener("click", e => {
+    for (const d of document.querySelectorAll(".quarry details.info[open]")) if (!d.contains(e.target)) d.open = false;
+  });
 
   // ---------- start ----------
-  $("q-rocks").innerHTML = FAMS.map(f => `<button type="button" class="chip" data-go="${esc(f)}">${esc(f)}</button>`).join("");
-  $("q-ores").innerHTML = ORES.map(o => `<button type="button" class="chip" data-go="${esc(o)}">${dot(o)}${esc(o)}</button>`).join("");
+  $("q-rocks").innerHTML = FAMS.map(f => go(f)).join("");
+  $("q-ores").innerHTML = ORES.map(o => `<button type="button" class="lk" data-go="${esc(o)}">${dot(o)}${esc(o)}</button>`).join("");
   $("q-foot").textContent = "data of " + D.generated;
   const CR = D.contributors || [];
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -293,5 +241,5 @@
   }
   let last = null;
   try { last = JSON.parse(localStorage.getItem("quarry:last") || "null"); } catch (e) {}
-  if (last && last.name) open(last.name, last.mode, false);
+  if (!(last && last.name && open(last.name, false))) render();
 })();
