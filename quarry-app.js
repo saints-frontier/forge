@@ -106,9 +106,9 @@
   };
   // the line under a rock's name: how many rocks, how fast; the long words sit in the (i)
   function measuredMeta(a) {
-    const bits = [a.n === 1 ? "1 rock" : a.n + " rocks", "~" + n0(a.per_min || 0) + "/min"];
+    const bits = ["cut from " + (a.n === 1 ? "1 rock" : a.n + " rocks"), "~" + n0(a.per_min || 0) + "/min"];
     if (a.by && a.by.length) bits.push("by " + a.by.map(esc).join(", "));
-    const more = `${a.n === 1 ? "Measured on one rock" : "The average of " + a.n + " rocks we measured, every rock counted once"}: ${n0(a.units)} units. Units a minute depend on the ship's lasers and lens.`;
+    const more = `${a.n === 1 ? "What we cut from one rock" : "The average of what we cut from " + a.n + " rocks, every rock counted once"}: ${n0(a.units)} units. A rock is seldom mined out, so this is the part that was cut, not the whole rock. Units a minute depend on the ship's lasers and lens.`;
     return `<div class="meta">${bits.join(" \u00b7 ")} ${info(esc(more))}</div>`;
   }
 
@@ -147,7 +147,7 @@
     if (!meas.length && !gameOnly.length) h += `<div class="meta">no rock recorded yet</div>`;
     h += `<div class="rows">` + meas.map(a => `<div class="row"><span class="nm">${go(a.rock)}<span class="dim small"> ${a.n}\u00d7${a.by && a.by.length ? " \u00b7 by " + a.by.map(esc).join(", ") : ""}</span></span>${bar(a.share[o], COLOR[o] || "#888")}<span class="pc">${pct(a.share[o])}</span></div>`).join("")
       + gameOnly.map(({ F, g }) => `<div class="row"><span class="nm">${go(F)}</span><span class="gonly">game says: ${esc(D.levels[g.level])}</span></div>`).join("") + `</div>`;
-    if (meas.length) h += `<p class="key">share of the rock, average of the rocks we measured (N\u00d7 = how many)</p>`;
+    if (meas.length) h += `<p class="key">share of what was cut, averaged over the rocks we cut from (N\u00d7 = how many)</p>`;
     const ref = byKind(uses[o] || []);
     if (ref.length) h += `<h3>Becomes</h3>` + ref.map(recipeLine).join("");
     return h;
