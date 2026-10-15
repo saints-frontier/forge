@@ -400,6 +400,9 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #tab-quarry .quarry .lodge { margin-top: 14px; font: 700 12px var(--display); letter-spacing: 2px; text-transform: uppercase; padding: 9px 14px; background: var(--crimson); color: var(--title); border: 1px solid var(--red); cursor: pointer; }
 #tab-quarry .quarry .empty { color: var(--dim); border: 1px dashed var(--line); padding: 22px; text-align: center; }
 #tab-quarry .quarry .empty b { color: var(--title); font-weight: 600; }
+#tab-quarry .quarry .credit { font: 13px var(--body); color: var(--silver); display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 4px 0 0; }
+#tab-quarry .quarry .credit .ctitle { font: 11px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--gold); }
+#tab-quarry .quarry .credit b { color: var(--gold); font-weight: 600; }
 #tab-quarry .quarry .legend { font: 12px var(--mono); color: var(--dim); display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 0; }
 @media (max-width: 560px) { #tab-quarry .quarry .answer { padding: 12px; } #tab-quarry .quarry .mode { flex: 1 1 auto; } }
 /* The Pilgrim Roads (the tribe's road map), in the Forge's look */
@@ -830,6 +833,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       <div id="q-out"><div class="empty"><b>Ask away.</b><br>Type a rock, an ore or a material above, or pick one of the rocks and ores.</div></div>
     </section>
     <p class="legend"><span><span class="ev m">Measured</span>our own mining, from the game logs</span><span><span class="ev g">The game says</span>the ore's in-game description</span></p>
+    <p class="credit" id="q-credit" hidden></p>
   </main><p class="lfoot"><span id="q-foot"></span> · ores from the game's own descriptions and our own mining</p></section>
 <section id="tab-roads" class="roads-page" hidden>
   <h2 class="gtitle">The Pilgrim Roads <span class="roads-wip">alpha test · under construction</span></h2>
@@ -901,7 +905,8 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
         <label>Reach <select id="chart-reach" aria-label="What counts as reachable"><option value="gates">Public gates and our roads</option><option value="ly">Every star within a distance</option></select></label>
         <label id="chart-ly-wrap" hidden>within <input type="number" id="chart-ly" min="20" max="1000" step="10" value="150" aria-label="Light-years"> LY</label>
         <label>Visit up to <input type="number" id="chart-n" min="1" max="60" step="1" value="20" aria-label="How many systems in the run"></label>
-        <label class="tick"><input type="checkbox" id="chart-only" checked>Show only these on the star map</label>
+        <label>Show <select id="chart-show" aria-label="What the star map shows"><option value="run">the run and what is in reach</option><option value="ef">every uncharted system EF-Map has a report of</option></select></label>
+        <label class="tick"><input type="checkbox" id="chart-only" checked>Dim everything else</label>
         <span class="roads-hint" id="chart-status"></span>
       </div>
       <div class="roads-note-top"><b>Uncharted</b> = nobody has the system's name and number for sure: not on EF-Map's community map with two players agreeing, and not copied from the game by a Saint. Pick where you start: every uncharted system you can reach is listed and ringed on the star map, and the run visits them nearest first, one hop at a time. To chart one: in game, drag the system's star from the map into a chat window, select the link and right-click Copy selected with formatting; paste the links below and the system is ours.</div>
@@ -1085,5 +1090,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=ed4d2f02"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=8fdea247"></script><script src="quarry-data.js?v=c2a55e51"></script><script src="quarry-app.js?v=39cda883"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=429620dc"></script><script src="roads.js?v=583ebdd4"></script>
+<script src="lodge-data.js?v=ed4d2f02"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=8fdea247"></script><script src="quarry-data.js?v=cfc555aa"></script><script src="quarry-app.js?v=5c0ad183"></script><script src="tribe.js?v=7268b141"></script><script src="starfield.js?v=429620dc"></script><script src="roads.js?v=c2b4b5a6"></script>
 </body></html>

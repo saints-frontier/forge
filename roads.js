@@ -666,6 +666,13 @@
     for (const x of c.cand) by[chartState(x.id, c.own)]++;
     $("chart-status").textContent = (c.reach === "gates" ? `${c.reachN} systems reachable by public gates and our roads` : `${c.reachN} stars within ${c.R} LY`) + ` · ${c.cand.length} uncharted`;
     const counts = `<div class="roads-chart-counts">${by.unknown} nobody has reported · ${by.reported} reported once · ${by.disputed} disputed · ${c.own.size} systems charted by Saints so far</div>`;
+    if ($("chart-show").value === "ef") {
+      const ef = chartEf(c);
+      $("roads-chart").innerHTML = `<h4>Reported on EF-Map, not yet charted · ${ef.length}</h4><div class="roads-hint">One player has reported each of these, or two disagree on the name: one more report charts it. They are places players reach, all ringed on the star map; nearest to your start first. Every other star nobody has reported at all. Click a system to fly there; switch Show back to the run to plan a trip.</div>`
+        + (ef.length ? `<ol>${ef.slice(0, 30).map(x => `<li><button type="button" class="jump" data-chartgo="${x.id}"><b>${esc(x.name)}</b></button> <span class="roads-hint">${x.st === "disputed" ? "disputed name" : "one report"} · ${f0(x.ly)} LY from the start</span></li>`).join("")}</ol>${ef.length > 30 ? `<div class="roads-hint">and ${ef.length - 30} more on the map.</div>` : ""}`
+          : `<div class="roads-hint">EF-Map has no such reports right now${M.ef.byId.size ? "" : " (its names did not load)"}.</div>`);
+      chartMarks(); return;
+    }
     if (!c.cand.length) { $("roads-chart").innerHTML = counts + `<div class="roads-hint">Everything in reach is charted. Try another start or a wider reach.</div>`; chartMarks(); return; }
     const rows = c.tour.map((t, k) => {
       const st = chartState(t.id, c.own), via = c.reach === "gates" ? `${t.hops} jump${t.hops === 1 ? "" : "s"} from the stop before` : `${f0(t.ly)} LY from the stop before`;
@@ -679,15 +686,29 @@
       + `<div class="roads-copy"><button type="button" data-chartcopy="note">Copy as in-game note</button> <button type="button" data-chartcopy="discord">Copy for Discord</button> <span class="roads-hint" id="chart-copied"></span></div>`;
     chartMarks();
   }
+  // every system EF-Map has a report of but no agreement on (one report, or a disputed name), not ours: nearest first
+  function chartEf(c) {
+    const out = [];
+    for (const [id, e] of M.ef.byId) { if (e.status === "confirmed" || c.own.has(id) || !sf.has(id)) continue; out.push({ id, name: e.name, st: e.status === "conflict" ? "disputed" : "reported", ly: lyBetween(c.from, id) }); }
+    return out.sort((a, b) => a.ly - b.ly);
+  }
   function chartMarks() {
     const c = chartRes; if (!sf || !c || !chartOn) return;
     const only = $("chart-only").checked, inTour = new Set(c.tour.map(t => t.id));
     sf.dimStars(only);
-    const marks = c.cand.filter(x => !inTour.has(x.id)).slice(0, 600).map(x => ({ id: x.id, cls: "unc" }));
-    c.tour.forEach((t, k) => marks.push({ id: t.id, cls: "tour", label: String(k + 1) }));
+    let marks, fit;
+    if ($("chart-show").value === "ef") {
+      const ef = chartEf(c);
+      marks = ef.map(x => ({ id: x.id, cls: "unc" }));
+      fit = [c.from].concat(ef.map(x => x.id));
+    } else {
+      marks = c.cand.filter(x => !inTour.has(x.id)).slice(0, 600).map(x => ({ id: x.id, cls: "unc" }));
+      c.tour.forEach((t, k) => marks.push({ id: t.id, cls: "tour", label: String(k + 1) }));
+      fit = [c.from].concat(c.tour.slice(0, 30).map(t => t.id));
+    }
     marks.push({ id: c.from, cls: "aim", label: "start" });
     sf.markMany(marks); sf.sphere(null);
-    sf.fitTo([c.from].concat(c.tour.slice(0, 30).map(t => t.id)));
+    sf.fitTo(fit);
   }
   function setChart(on) {
     if (on === chartOn) return;
@@ -850,6 +871,7 @@
     if (t.id === "check-from" || t.id === "check-kind") { if (sysId("check-from")) runChecker(null); return; }
     if (t.id === "chart-from" || t.id === "chart-reach" || t.id === "chart-ly" || t.id === "chart-n") { if (chartOn) runChart(); return; }
     if (t.id === "chart-only") { chartMarks(); if (!t.checked && sf) sf.dimStars(false); return; }
+    if (t.id === "chart-show") { if (chartOn) drawChart(); return; }
     if (t.id === "roads-from" || t.id === "roads-to") route();
   });
 

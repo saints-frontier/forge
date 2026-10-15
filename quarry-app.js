@@ -3,8 +3,8 @@
                         ores and rocks (a tree that opens on demand); a rock -> what is known about finding it.
    What do I get from it?  rock -> its ores (our measured cuts, the game's descriptions) and what each refines into;
                         ore or material -> every recipe that uses it.
-   Evidence is never mixed: Measured (our own mining) / The game says (the ore's own description). No player reports
-   (user 2026-10-14).
+   Evidence is never mixed: Measured (our own mining, or a Saint's game log, credited by name) / The game says (the
+   ore's own description). No player reports or hearsay (user 2026-10-14).
    Every id the page uses starts with q- (the site is one page shared with the Forge and the Lodge). */
 (function () {
   "use strict";
@@ -113,7 +113,7 @@
     const word = s.kind === "bore" ? "bored straight through" : "mining run";
     const ores = Object.entries(s.ores).sort((a, b) => b[1] - a[1]);
     const bar = ores.map(([o, q]) => `<span style="width:${(q / s.total * 100).toFixed(2)}%;background:${COLOR[o] || "#666"}" title="${esc(o)} ${pct(q / s.total)}"></span>`).join("");
-    return `<div class="sample"><div class="hd"><b>${esc(s.rock)}</b><span>${word} \u00b7 ${esc(s.date)} \u00b7 ${s.minutes} min \u00b7 ${n0(s.total)} units${s.per_min ? " \u00b7 " + n0(s.per_min) + " a minute" : ""}</span></div>`
+    return `<div class="sample"><div class="hd"><b>${esc(s.rock)}</b><span>${word} \u00b7 ${esc(s.date)} \u00b7 ${s.minutes} min \u00b7 ${n0(s.total)} units${s.per_min ? " \u00b7 " + n0(s.per_min) + " a minute" : ""}${s.by ? " \u00b7 measured by " + esc(s.by) : ""}</span></div>`
       + `<div class="bar" role="img" aria-label="${esc(ores.map(([o, q]) => o + " " + pct(q / s.total)).join(", "))}">${bar}</div>`
       + `<div class="mix">${ores.map(([o, q]) => `<span>${dot(o)}${go(o)} ${n0(q)} (${pct(q / s.total)})</span>`).join("")}</div>`
       + (s.note ? `<p class="note">${esc(s.note)}</p>` : "") + `</div>`;
@@ -161,7 +161,7 @@
     else h += `<div class="scroll"><table><thead><tr><th>Rock</th><th><span class="ev m">Measured</span></th><th><span class="ev g">The game says</span></th></tr></thead><tbody>`
       + rows.map(r => {
         const b = r.ms[0];
-        const m = b ? `${pct(b.ores[o] / b.total)} of a ${esc(b.rock)} <span class="sub">${n0(b.ores[o])} units in ${b.minutes} min${r.ms.length > 1 ? " \u00b7 " + r.ms.length + " cuts measured" : ""}</span>` : `<span class="sub">not measured</span>`;
+        const m = b ? `${pct(b.ores[o] / b.total)} of a ${esc(b.rock)} <span class="sub">${n0(b.ores[o])} units in ${b.minutes} min${r.ms.length > 1 ? " \u00b7 " + r.ms.length + " cuts measured" : ""}${b.by ? " \u00b7 measured by " + esc(b.by) : ""}</span>` : `<span class="sub">not measured</span>`;
         const g = r.g ? esc(D.levels[r.g.level]) : `<span class="sub">not named</span>`;
         return `<tr><td>${go(r.F)}</td><td>${m}</td><td>${g}</td></tr>`;
       }).join("") + `</tbody></table></div>`;
@@ -283,6 +283,11 @@
   $("q-rocks").innerHTML = FAMS.map(f => `<button type="button" class="chip" data-go="${esc(f)}">${esc(f)}</button>`).join("");
   $("q-ores").innerHTML = ORES.map(o => `<button type="button" class="chip" data-go="${esc(o)}">${dot(o)}${esc(o)}</button>`).join("");
   $("q-foot").textContent = "data of " + D.generated;
+  const CR = D.contributors || [];
+  if (CR.length && $("q-credit")) {
+    $("q-credit").innerHTML = `<span class="ctitle">Contributors</span>` + CR.map(c => `<span><b>${esc(c.name)}</b> measured ${c.rocks.map(x => go(x)).join(", ")}</span>`).join("");
+    $("q-credit").hidden = false;
+  }
   let last = null;
   try { last = JSON.parse(localStorage.getItem("quarry:last") || "null"); } catch (e) {}
   if (last && last.name) open(last.name, last.mode, false);
