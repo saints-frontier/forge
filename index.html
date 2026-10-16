@@ -353,6 +353,8 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #tab-quarry .quarry .dot { display: inline-block; width: 9px; height: 9px; margin-right: 8px; border-radius: 2px; vertical-align: 0; flex: none; }
 #tab-quarry .quarry .answer { background: var(--panel); border: 1px solid var(--line); padding: 18px 22px 22px; min-width: 0; }
 #tab-quarry .quarry .nav { display: flex; gap: 8px; margin-bottom: 8px; }
+#tab-quarry .quarry .backb { font: 700 14px var(--mono); letter-spacing: 2px; text-transform: uppercase; padding: 9px 18px; background: var(--crimson); color: #fff; border: 1px solid var(--gold); cursor: pointer; }
+#tab-quarry .quarry .backb:hover, #tab-quarry .quarry .backb:focus-visible { background: var(--red); outline: none; }
 #tab-quarry .quarry .navb { font: 12px var(--mono); padding: 3px 9px; background: none; color: var(--dim); border: 1px solid var(--line-strong); cursor: pointer; }
 #tab-quarry .quarry .navb:hover { color: var(--title); border-color: var(--gold-soft); }
 #tab-quarry .quarry .kind { font: 600 10px var(--mono); letter-spacing: 3px; color: var(--red); text-transform: uppercase; }
@@ -871,6 +873,14 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     </section>
   </main><p class="lfoot"><span id="foot-data"></span> · recipes from the game's industry windows</p></section>
 <section id="tab-quarry" class="quarry-page" hidden><h2 class="gtitle">The Quarry <span class="q-wip">alpha test · under construction</span></h2><div class="q-wipnote"><b>Alpha test.</b> The Quarry is still being built. Most rocks have only been measured once or not at all, so treat the shares as a guide, and the page will keep changing. Mined a rock we have little on, or found something wrong? Tell us in Discord.</div><p class="gintro">Type a rock to see what comes out of it, or an ore or material to see where it comes from.</p><main class="quarry">
+    <section class="honour" id="q-credit" aria-label="Contributors" hidden>
+      <div class="medal" aria-hidden="true">✠</div>
+      <div class="hbody">
+        <div class="hsub">Contributors · measured from their own game logs</div>
+        <div class="htitle">Roll of Honour</div>
+        <div class="roll" id="q-roll"></div>
+      </div>
+    </section>
     <section class="ask" aria-label="Ask the Quarry">
       <div class="qbox"><input id="q-in" type="text" placeholder="Rock, ore, rift or material: Pitch, Primitive Rime Shards, Old Rupture, Kerogen Tar…" autocomplete="off" spellcheck="false" aria-label="Rock, ore or material" aria-controls="q-menu"><ul id="q-menu" class="qmenu" role="listbox" hidden></ul></div>
       <div class="browse" id="q-browse">
@@ -890,21 +900,13 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       </div>
     </section>
     <section class="answer" id="q-answer" aria-live="polite" hidden>
-      <div class="nav"><button type="button" id="q-back" class="navb" hidden>← back</button><button type="button" id="q-home" class="navb">all rocks and ores</button></div>
+      <div class="nav"><button type="button" id="q-back" class="backb" aria-label="Back">← Back</button></div>
       <div id="q-out"></div>
     </section>
     <section class="review" id="q-review" aria-label="Waiting for review" hidden>
       <div class="revtitle">Waiting for review <span class="dim small" id="q-revn"></span></div>
       <p class="note">Sent from the Quarry companion by members of the tribe. Approve a sample and it joins the Quarry's averages under the sender's name; reject it and it is deleted. Only Paladins, Knights and the site keepers see this.</p>
       <div id="q-revlist"></div>
-    </section>
-    <section class="honour" id="q-credit" aria-label="Contributors" hidden>
-      <div class="medal" aria-hidden="true">✠</div>
-      <div class="hbody">
-        <div class="hsub">Contributors · measured from their own game logs</div>
-        <div class="htitle">Roll of Honour</div>
-        <div class="roll" id="q-roll"></div>
-      </div>
     </section>
   </main><p class="lfoot"><span id="q-foot"></span> · ores from the game's own descriptions and our own mining</p></section>
 <section id="tab-doctrine" class="doctrine-page" hidden><h2 class="gtitle">The Doctrine</h2><p class="gintro">The Saints' doctrine ships, one card each, drawn from the fits in the tribe store with their live numbers. Open one in the Forge to fly it, or to propose a change.</p><div class="d-who" id="d-who"></div><div class="d-lock" id="d-lock"><div class="d-seal">✠</div><h3>Saints only</h3><div id="d-lockbody"></div></div><div class="d-grid" id="d-grid" hidden></div><p class="lfoot" id="d-status"></p><div class="d-view" id="d-view" hidden role="dialog" aria-modal="true" aria-label="Doctrine card"><div class="d-view-in"><img id="d-view-img" alt=""><div class="d-view-bar"><button type="button" class="d-btn" id="d-view-prev">◀ Previous</button><button type="button" class="d-btn" id="d-view-forge">Open in the Forge</button><button type="button" class="d-btn" id="d-view-png">Save PNG</button><button type="button" class="d-btn" id="d-view-next">Next ▶</button><button type="button" class="d-btn" id="d-view-close">Close</button></div></div></div></section>
@@ -1190,5 +1192,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=0001aed6"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=7cf1f9ca"></script><script src="quarry-data.js?v=76ad514b"></script><script src="quarry-app.js?v=e8a7d66d"></script><script src="doctrine.js?v=29fd59e4"></script><script src="tribe.js?v=8b1b6fea"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=429e8f57"></script>
+<script src="lodge-data.js?v=0001aed6"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=7cf1f9ca"></script><script src="quarry-data.js?v=76ad514b"></script><script src="quarry-app.js?v=9b82f3af"></script><script src="doctrine.js?v=29fd59e4"></script><script src="tribe.js?v=8b1b6fea"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=429e8f57"></script>
 </body></html>

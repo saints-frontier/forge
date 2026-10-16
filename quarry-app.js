@@ -280,7 +280,6 @@
     if (!on) { try { localStorage.removeItem("quarry:last"); } catch (e) {} return; }
     $("q-in").value = cur.name;
     $("q-out").innerHTML = ({ rock: rockView, ore: oreView, item: itemView, raw: rawView, rifts: riftsView, rift: riftNameView, salvage: salvageView, salvsource: salvSourceView })[cur.kind](cur);
-    $("q-back").hidden = !hist.length;
     try { localStorage.setItem("quarry:last", JSON.stringify({ name: cur.name })); } catch (e) {}
   }
 
@@ -316,8 +315,7 @@
   root.addEventListener("click", e => {
     const b = e.target.closest("button");
     if (!b || !root.contains(b)) return;
-    if (b.id === "q-back") { const p = hist.pop(); if (p) open(p, false); return; }
-    if (b.id === "q-home") { home(); return; }
+    if (b.id === "q-back") { const p = hist.pop(); if (p) open(p, false); else home(); return; }   /* the first page back is the Quarry's start */
     if (b.dataset.lodge && window.__lodgeImport && window.__siteGo) { window.__lodgeImport({ name: b.dataset.lodge, goals: [{ item: b.dataset.lodge, qty: 1 }] }); window.__siteGo("lodge"); return; }
     if (b.dataset.go) { open(b.dataset.go); window.scrollTo({ top: root.getBoundingClientRect().top + window.scrollY - 10, behavior: "smooth" }); }
   });
