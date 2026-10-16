@@ -277,6 +277,12 @@
     const on = !!cur;
     $("q-answer").hidden = !on;
     $("q-browse").hidden = on;
+    // with an answer open the search box gives way to every rock, so another rock is one click away
+    const qb = $("q-in").closest(".qbox"); if (qb) qb.hidden = on;
+    if ($("q-jump")) {
+      $("q-jump").hidden = !on;
+      if (on) $("q-jumprocks").innerHTML = FAMS.map(f => `<button type="button" class="lk${cur.family === f ? " on" : ""}" data-go="${esc(f)}"${cur.family === f ? ' aria-current="true"' : ""}>${esc(f)}</button>`).join("");
+    }
     if (!on) { try { localStorage.removeItem("quarry:last"); } catch (e) {} return; }
     $("q-in").value = cur.name;
     $("q-out").innerHTML = ({ rock: rockView, ore: oreView, item: itemView, raw: rawView, rifts: riftsView, rift: riftNameView, salvage: salvageView, salvsource: salvSourceView })[cur.kind](cur);

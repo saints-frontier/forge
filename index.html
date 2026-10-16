@@ -331,6 +331,12 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #tab-quarry main.quarry { display: grid; gap: 18px; margin-top: 16px; max-width: 920px; }
 #tab-quarry .quarry .ask { display: grid; gap: 14px; }
 #tab-quarry .quarry .qbox { position: relative; min-width: 0; }
+#tab-quarry .quarry .qbox[hidden], #tab-quarry .quarry .jump[hidden] { display: none; }
+#tab-quarry .quarry .jump { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; padding: 10px 12px; border: 1px solid var(--line-strong); background: rgba(10,9,12,.6); }
+#tab-quarry .quarry .jump .jlinks { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; flex: 1; }
+#tab-quarry .quarry .jump .lk { border: 1px solid var(--line-strong); padding: 4px 10px; font: 600 13px var(--display); color: var(--gold); }
+#tab-quarry .quarry .jump .lk:hover, #tab-quarry .quarry .jump .lk:focus-visible { border-color: var(--gold); }
+#tab-quarry .quarry .jump .lk.on { background: var(--crimson); color: #fff; border-color: var(--gold); }
 #tab-quarry .quarry .qbox input { width: 100%; font: 17px var(--body); padding: 13px 14px; background: #0b0a0e; color: var(--fg); border: 1px solid var(--gold-soft); }
 #tab-quarry .quarry .qbox input:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; }
 #tab-quarry .quarry .qmenu { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; margin: 2px 0 0; padding: 4px 0; list-style: none; max-height: 320px; overflow: auto; background: #0b0a0e; border: 1px solid var(--gold-soft); box-shadow: 0 8px 24px rgba(0,0,0,.6); }
@@ -888,6 +894,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     </section>
     <section class="ask" aria-label="Ask the Quarry">
       <div class="qbox"><input id="q-in" type="text" placeholder="Rock, ore, rift or material: Pitch, Primitive Rime Shards, Old Rupture, Kerogen Tar…" autocomplete="off" spellcheck="false" aria-label="Rock, ore or material" aria-controls="q-menu"><ul id="q-menu" class="qmenu" role="listbox" hidden></ul></div>
+      <nav class="jump" id="q-jump" aria-label="Rocks" hidden><span class="blabel">Rocks</span><span id="q-jumprocks" class="jlinks"></span></nav>
       <div class="browse" id="q-browse">
         <div><span class="blabel">Rocks</span><span id="q-rocks" class="links"></span></div>
         <div><span class="blabel">Ores</span><span id="q-ores" class="links"></span></div>
@@ -1201,5 +1208,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=0001aed6"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=7cf1f9ca"></script><script src="quarry-data.js?v=76ad514b"></script><script src="quarry-app.js?v=ee47fd3a"></script><script src="doctrine.js?v=29fd59e4"></script><script src="tribe.js?v=8b1b6fea"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=429e8f57"></script>
+<script src="lodge-data.js?v=0001aed6"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=7cf1f9ca"></script><script src="quarry-data.js?v=76ad514b"></script><script src="quarry-app.js?v=80f78d7a"></script><script src="doctrine.js?v=29fd59e4"></script><script src="tribe.js?v=8b1b6fea"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=429e8f57"></script>
 </body></html>
