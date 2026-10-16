@@ -335,8 +335,9 @@
   const day = d => { const p = String(d).split("-"); return p.length === 3 ? `${+p[2]} ${MON[+p[1] - 1]} ${p[0]}` : esc(d); };
   function drawRoll() {
     if (!CR.length || !$("q-roll")) return;
-    $("q-roll").innerHTML = CR.map(c => `<div class="who"><span class="nm">${esc(c.name)}</span>`
-      + (c.samples || []).map(s => `<span class="what">${go(s.rock)} \u00b7 ${n0(s.units)} units \u00b7 ${day(s.date)}</span>`).join("") + `</div>`).join("");
+    $("q-roll").innerHTML = CR.map(c => { const ss = c.samples || [], u = ss.reduce((a, s) => a + (+s.units || 0), 0), n = ss.reduce((a, s) => a + (+s.n || 1), 0);
+      return `<div class="who"><span class="nm">${esc(c.name)}</span><span class="what">${n} sample${n === 1 ? "" : "s"} \u00b7 ${n0(u)} units</span>`
+        + `<span class="rk">${ss.map(s => go(s.rock)).join(", ")}</span></div>`; }).join("");
     $("q-credit").hidden = false;
   }
   drawRoll();

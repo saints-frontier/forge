@@ -422,22 +422,19 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #tab-quarry .quarry .review .revacts { display: flex; gap: 8px; }
 #tab-quarry .quarry .review .navb.ok { border-color: var(--good); color: #cfe9c8; }
 #tab-quarry .quarry .review .navb.no.arm { background: var(--crimson); color: #fff; }
-#tab-quarry .quarry .honour { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px 20px; align-items: center; padding: 16px 20px;
-  border: 1px solid var(--gold); outline: 1px solid rgba(217,178,76,.22); outline-offset: 4px; box-shadow: 0 0 26px rgba(217,178,76,.14);
-  background: radial-gradient(ellipse at 0 0, rgba(143,17,24,.45), transparent 62%), linear-gradient(180deg, #19141c, #0c0a0f); }
-#tab-quarry .quarry .honour::before, #tab-quarry .quarry .honour::after { content: "✠"; position: absolute; top: -9px; color: var(--gold); font: 700 14px/16px var(--display); background: var(--ink); padding: 0 6px; }
-#tab-quarry .quarry .honour::before { left: 18px; }
-#tab-quarry .quarry .honour::after { right: 18px; }
-#tab-quarry .quarry .honour .medal { width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--gold); display: grid; place-items: center; color: var(--gold); font: 900 28px var(--display);
-  background: radial-gradient(circle, #a0141c, #4a070b); box-shadow: 0 0 0 4px rgba(217,178,76,.18), 0 0 22px rgba(217,178,76,.4); }
-#tab-quarry .quarry .honour .hsub { font: 600 10px var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--red); }
-#tab-quarry .quarry .honour .htitle { font: 900 clamp(22px, 2.8vw, 30px)/1.1 var(--deco); letter-spacing: 1px; margin: 2px 0 10px;
-  background: linear-gradient(#fff6e0, var(--title) 50%, var(--gold)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-#tab-quarry .quarry .honour .roll { display: flex; flex-wrap: wrap; gap: 10px 28px; }
-#tab-quarry .quarry .honour .who { border-left: 2px solid var(--gold); padding: 2px 0 2px 12px; min-width: 0; }
-#tab-quarry .quarry .honour .who .nm { display: block; font: 800 22px/1.2 var(--display); color: var(--gold); letter-spacing: 1px; text-shadow: 0 0 12px rgba(217,178,76,.35); }
-#tab-quarry .quarry .honour .who .what { display: block; font: 13px/1.5 var(--body); color: var(--silver); }
-@media (max-width: 560px) { #tab-quarry .quarry .honour { padding: 14px; gap: 10px 14px; } #tab-quarry .quarry .honour .medal { width: 46px; height: 46px; font-size: 20px; } }
+#tab-quarry .quarry .honour { order: 9; position: relative; padding: 10px 12px 10px; border: 1px solid var(--gold-soft); background: linear-gradient(180deg, #17121a, #0c0a0f); min-width: 0; }
+#tab-quarry .quarry .honour::before { content: ""; position: absolute; left: 8px; right: 0; top: 0; height: 2px; background: var(--red); }
+#tab-quarry .quarry .honour .medal { display: none; }
+#tab-quarry .quarry .honour .hsub { font: 600 9px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--red); }
+#tab-quarry .quarry .honour .htitle { font: 800 15px/1.2 var(--display); letter-spacing: 1px; color: var(--gold); margin: 2px 0 8px; }
+#tab-quarry .quarry .honour .htitle::before { content: "\2720  "; color: var(--gold); }
+#tab-quarry .quarry .honour .roll { display: grid; gap: 8px; max-height: 340px; overflow-y: auto; }
+#tab-quarry .quarry .honour .who { border-left: 2px solid var(--gold-soft); padding-left: 8px; min-width: 0; }
+#tab-quarry .quarry .honour .who .nm { display: block; font: 700 13px/1.3 var(--display); color: var(--title); }
+#tab-quarry .quarry .honour .who .what { display: block; font: 11px/1.4 var(--mono); color: var(--dim); }
+#tab-quarry .quarry .honour .who .rk { display: block; font: 12px/1.45 var(--body); color: var(--silver); overflow-wrap: anywhere; }
+#tab-quarry .quarry .honour .who .rk .lk { font-size: 12px; }
+@media (min-width: 1240px) { #tab-quarry main.quarry { max-width: 1180px; grid-template-columns: minmax(0, 1fr) 230px; column-gap: 20px; align-items: start; } #tab-quarry main.quarry > * { grid-column: 1; } #tab-quarry main.quarry > .honour { grid-column: 2; grid-row: 1 / span 5; position: sticky; top: 14px; } }
 /* The Pilgrim Roads (the tribe's road map), in the Forge's look */
 .roads-on .topctl, .roads-on .tier { display: none; }
 .roads-page { padding: 8px 0 20px; }
@@ -1204,5 +1201,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=0001aed6"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=7cf1f9ca"></script><script src="quarry-data.js?v=76ad514b"></script><script src="quarry-app.js?v=7f902533"></script><script src="doctrine.js?v=29fd59e4"></script><script src="tribe.js?v=8b1b6fea"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=429e8f57"></script>
+<script src="lodge-data.js?v=0001aed6"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=7cf1f9ca"></script><script src="quarry-data.js?v=76ad514b"></script><script src="quarry-app.js?v=ee47fd3a"></script><script src="doctrine.js?v=29fd59e4"></script><script src="tribe.js?v=8b1b6fea"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=429e8f57"></script>
 </body></html>
