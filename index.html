@@ -390,6 +390,28 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #tab-quarry .quarry details.fold > summary { cursor: pointer; font: 600 10px var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--gold); }
 #tab-quarry .quarry .lodge { margin-top: 18px; font: 700 12px var(--display); letter-spacing: 2px; text-transform: uppercase; padding: 9px 14px; background: var(--crimson); color: var(--title); border: 1px solid var(--red); cursor: pointer; }
 @media (max-width: 560px) { #tab-quarry .quarry .answer { padding: 14px; } #tab-quarry .quarry .row { grid-template-columns: minmax(0, 1fr) 70px 40px; gap: 10px; } #tab-quarry .quarry .rline { grid-template-columns: 1fr; } }
+#tab-quarry .quarry .getapp { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 16px 20px; align-items: center; margin-top: 14px; padding: 14px; border: 1px solid var(--gold-soft); background: linear-gradient(rgba(21,19,26,.94), rgba(10,9,12,.94)); position: relative; }
+#tab-quarry .quarry .getapp::before { content: ""; position: absolute; left: 8px; right: 0; top: 0; height: 3px; background: var(--red); }
+#tab-quarry .quarry .getapp img { width: 100%; height: auto; display: block; border: 1px solid var(--line-strong); }
+#tab-quarry .quarry .getapp .gatitle { font: 900 clamp(20px, 2.4vw, 26px)/1.15 var(--deco); color: var(--gold); margin-bottom: 6px; }
+#tab-quarry .quarry .getapp p { margin: 0 0 12px; font: 14px/1.55 var(--body); color: var(--fg); max-width: 62ch; text-transform: none; letter-spacing: 0; }
+#tab-quarry .quarry .getapp .gabtn { display: inline-block; padding: 10px 16px; background: var(--crimson); color: #fff; border: 1px solid var(--gold); text-decoration: none; font: 700 13px var(--mono); letter-spacing: 2px; text-transform: uppercase; }
+#tab-quarry .quarry .getapp .gabtn:hover, #tab-quarry .quarry .getapp .gabtn:focus-visible { background: var(--red); }
+#tab-quarry .quarry .getapp .gameta { margin-top: 8px; font: 11px var(--mono); color: var(--dim); letter-spacing: .5px; }
+#tab-quarry .quarry .getapp .gameta a { color: var(--silver); }
+@media (max-width: 640px) { #tab-quarry .quarry .getapp { grid-template-columns: 1fr; } }
+#tab-quarry .quarry .review { border: 1px solid var(--red); background: rgba(227,34,44,.06); padding: 14px 16px; display: grid; gap: 10px; }
+#tab-quarry .quarry .review .revtitle { font: 800 18px var(--display); color: var(--gold); letter-spacing: 1px; }
+#tab-quarry .quarry .review .rev { border: 1px solid var(--line-strong); background: var(--panel); padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+#tab-quarry .quarry .review .revhead { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
+#tab-quarry .quarry .review .revhead b { font: 800 17px var(--display); color: var(--title); }
+#tab-quarry .quarry .review .tagk { font: 600 10px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--red); }
+#tab-quarry .quarry .review .revnums { font: 12px var(--mono); color: var(--silver); }
+#tab-quarry .quarry .review .revchecks { margin: 0; padding-left: 18px; font: 12px/1.5 var(--body); color: var(--silver); }
+#tab-quarry .quarry .review .revchecks li.warn { color: var(--warn); }
+#tab-quarry .quarry .review .revacts { display: flex; gap: 8px; }
+#tab-quarry .quarry .review .navb.ok { border-color: var(--good); color: #cfe9c8; }
+#tab-quarry .quarry .review .navb.no.arm { background: var(--crimson); color: #fff; }
 #tab-quarry .quarry .honour { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px 20px; align-items: center; padding: 16px 20px;
   border: 1px solid var(--gold); outline: 1px solid rgba(217,178,76,.22); outline-offset: 4px; box-shadow: 0 0 26px rgba(217,178,76,.14);
   background: radial-gradient(ellipse at 0 0, rgba(143,17,24,.45), transparent 62%), linear-gradient(180deg, #19141c, #0c0a0f); }
@@ -855,11 +877,26 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
         <div><span class="blabel">Rocks</span><span id="q-rocks" class="links"></span></div>
         <div><span class="blabel">Ores</span><span id="q-ores" class="links"></span></div>
         <div id="q-riftrow" hidden><span class="blabel">Rifts</span><span id="q-rifts" class="links"></span></div>
+        <div id="q-salvrow" hidden><span class="blabel">Salvage</span><span id="q-salv" class="links"></span></div>
+        <div class="getapp">
+          <img src="companion-thumb.jpg" alt="The Quarry Companion" width="800" height="450" loading="lazy">
+          <div class="gabody">
+            <div class="gatitle">The Quarry Companion</div>
+            <p>Log your own mining: every rock, rift and wreck you cut, read from the game's log, on one page in your browser while you mine. Send your sessions here with your quarry key; a keeper reviews them, then they join the Quarry under your name.</p>
+            <a class="gabtn" href="https://github.com/saints-frontier/forge/releases/latest/download/Saints-Quarry-Companion.zip">&#11015; Download for Windows</a>
+            <div class="gameta">Windows 10 or 11 · free · unzip, then Install.cmd · <a href="https://github.com/saints-frontier/forge/releases/latest" target="_blank" rel="noopener">release notes</a></div>
+          </div>
+        </div>
       </div>
     </section>
     <section class="answer" id="q-answer" aria-live="polite" hidden>
       <div class="nav"><button type="button" id="q-back" class="navb" hidden>← back</button><button type="button" id="q-home" class="navb">all rocks and ores</button></div>
       <div id="q-out"></div>
+    </section>
+    <section class="review" id="q-review" aria-label="Waiting for review" hidden>
+      <div class="revtitle">Waiting for review <span class="dim small" id="q-revn"></span></div>
+      <p class="note">Sent from the Quarry companion by members of the tribe. Approve a sample and it joins the Quarry's averages under the sender's name; reject it and it is deleted. Only Paladins, Knights and the site keepers see this.</p>
+      <div id="q-revlist"></div>
     </section>
     <section class="honour" id="q-credit" aria-label="Contributors" hidden>
       <div class="medal" aria-hidden="true">✠</div>
@@ -1153,5 +1190,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=0001aed6"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=7cf1f9ca"></script><script src="quarry-data.js?v=8e31410e"></script><script src="quarry-app.js?v=13910d80"></script><script src="doctrine.js?v=29fd59e4"></script><script src="tribe.js?v=ed04d28c"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=429e8f57"></script>
+<script src="lodge-data.js?v=0001aed6"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=7cf1f9ca"></script><script src="quarry-data.js?v=76ad514b"></script><script src="quarry-app.js?v=e8a7d66d"></script><script src="doctrine.js?v=29fd59e4"></script><script src="tribe.js?v=8b1b6fea"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=429e8f57"></script>
 </body></html>

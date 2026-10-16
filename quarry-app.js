@@ -20,6 +20,8 @@
   const COLOR = { "Crustal Anorthosite Crystals": "#cfc6ae", "Massive Ataxite Matrix": "#8fa6bf", "Hydrated Gossan Matrix": "#3fa0d0",
     "Irradiated Anthraxolite Veins": "#e07b2e", "Irradiated Cryoconite Nodules": "#9a78e0", "Primordial Anthraxolite Sludge": "#9c6a40",
     "Primitive Rime Shards": "#bfeaf0", "Native Reef Nodules": "#d9b24c" };
+  const SHORT = { "Crustal Anorthosite Crystals": "Crustal", "Massive Ataxite Matrix": "Ataxite", "Hydrated Gossan Matrix": "Gossan", "Irradiated Anthraxolite Veins": "Veins",
+    "Irradiated Cryoconite Nodules": "Cryoconite", "Primordial Anthraxolite Sludge": "Sludge", "Primitive Rime Shards": "Rime", "Native Reef Nodules": "Reef" };
   const LEVEL_RANK = { rich: 6, main: 5, common: 4, carries: 3, some: 2, traces: 1 };
   const KIND_ORDER = { refine: 0, print: 1, build: 2 };
 
@@ -44,12 +46,16 @@
   const R = D.rifts && D.rifts.kinds && D.rifts.kinds.length ? D.rifts : null;
   const RIFT_NAMES = R ? R.names.map(n => n.rift) : [];
   const riftKind = crude => R ? R.kinds.find(k => k.crude === crude) : null;
+  // salvage: what we cut from wrecks, debris fields and ruins (D.salvage, data/salvage.json), and the sources pilots named
+  const SV = D.salvage && D.salvage.materials && D.salvage.materials.length ? D.salvage : null;
+  const salvMat = name => SV ? SV.materials.find(m => m.name === name) : null;
   const INDEX = [];
   for (const f of FAMS) INDEX.push({ name: f, tag: "rock" });
   const seenRock = new Set(FAMS);
   for (const a of D.rocks) if (!seenRock.has(a.rock)) { seenRock.add(a.rock); INDEX.push({ name: a.rock, tag: "rock" }); }
   for (const o of ORES) INDEX.push({ name: o, tag: "ore" });
   if (R) { INDEX.push({ name: "Rifts", tag: "crude" }); for (const n of RIFT_NAMES) INDEX.push({ name: n, tag: "rift" }); }
+  if (SV) { INDEX.push({ name: "Salvage", tag: "wrecks" }); for (const s of SV.sources) INDEX.push({ name: s.name, tag: "salvage source" }); }
   for (const i of ALL) if (!ORESET.has(i)) INDEX.push({ name: i, tag: sourceTag(i) });
 
   function subjectOf(name) {
@@ -63,6 +69,11 @@
       if (lc === "rifts" || lc === "rift") return { kind: "rifts", name: "Rifts" };
       const rn = RIFT_NAMES.find(n => n.toLowerCase() === lc);
       if (rn) return { kind: "rift", name: rn };
+    }
+    if (SV) {
+      if (lc === "salvage" || lc === "wrecks" || lc === "wreck") return { kind: "salvage", name: "Salvage" };
+      const sn = SV.sources.find(s => s.name.toLowerCase() === lc);
+      if (sn) return { kind: "salvsource", name: sn.name };
     }
     const ore = ORES.find(o => o.toLowerCase() === lc);
     if (ore) return { kind: "ore", name: ore };
@@ -191,11 +202,38 @@
     const more = `${n0(k.cuts)} cuts in ${k.minutes} minutes of extracting, our own logs${k.desc ? ". The game: \u201c" + esc(k.desc) + "\u201d" : ""}`;
     return `<h3>From rifts</h3><div class="meta">${bits.join(" \u00b7 ")} ${info(more)}</div>` + (chainText(crude) ? `<p class="note">${esc(chainText(crude))}</p>` : "");
   }
+  const sizesText = sz => Object.entries(sz || {}).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k} (${n0(v)}\u00d7)`).join(", ");
+  function salvageBlock(name) {
+    const m = salvMat(name);
+    if (!m) return "";
+    const bits = [m.n === 1 ? "1 run" : m.n + " runs", n0(m.units) + " units"];
+    if (m.per_min) bits.push("~" + n0(m.per_min) + "/min");
+    const more = `${n0(m.cuts)} cuts in ${m.minutes} minutes of cutting, our own logs. Units a cut: ${sizesText(m.sizes)}.`;
+    return `<h3>From salvage</h3><div class="meta">${bits.join(" \u00b7 ")} ${info(more)}</div>`;
+  }
+  function salvageView() {
+    let h = head("Salvage", "Wrecks", info("Salvage is cut with a laser from wrecks, debris fields and ruins. Numbers are from our own game logs and from the Quarry companion's sessions."));
+    h += `<div class="meta">what we cut, how fast, and where it came from</div>`;
+    h += `<div class="rows">` + SV.materials.map(m => `<div class="row"><span class="nm">${go(m.name)}<span class="dim small"> ${m.n}\u00d7</span></span><span class="pc">${n0(m.units)} units</span><span class="pc dim">${m.per_min ? "~" + n0(m.per_min) + "/min" : ""}</span></div>`).join("") + `</div>`;
+    if (SV.sources.length) h += `<h3>By source</h3><div class="rows">` + SV.sources.map(s => `<div class="row"><span class="nm">${go(s.name)}<span class="dim small"> gave ${s.materials.map(esc).join(", ")}</span></span><span class="pc">${n0(s.units)} units</span><span class="pc dim">${s.n}\u00d7</span></div>`).join("") + `</div>`;
+    else h += `<p class="note">No source has a name yet: name the wreck or ruin on the Quarry companion page when you cut it.</p>`;
+    h += `<h3>Good to know</h3><ul class="facts">` + SV.facts.map(f => `<li>${esc(f)}</li>`).join("") + `</ul>`;
+    return h;
+  }
+  function salvSourceView(sub) {
+    const s = SV.sources.find(x => x.name === sub.name);
+    let h = head(sub.name, "Salvage source");
+    h += `<div class="meta">${s.n === 1 ? "1 run" : s.n + " runs"} \u00b7 ${n0(s.units)} units</div>`;
+    h += `<h3>It gave</h3><div class="rows">` + s.materials.map(mn => { const m = salvMat(mn); const ss = m ? m.sessions.filter(x => x.source === sub.name) : []; const u = ss.reduce((a, x) => a + x.units, 0);
+      return `<div class="row"><span class="nm">${go(mn)}</span><span class="pc">${n0(u)} units</span><span class="pc dim">${ss.length}\u00d7</span></div>`; }).join("") + `</div>`;
+    return h;
+  }
   function rawView(sub) {
     const s = D.sources[sub.name];
     let h = head(sub.name, sourceTag(sub.name));
     h += `<div class="meta">${s ? esc(s.h) : "not made by any recipe we know"}</div>`;
     h += riftBlock(sub.name);
+    h += salvageBlock(sub.name);
     h += usedIn(sub.name, true);
     return h;
   }
@@ -241,7 +279,7 @@
     $("q-browse").hidden = on;
     if (!on) { try { localStorage.removeItem("quarry:last"); } catch (e) {} return; }
     $("q-in").value = cur.name;
-    $("q-out").innerHTML = ({ rock: rockView, ore: oreView, item: itemView, raw: rawView, rifts: riftsView, rift: riftNameView })[cur.kind](cur);
+    $("q-out").innerHTML = ({ rock: rockView, ore: oreView, item: itemView, raw: rawView, rifts: riftsView, rift: riftNameView, salvage: salvageView, salvsource: salvSourceView })[cur.kind](cur);
     $("q-back").hidden = !hist.length;
     try { localStorage.setItem("quarry:last", JSON.stringify({ name: cur.name })); } catch (e) {}
   }
@@ -291,6 +329,7 @@
   // ---------- start ----------
   $("q-rocks").innerHTML = FAMS.map(f => go(f)).join("");
   $("q-ores").innerHTML = ORES.map(o => `<button type="button" class="lk" data-go="${esc(o)}">${dot(o)}${esc(o)}</button>`).join("");
+  if ($("q-salv")) { $("q-salv").innerHTML = SV ? [go("Salvage", "what salvage gives")].concat(SV.materials.map(m => go(m.name))).concat(SV.sources.map(s => go(s.name))).join("") : ""; if ($("q-salvrow")) $("q-salvrow").hidden = !SV; }
   if ($("q-rifts")) { $("q-rifts").innerHTML = R ? [go("Rifts", "what rifts give")].concat(RIFT_NAMES.map(n => go(n))).concat(R.kinds.map(k => go(k.crude, k.crude.replace("Crude - ", "")))).join("") : ""; if ($("q-riftrow")) $("q-riftrow").hidden = !R; }
   $("q-foot").textContent = "data of " + D.generated;
   const CR = D.contributors || [];
@@ -313,6 +352,29 @@
   // they join the baked averages here exactly as the exporter would: each rock counted once, shares averaged over
   // rocks, the contributor named on the Roll. GET /api/quarry is public (no character names, no times, no systems).
   const splitRock = name => { const p = String(name).split(" "); return p.length > 1 && PREF.includes(p[0]) ? [p[0], p.slice(1).join(" ")] : ["", name]; };
+  // a rift or salvage run from the store joins its crude kind / salvage material (and its named rift / source)
+  function mergeOther(r, tot) {
+    const date = String(r.date || "").slice(0, 10), by = typeof r.by === "string" ? r.by : "", minutes = +r.minutes || 0;
+    for (const [mat, q] of Object.entries(r.ores)) {
+      if (r.kind === "rift" && R) {
+        let k = riftKind(mat);
+        if (!k) { k = { crude: mat, age: "", grade: "", names: [], n: 0, units: 0, cuts: 0, minutes: 0, per_min_one: 0, sessions: [], desc: "" }; R.kinds.push(k); }
+        k.n++; k.units += q; k.cuts += +r.cuts || 0; k.minutes = Math.round((k.minutes + minutes) * 10) / 10;
+        k.sessions.push({ date, units: q, minutes, runs: 1, rift: RIFT_NAMES.includes(r.rock) ? r.rock : null });
+        if (RIFT_NAMES.includes(r.rock)) { if (!k.names.includes(r.rock)) k.names.push(r.rock); const nm = R.names.find(x => x.rift === r.rock); if (nm) { nm.n++; nm.units += q; if (!nm.crude.includes(mat)) nm.crude.push(mat); } }
+      } else if (r.kind === "salvage" && SV) {
+        let m = salvMat(mat);
+        if (!m) { m = { name: mat, n: 0, units: 0, cuts: 0, minutes: 0, per_min: null, sizes: {}, sessions: [] }; SV.materials.push(m); }
+        m.n++; m.units += q; m.cuts += +r.cuts || 0; m.minutes = Math.round((m.minutes + minutes) * 10) / 10;
+        m.sessions.push({ date, units: q, minutes, cuts: +r.cuts || 0, source: r.rock });
+        let s = SV.sources.find(x => x.name === r.rock);
+        if (!s) { s = { name: r.rock, n: 0, units: 0, materials: [] }; SV.sources.push(s); INDEX.push({ name: r.rock, tag: "salvage source" }); }
+        s.n++; s.units += q; if (!s.materials.includes(mat)) s.materials.push(mat);
+      } else return false;
+    }
+    if (by) { let c = CR.find(x => x.name === by); if (!c) { c = { name: by, samples: [] }; CR.push(c); } let s = c.samples.find(x => x.rock === r.rock); if (!s) { s = { rock: r.rock, date, units: 0, n: 0 }; c.samples.push(s); } s.units += tot; s.n++; if (date > s.date) s.date = date; }
+    return true;
+  }
   function mergeRuns(runs) {
     const byRock = {};
     let used = 0;
@@ -320,6 +382,7 @@
       if (!r || typeof r.rock !== "string" || !r.ores || typeof r.ores !== "object") continue;
       const tot = Object.values(r.ores).reduce((a, b) => a + (+b || 0), 0);
       if (!(tot > 0)) continue;
+      if (r.kind === "rift" || r.kind === "salvage") { if (mergeOther(r, tot)) used++; continue; }
       used++;
       (byRock[r.rock] = byRock[r.rock] || []).push({ share: Object.fromEntries(Object.entries(r.ores).filter(([o]) => ORESET.has(o)).map(([o, q]) => [o, q / tot])),
         rate: r.minutes >= 1 && (r.cuts == null || r.cuts >= 5) ? tot / r.minutes : null, units: tot, by: typeof r.by === "string" ? r.by : "", date: String(r.date || "").slice(0, 10) });
@@ -360,6 +423,71 @@
     if ($("q-foot") && used) $("q-foot").textContent = "data of " + D.generated + " + " + used + " tribe session" + (used === 1 ? "" : "s");
     return used;
   }
+  // ---------- the review list: samples sent from the Quarry companion wait here until a keeper approves them ----------
+  // Shown to Paladins, Knights and the site keepers who are logged in (tribe.js shares the login: window.__tribeData).
+  const SALV = new Set(["Debris", "Cargo Debris", "Salvaged Materials", "Cinderwrack"]);
+  let reviewRuns = [], reviewBusy = false;
+  const maxRate = () => Math.max(0, ...D.rocks.map(a => a.per_min || 0));
+  function checksOf(r) {
+    const tot = Object.values(r.ores).reduce((a, b) => a + b, 0), out = [];
+    const rate = r.minutes >= 1 ? tot / r.minutes : null;
+    const kind = r.kind || (Object.keys(r.ores).every(o => /^Crude/.test(o)) ? "rift" : Object.keys(r.ores).every(o => SALV.has(o)) ? "salvage" : "rock");
+    if (rate && kind === "rock" && rate > 1.25 * maxRate()) out.push(["warn", `${n0(rate)} a minute: faster than any rock on the Quarry (${n0(maxRate())})`]);
+    if (kind === "rock") {
+      const [, fam] = splitRock(r.rock), named = new Set(gameOf(fam).map(g => g.ore));
+      D.rocks.filter(a => a.family === fam).forEach(a => Object.keys(a.share).forEach(o => named.add(o)));
+      const odd = Object.keys(r.ores).filter(o => !named.has(o));
+      if (named.size && odd.length) out.push(["warn", `not seen in ${fam} before: ${odd.join(", ")}`]);
+    }
+    if (Array.isArray(r.lines) && r.lines.length) {
+      const sz = {}; r.lines.forEach(l => { const k = (SHORT[l[1]] || l[1]) + " " + l[2]; sz[k] = (sz[k] || 0) + 1; });
+      out.push(["", "cut sizes: " + Object.entries(sz).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `${k} \u00d7${v}`).join(", ")]);
+      let gap = 0; for (let i = 1; i < r.lines.length; i++) gap = Math.max(gap, r.lines[i][0] - r.lines[i - 1][0]);
+      out.push(["", `longest pause between cuts: ${gap} s`]);
+    } else out.push(["warn", "no cut lines sent: only the totals can be checked"]);
+    if (r.reads) out.push(["", r.reads.total ? `screen reads naming it: ${r.reads.agree} of ${r.reads.total}` : "named by the pilot"]);
+    if (r.full) out.push(["", "the hold filled"]);
+    return { kind, tot, rate, out };
+  }
+  function drawReview() {
+    const box = $("q-review"); if (!box) return;
+    box.hidden = !reviewRuns.length;
+    $("q-revn").textContent = reviewRuns.length === 1 ? "1 sample" : reviewRuns.length + " samples";
+    $("q-revlist").innerHTML = reviewRuns.map(r => {
+      const c = checksOf(r), when = String(r.start || "").replace("T", " ").slice(0, 16);
+      const mix = Object.entries(r.ores).sort((a, b) => b[1] - a[1]).map(([o, q]) => `<span class="row"><span class="nm">${dot(o)}${esc(SHORT[o] || o)}</span>${bar(q / c.tot, COLOR[o] || "#888")}<span class="pc">${pct(q / c.tot)}</span></span>`).join("");
+      return `<div class="rev" data-id="${esc(r.id)}"><div class="revhead"><b>${esc(r.rock)}</b><span class="tagk">${esc(c.kind)}</span><span class="dim small">by ${esc(r.by || "?")} \u00b7 ${esc(when)} UTC</span></div>`
+        + `<div class="revnums">${n0(c.tot)} units \u00b7 ${(+r.minutes).toFixed(1)} min${c.rate ? " \u00b7 " + n0(c.rate) + " a minute" : ""} \u00b7 ${n0(r.cuts)} cuts \u00b7 ${n0(c.tot / Math.max(1, r.cuts))} a cut</div>`
+        + `<div class="rows">${mix}</div><ul class="revchecks">${c.out.map(([k, t]) => `<li class="${k}">${esc(t)}</li>`).join("")}</ul>${r.note ? `<p class="note">${esc(r.note)}</p>` : ""}`
+        + `<div class="revacts"><button type="button" class="navb ok" data-approve="${esc(r.id)}">Approve</button><button type="button" class="navb no" data-reject="${esc(r.id)}">Reject</button></div></div>`;
+    }).join("");
+  }
+  async function loadReview() {
+    if (reviewBusy) return; reviewBusy = true;
+    try { const r = await fetch("/api/quarry?review=1", { credentials: "same-origin", cache: "no-store" }); const d = r.ok ? await r.json() : null; reviewRuns = d && Array.isArray(d.runs) ? d.runs : []; drawReview(); }
+    catch (e) {} finally { reviewBusy = false; }
+  }
+  async function decide(id, act, btn) {
+    if (act === "reject" && !btn.classList.contains("arm")) { btn.classList.add("arm"); btn.textContent = "Click again to reject"; setTimeout(() => { btn.classList.remove("arm"); btn.textContent = "Reject"; }, 4000); return; }
+    btn.disabled = true;
+    try {
+      const r = await fetch("/api/quarry", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [act]: [id] }) });
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d || !d.ok) throw new Error((d && d.error) || "not saved");
+      const run = reviewRuns.find(x => x.id === id);
+      reviewRuns = reviewRuns.filter(x => x.id !== id); drawReview();
+      if (act === "approve" && run) mergeRuns([{ rock: run.rock, kind: checksOf(run).kind, date: String(run.start).slice(0, 10), cuts: run.cuts, ores: run.ores, minutes: run.minutes, full: !!run.full, by: run.by }]);
+    } catch (e) { btn.disabled = false; btn.textContent = "failed: " + e.message; }
+  }
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-approve],[data-reject]"); if (!b) return;
+    decide(b.dataset.approve || b.dataset.reject, b.dataset.approve ? "approve" : "reject", b);
+  });
+  const keeper = () => { const t = window.__tribeData; return !!(t && t.state === "in" && t.me && t.me.upload); };
+  window.addEventListener("tribe:data", () => { if (keeper() && !reviewRuns.length) loadReview(); });
+  if (keeper()) loadReview();
+  window.__quarryReview = runs => { reviewRuns = runs || []; drawReview(); };   // test hook
+
   window.__quarryMerge = mergeRuns;        // the site's test hook (and tribe.js, should it ever hand runs in)
   if (/thesaintsforge\.com$|^localhost$|^127\.0\.0\.1$/.test(location.hostname) && window.fetch)
     fetch("/api/quarry", { credentials: "omit" }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.ok && Array.isArray(d.runs)) mergeRuns(d.runs); }).catch(() => {});

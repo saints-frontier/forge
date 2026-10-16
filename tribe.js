@@ -21,7 +21,7 @@
       loggedOut(q === "denied" ? "Saint rank or above needed. Ask in Discord." : q === "error" ? "The login did not go through. Try again." : "");
       return;
     }
-    share({ state: "in", me: { name: me.name, rank: me.rank } });
+    share({ state: "in", me: { name: me.name, rank: me.rank, upload: !!me.upload } });
     var knight = !!me.upload;                       // Paladins, Knights and the site keepers (DOCTRINE_ADMINS) may replace the fits
     box.innerHTML = '<span class="tribe-who">✠ ' + esc(me.name) + " · " + esc(me.rank) + '</span>'
       + (knight ? '<button type="button" class="tribe-up" id="tribe-set" title="Make the fit on screen a doctrine fit: it replaces the doctrine fit of the same name, or is added as a new one">set as doctrine</button>'
