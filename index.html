@@ -401,6 +401,14 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #tab-quarry .quarry .getapp .gabtn:hover, #tab-quarry .quarry .getapp .gabtn:focus-visible { background: var(--red); }
 #tab-quarry .quarry .getapp .gameta { margin-top: 8px; font: 11px var(--mono); color: var(--dim); letter-spacing: .5px; }
 #tab-quarry .quarry .getapp .gameta a { color: var(--silver); }
+#tab-quarry .quarry .getapp .gakey { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-strong); }
+#tab-quarry .quarry .getapp .gakeyt { font: 700 12px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
+#tab-quarry .quarry .getapp .gakeyt span { display: block; font: 12px var(--body); letter-spacing: 0; text-transform: none; color: var(--dim); margin-top: 2px; }
+#tab-quarry .quarry .getapp .gabtn2 { display: inline-block; padding: 8px 14px; background: none; color: var(--gold); border: 1px solid var(--gold); text-decoration: none; font: 700 12px var(--mono); letter-spacing: 1px; cursor: pointer; }
+#tab-quarry .quarry .getapp .gabtn2:hover, #tab-quarry .quarry .getapp .gabtn2:focus-visible { background: rgba(217,178,76,.12); }
+#tab-quarry .quarry .getapp .keyrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+#tab-quarry .quarry .getapp .keyrow input { flex: 1 1 260px; min-width: 0; background: #0b0a0e; color: var(--title); border: 1px solid var(--gold-soft); padding: 7px 9px; font: 12px var(--mono); }
+#tab-quarry .quarry .getapp .keynote { font: 12px/1.5 var(--body); color: var(--silver); margin-top: 6px; }
 @media (max-width: 640px) { #tab-quarry .quarry .getapp { grid-template-columns: 1fr; } }
 #tab-quarry .quarry .review { border: 1px solid var(--red); background: rgba(227,34,44,.06); padding: 14px 16px; display: grid; gap: 10px; }
 #tab-quarry .quarry .review .revtitle { font: 800 18px var(--display); color: var(--gold); letter-spacing: 1px; }
@@ -895,6 +903,10 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
             <p>Log your own mining: every rock, rift and wreck you cut, read from the game's log, on one page in your browser while you mine. Send your sessions here with your quarry key; a keeper reviews them, then they join the Quarry under your name.</p>
             <a class="gabtn" href="https://github.com/saints-frontier/forge/releases/latest/download/Saints-Quarry-Companion.zip">&#11015; Download for Windows</a>
             <div class="gameta">Windows 10 or 11 · free · unzip, then Install.cmd · <a href="https://github.com/saints-frontier/forge/releases/latest" target="_blank" rel="noopener">release notes</a></div>
+            <div class="gakey" id="q-keybox">
+              <div class="gakeyt">Your quarry key <span>pasted once into the companion's page, so it can send your sessions</span></div>
+              <div id="q-keyout"><a class="gabtn2" href="/api/login?next=quarry">✠ Log in with Discord to get your key</a></div>
+            </div>
           </div>
         </div>
       </div>
@@ -1192,5 +1204,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=0001aed6"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=7cf1f9ca"></script><script src="quarry-data.js?v=76ad514b"></script><script src="quarry-app.js?v=9b82f3af"></script><script src="doctrine.js?v=29fd59e4"></script><script src="tribe.js?v=8b1b6fea"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=429e8f57"></script>
+<script src="lodge-data.js?v=0001aed6"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=7cf1f9ca"></script><script src="quarry-data.js?v=76ad514b"></script><script src="quarry-app.js?v=7f902533"></script><script src="doctrine.js?v=29fd59e4"></script><script src="tribe.js?v=8b1b6fea"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=429e8f57"></script>
 </body></html>

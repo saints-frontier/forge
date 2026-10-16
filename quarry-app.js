@@ -486,6 +486,28 @@
   if (keeper()) loadReview();
   window.__quarryReview = runs => { reviewRuns = runs || []; drawReview(); };   // test hook
 
+  // ---------- the quarry key, right on the Quarry (it used to live only in the Forge's tribe box) ----------
+  function drawKeyBox() {
+    const out = $("q-keyout"); if (!out) return;
+    const t = window.__tribeData;
+    if (!(t && t.state === "in")) return;                          // logged out: the login link stays (it comes back here)
+    out.innerHTML = `<button type="button" class="gabtn2" id="q-getkey">\u2720 Get my quarry key</button><div class="keynote">Logged in as ${esc(t.me && t.me.name || "")}. A new key replaces your old one.</div>`;
+  }
+  document.addEventListener("click", async e => {
+    if (!e.target.closest("#q-getkey,#q-copykey")) return;
+    const out = $("q-keyout");
+    if (e.target.closest("#q-copykey")) { const i = $("q-keyin"); i.select(); try { await navigator.clipboard.writeText(i.value); $("q-copykey").textContent = "copied"; } catch (x) { $("q-copykey").textContent = "press Ctrl+C"; } return; }
+    try {
+      const r = await fetch("/api/appkey", { credentials: "same-origin", cache: "no-store" }); const d = r.ok ? await r.json() : null;
+      if (!d || !d.ok) throw new Error(r.status === 401 ? "log in again" : "the site did not answer");
+      out.innerHTML = `<div class="keyrow"><input id="q-keyin" readonly value="${esc(d.key)}" aria-label="Your quarry key"><button type="button" class="gabtn2" id="q-copykey">copy</button></div>`
+        + `<div class="keynote">Valid until ${esc(d.expires)}. Paste it into the companion's page under <b>Send to the Quarry</b> \u2192 <b>Save key</b>. Keep it to yourself: it sends sessions as you.</div>`;
+      try { await navigator.clipboard.writeText(d.key); $("q-copykey").textContent = "copied"; } catch (x) {}
+    } catch (x) { out.insertAdjacentHTML("beforeend", `<div class="keynote">No key: ${esc(x.message)}.</div>`); }
+  });
+  window.addEventListener("tribe:data", drawKeyBox);
+  drawKeyBox();
+
   window.__quarryMerge = mergeRuns;        // the site's test hook (and tribe.js, should it ever hand runs in)
   if (/thesaintsforge\.com$|^localhost$|^127\.0\.0\.1$/.test(location.hostname) && window.fetch)
     fetch("/api/quarry", { credentials: "omit" }).then(r => r.ok ? r.json() : null).then(d => { if (d && d.ok && Array.isArray(d.runs)) mergeRuns(d.runs); }).catch(() => {});
