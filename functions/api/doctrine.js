@@ -3,7 +3,7 @@
         (key "fits", a JSON object {generated, presets: [...]}), never in the public files.
    POST: replace the fits (Paladins, Knights, the tribe leader and the ids in DOCTRINE_ADMINS): the body is the file written by
         tools/export_doctrine_payload.py. Checked to be JSON with a presets list before it is stored. */
-import { session, json, canUpload } from "./_lib.js";
+import { session, json, canUpload, atLeastSaint } from "./_lib.js";
 
 /* A broken preset would break the Forge for every Saint (one bad name used to throw inside the page and hide the
    tribe box), so the shape is checked here, preset by preset. Returns the problem, or null when the payload is sound. */
@@ -40,6 +40,7 @@ function checkPayload(d) {
 export async function onRequestGet({ request, env }) {
   const { s, cookies } = await session(env, request);
   if (!s) return json({ ok: false }, 401, cookies);
+  if (!atLeastSaint(s)) return json({ ok: false, error: "Saint rank or above." }, 403, cookies);
   const data = env.DOCTRINE ? await env.DOCTRINE.get("fits") : null;
   if (!data) return json({ ok: false, error: "The doctrine store is empty." }, 503, cookies);
   const h = new Headers({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, no-store" });

@@ -37,11 +37,13 @@
   const RANGE = { "Mini Catapult": 60, "Heavy Catapult": 250, "Mini Gate": 105, "Heavy Gate": 365 };   // light-years
   // every system a text mentions, in order: a full name always; a three-character short code when exactly one known
   // full name starts with it (known: first three characters -> full name, "" when two names share them)
+  let fullNames = new Set();          /* every full system name that is not ABC|D11-shaped (ours + EF-Map's), set by build() */
   function mentions(text, known) {
-    const out = [], re = /[A-Z0-9]{3}\|[A-Z0-9]{3}|[A-Z0-9]+/g; let m;
+    const out = [], re = /[A-Z0-9][A-Z0-9|.\-]*[A-Z0-9]|[A-Z0-9]/g; let m;
     while ((m = re.exec(text))) {
       const t = m[0];
-      if (t.length === 7 && t[3] === "|") out.push({ name: t, at: m.index, end: m.index + 7 });
+      if (/^[A-Z0-9]{3}\|[A-Z0-9]{3}$/.test(t) || fullNames.has(t)) out.push({ name: t, at: m.index, end: m.index + t.length });
+      else if (t.length > 3 && /\d/.test(t) && /[|.\-]/.test(t)) out.push({ name: null, raw: t, at: m.index, end: m.index + t.length });   /* shaped like a system name nobody knows */
       else if (t.length === 3 && !STOP.has(t)) { const full = known && known.get(t); if (full) out.push({ name: full, at: m.index, end: m.index + 3, short: true }); else if (/\d/.test(t)) out.push({ name: null, raw: t, at: m.index, end: m.index + 3 }); }
     }
     return out;
@@ -84,6 +86,7 @@
     // every full system name the chain or the numbered systems mention: what a short code may stand for
     const known = new Map(), learn = n => { const k = n.slice(0, 3); known.set(k, known.has(k) && known.get(k) !== n ? "" : n); };
     for (const n of ids.keys()) if (/^[A-Z0-9]{3}\|[A-Z0-9]{3}$/.test(n)) learn(n);
+    fullNames = new Set([...ids.keys(), ...efByName.keys()].filter(n => !/^[A-Z0-9]{3}\|[A-Z0-9]{3}$/.test(n)));
     for (const x of (d.assemblies || []).concat(d.nodes || [])) for (const c of up(x.name).match(CODE) || []) { learn(c); fromEf(c); }
 
     // where each node stands: { sys, basis: "node" | "name" | "gate" | "inferred", why, dests }
@@ -230,10 +233,10 @@
     const box = $("roads-map");
     if (!M.systems.size) { box.innerHTML = `<div class="roads-empty">No road is on the map yet. ${M.list.builders.length ? "A launcher appears when its name in game carries its systems: see Not on the map." : "No builder is set."}</div>`; return; }
     const avail = box.clientWidth - 14, L = layout(M, avail), groups = new Map();
-    for (const r of M.roads) { const k = [r.from, r.to].sort().join("  "); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
+    for (const r of M.roads) { const k = JSON.stringify([r.from, r.to].sort()); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
     let svg = "";
     for (const [k, rs] of groups) {
-      const [a, b] = k.split("  "), pa = L.pos.get(a), pb = L.pos.get(b);
+      const [a, b] = JSON.parse(k), pa = L.pos.get(a), pb = L.pos.get(b);
       // per direction: 1 = a working road, -1 = only offline ones (its arrowhead is drawn red), 0 = none
       const dir = (f, t) => { const d = rs.filter(r => (r.from === f && r.to === t) || r.twoWay); return d.length ? (d.some(r => r.online !== false) ? 1 : -1) : 0; };
       const ab = dir(a, b), ba = dir(b, a);
@@ -319,7 +322,7 @@
     const step = new Map([[from, null]]), q = [from];
     while (q.length && !step.has(to)) {
       const k = q.shift();
-      for (const r of M.roads) { if (r.online === false) continue;
+      for (const r of M.roads) { if (r.online === false || (r.source === "plan" && r.status !== "built")) continue;   /* a planned road is not a road yet */
         const n = r.from === k ? r.to : (r.twoWay && r.to === k ? r.from : null);
         if (n && !step.has(n)) { step.set(n, { via: r, prev: k }); q.push(n); } }
     }
@@ -402,7 +405,7 @@
     const b = { launchers: 0, tar: 0, foam: 0, kernel: 0, minutes: 0, pub: 0, gaps: 0, kinds: {}, sites: new Map() };
     for (const h of hops) {
       if (h.gap) { b.gaps++; continue; }
-      if (h.kind === "Public Gate" && !h.free) b.pub++; else if (h.kind === "Public Gate") b.pub++;
+      if (h.kind === "Public Gate") b.pub++;
       if (!isBuild(h)) continue;
       const c = COST[h.kind], n = /Gate/.test(h.kind) ? 2 : 1; b.launchers += n; b.tar += c[0]; b.foam += c[1]; b.kernel += c[2]; b.minutes += c[3]; b.kinds[h.kind] = (b.kinds[h.kind] || 0) + 1;
       b.sites.set(h.fromSys, true); if (/Gate/.test(h.kind)) b.sites.set(h.toSys, true);
@@ -417,8 +420,8 @@
   function diagText(d, target) {
     if (!d) return "";
     const from = esc(nameOfId(d.end)), to = esc(nameOfId(target)), ly = f0(d.ly);
-    if (d.reason === "range") return `<b>${from}</b> is the closest the road gets: <b>${to}</b> is ${ly} LY away, beyond everything ticked (${d.beyond} LY). Only a public stargate crosses that, or a road from another side.`;
-    if (d.reason === "blocked") return `<b>${from} → ${to}</b> is ${ly} LY, in range, but the shot is blocked by ${d.blockers.map(x => `<b>${esc(starName(x.id))}</b> (${f0(x.ly)} LY out)`).join(", ")}. Build through the blocking star instead, or chart it: an uncharted blocker is one nobody has seen yet.`;
+    if (d.reason === "range") return `<b>${from}</b> is the closest the road gets: <b>${to}</b> is ${ly} LY away, beyond everything ticked (${esc(d.beyond)} LY). Only a public stargate crosses that, or a road from another side.`;
+    if (d.reason === "blocked") return `<b>${from} → ${to}</b> is ${ly} LY, in range, but the shot is blocked by ${(Array.isArray(d.blockers) ? d.blockers : []).map(x => `<b>${esc(starName(x.id))}</b> (${f0(x.ly)} LY out)`).join(", ")}. Build through the blocking star instead, or chart it: an uncharted blocker is one nobody has seen yet.`;
     if (d.reason === "gatefar") return `A gate pair could span <b>${from} → ${to}</b> (${ly} LY), but nobody can reach ${to} to build the far gate: a catapult or a public gate has to get a builder there first.`;
     if (d.reason === "avoided") return `The only way from <b>${from}</b> to <b>${to}</b> runs through a system on the avoid list.`;
     return `<b>${from} → ${to}</b>: ${ly} LY, no tool crosses it.`;
@@ -426,7 +429,7 @@
   function directText(d, from, to) {
     if (!d) return "";
     if (!d.tool) return `Straight line ${esc(nameOfId(from))} → ${esc(nameOfId(to))}: ${f0(d.ly)} LY, no single hop reaches that.`;
-    if (d.blockers && d.blockers.length) return `A direct ${esc(d.tool)} shot (${f0(d.ly)} LY) is blocked by ${d.blockers.map(x => `<b>${esc(starName(x.id))}</b>`).join(", ")}.`;
+    if (Array.isArray(d.blockers) && d.blockers.length) return `A direct ${esc(d.tool)} shot (${f0(d.ly)} LY) is blocked by ${d.blockers.map(x => `<b>${esc(starName(x.id))}</b>`).join(", ")}.`;
     return "";
   }
   const hopKindText = h => h.gap ? "STARGATE NEEDED" : h.step === "gate" ? `BUILD ${esc(h.kind).toUpperCase()} PAIR` : h.kind === "Public Gate" ? "public gate · " + (STATE_TEXT[h.state || (gateRec(h.fromSys, h.toSys) || {}).state] || (gateRec(h.fromSys, h.toSys) ? "jumped before" : "state unknown")) : h.kind === "Our Road" ? "our road · built" : h.free ? esc(h.kind) + " · built above" : "build " + esc(h.kind);
@@ -463,12 +466,12 @@
   }
   const f0 = n => Math.round(n).toLocaleString("en-US");
   // ---------- the planner: a Worker over stars.bin, gates.bin and catapults.bin; results show as an unsaved plan the editors can keep ----------
-  let planner = null, planning = false, draft = null, lastData = null, checker = null, checkRes = null, onPlanned = null;
+  let planner = null, planning = false, draft = null, lastData = null, checker = null, lastCheck = null, onPlanned = null;
   function getPlanner() {
     if (planner) return planner;
     planner = new Worker("planner.js?v=" + Date.now());
     planner.onmessage = e => { const m = e.data; if (m.type === "checked") onChecked(m); else if (m.type === "progress") { $("plan-status").textContent = `searching… ${f0(m.expanded)} systems looked at, closest ${f0(m.closest)} LY`; } else if (onPlanned) onPlanned(m); };
-    planner.onerror = e => { planning = false; $("plan-run").disabled = false; $("plan-status").textContent = "the planner failed: " + (e.message || "worker error"); };
+    planner.onerror = e => { planning = false; try { planner.terminate(); } catch (x) {} planner = null; $("plan-run").disabled = false; $("plan-status").textContent = "the planner failed: " + (e.message || "worker error"); };
     return planner;
   }
   // ---------- the system boxes: type a name, pick it from the matches (ours, charted on EF-Map, reported once, a star
@@ -587,11 +590,13 @@
     if (!from) { $("check-status").textContent = "type the system you jump from and pick it from the matches."; return; }
     getPlanner();
     $("check-status").textContent = "checking…";
-    planner.postMessage(Object.assign({ type: "check", id: Date.now(), from, structure, target }, WORKER_MSG()));
+    lastCheck = { id: Date.now(), from };
+    planner.postMessage(Object.assign({ type: "check", id: lastCheck.id, from, structure, target }, WORKER_MSG()));
   }
   function onChecked(m) {
     if (m.error) { $("check-status").textContent = "the check failed: " + m.error; return; }
-    checkRes = m; const from = sysId("check-from");
+    if (!lastCheck || m.id !== lastCheck.id) return;   /* an older answer: the pilot changed the From box since */
+    const from = lastCheck.from;
     $("check-status").textContent = `${m.legal.length} legal target${m.legal.length === 1 ? "" : "s"} within ${m.range} LY, ${m.blocked.length} in range but blocked`;
     const li = (id, ly, cls, extra) => `<li class="${cls}${m.target && m.target.id === id ? " hi" : ""}"><button type="button" class="jump" data-jump="${id}" title="test this jump"><b>${esc(starName(id))}</b> · ${ly} LY</button>${extra || ""}</li>`;
     let verdict = "";
@@ -795,7 +800,7 @@
       .then(res => { if (!res.ok) { $("roads-save-note").textContent = "not saved: " + ((res.x && res.x.error) || "error"); return; } $("roads-save-note").textContent = what + " saved."; if (M && M.list) Object.assign(M.list, JSON.parse(JSON.stringify(list))); if (lastData && lastData.list) Object.assign(lastData.list, JSON.parse(JSON.stringify(list))); return load(true); })
       .catch(() => { $("roads-save-note").textContent = "not saved: the site could not be reached."; });
   }
-  const listCopy = () => JSON.parse(JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, gates: M.list.gates || [], plans: M.list.plans || [] }));
+  const listCopy = () => JSON.parse(JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, gates: M.list.gates || [], plans: (M.list.plans || []).filter(p => !p.draft) }));
 
   root.addEventListener("click", e => {
     const g = e.target.closest("[data-sys]"); if (g) { selected = selected === g.dataset.sys ? null : g.dataset.sys; drawMap(); drawDetail(); if (sf) { const k = selected && M.ids.get(selected); sf.select(k ? k.id : null); } return; }

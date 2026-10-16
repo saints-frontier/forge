@@ -1,6 +1,6 @@
 /* Saints Forge tribe login: shared code for the Cloudflare Pages Functions under /api.
    Discord OAuth2 (identify + guilds.members.read) -> the member's roles on The Saints server -> a signed cookie only
-   when the member holds Squire or above. Secrets live in the project's environment variables, never in this repo:
+   when the member holds Saint or above (ALLOWED_ROLES decides; Squires are left out since 2026-10-09). Secrets live in the project's environment variables, never in this repo:
      DISCORD_CLIENT_SECRET  the application's client secret (also seeds the cookie signing key)
      ALLOWED_ROLES          "Squire=<roleId>,Saint=<roleId>,Paladin=<roleId>,Knight=<roleId>,..." (or, instead,)
      DISCORD_BOT_TOKEN      a bot in the server with no permissions: roles are then matched by name
@@ -103,6 +103,8 @@ export async function session(env, req) {
   const s2 = Object.assign({}, s, { n: displayName(member), r: rank, rt: tok.refresh_token || s.rt, chk: Date.now(), exp: Date.now() + SEVEN_DAYS });
   return { s: s2, cookies: [setCookie("sf_session", await sign(env, s2), SEVEN_DAYS / 1000)] };
 }
+/* the doctrine (fits and card words) is for Saint rank and above (user 2026-10-16), whatever ALLOWED_ROLES lets log in */
+export const atLeastSaint = s => !!s && (/knight/i.test(s.r || "") || RANKS.findIndex(r => String(s.r || "").toLowerCase().includes(r.toLowerCase())) >= RANKS.indexOf("Saint"));
 /* who may replace the doctrine fits: Paladins, Knights (incl. the leader) and the Discord user ids listed in DOCTRINE_ADMINS */
 export const canUpload = (env, s) => !!s && (/knight|paladin/i.test(s.r || "") ||
   (env.DOCTRINE_ADMINS || "").split(",").map(x => x.trim()).filter(Boolean).includes(String(s.u || "")));

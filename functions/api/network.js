@@ -194,7 +194,9 @@ export async function onRequestPost({ request, env }) {
   let d; try { d = JSON.parse(text); } catch (e) { return json({ ok: false, error: "Not JSON." }, 400, cookies); }
   const bad = checkList(d);
   if (bad) return json({ ok: false, error: bad }, 400, cookies);
-  const clean = { builders: d.builders.map(b => ({ name: b.name, address: b.address })), home: d.home || "", systems: d.systems || {}, gates: d.gates || [], plans: d.plans || [],
+  const clean = { builders: d.builders.map(b => ({ name: b.name, address: b.address })), home: d.home || "", systems: d.systems || {}, gates: d.gates || [],
+                  plans: (d.plans || []).map(p => ({ name: p.name, note: p.note || "", mode: p.mode, priorities: p.priorities,
+                    hops: p.hops.map(h => Object.fromEntries(["from", "to", "kind", "gap", "ly", "fromName", "toName", "status", "who", "by", "leg", "step", "free", "state"].filter(k => h[k] != null).map(k => [k, h[k]]))) })),
                   updated: new Date().toISOString(), updated_by: s.n };
   await env.DOCTRINE.put("network", JSON.stringify(clean));
   return json({ ok: true, by: s.n }, 200, cookies);

@@ -571,7 +571,7 @@
     $("st-fuel").textContent = f(st.fuel); $("st-fuel-sub").textContent = st.burn > 0 ? `${st.burn.toFixed(2)}/min on ${state.fuelGrade} · ${isFinite(st.hours) ? st.hours.toFixed(1) + " h" : "—"}` + (st.burnBusy > st.burn + 0.005 ? ` · ${st.burnBusy.toFixed(2)}/min with everything running` : "") : "—";
     $("st-fuel-sub").title = "At rest the burn is the power drawn. Recharging the capacitor burns fuel as well: 1 MW for every GJ/s that flows back in, so weapons, repairers and a refill from empty all cost fuel.";
     $("st-cap").textContent = f(st.cap); $("st-cap-sub").textContent = `${f1(st.rech)} GJ/s est${st.capLimited ? " (generator's limit)" : ""} · ${f1(st.drain)} drain${st.stable ? " · stable" : " · " + (isFinite(st.lastMin) ? "runs dry in " + Math.round(st.lastMin) + " s" : "runs dry")}`;
-    $("st-hp").textContent = f(st.hp);   /* exact: hull 2,100 on both hulls and +375 a Brace match every fitting-screen reading (starter Reiver 2,100, stock LAI 2,100, Templar 2,475, Vesper 4,350) */ $("st-hp-sub").textContent = `${st.repair} HP/s repair`;
+    $("st-hp").textContent = f(st.hp);   /* exact: hull 2,100 on both hulls and +375 a Brace match every fitting-screen reading (starter Reiver 2,100, stock LAI 2,100, a two-Brace Reiver 2,475, a six-Brace LAI 4,350) */ $("st-hp-sub").textContent = `${st.repair} HP/s repair`;
     // the big number is per second at full spool-up; the small line is per hit, as the combat log shows it
     $("st-dps").textContent = st.dps ? f(Math.round(st.dpsRamped)) : (st.mining ? `${st.mining}×` : "—");
     $("st-dps-sub").textContent = st.dps
@@ -969,6 +969,7 @@
   // keyed by the fit's name; tribe.js hands them in through this hook (user 2026-10-15: the only Forge lives on the site).
   let cardText = {};
   window.__forgeCardText = d => { cardText = (d && d.cards && typeof d.cards === "object" && !Array.isArray(d.cards)) ? d.cards : {}; return Object.keys(cardText).length; };
+  const cardWords = n => { if (cardText[n]) return cardText[n]; const l = String(n).toLowerCase(), k = Object.keys(cardText).find(x => x.toLowerCase() === l); return k ? cardText[k] : null; };   /* the store may hold a name in other capitals */
   const CF = ["title", "role", "origin", "motto", "latin", "sigil", "weapon", "purpose", "how", "why"];
   function cardOpts() {
     const base = state.preset ? D.presets.find(p => p.n === state.preset) : null;
@@ -981,11 +982,11 @@
     if (!window.ForgeCard || !K) { setStatus("The card design did not load (card.js).", "bad"); return; }
     const base = state.preset ? D.presets.find(p => p.n === state.preset) : null;
     const doctrine = base && !state.dirty;
-    if (base && cardText[base.name] && !(K.text && K.text[base.n])) { K.text = K.text || {}; K.text[base.n] = cardText[base.name]; }   /* the site: words from the store */
+    if (base && cardWords(base.name) && !(K.text && K.text[base.n])) { K.text = K.text || {}; K.text[base.n] = cardWords(base.name); }   /* the site: words from the store */
     const t = ForgeCard.texts({ preset: base, counts: counts(state.placements), exterior: state.exterior, name: state.name, hull: state.hull, dirty: state.dirty, diff: diffVsBase(base) });
     const k = base ? K.doctrine.indexOf(base.n) : -1;
     t.sigil = doctrine && k >= 0 ? K.roman[k] : "✠";
-    if (doctrine && cardText[base.name] && cardText[base.name].sigil) t.sigil = cardText[base.name].sigil;
+    if (doctrine && cardWords(base.name) && cardWords(base.name).sigil) t.sigil = cardWords(base.name).sigil;
     CF.forEach(f => $("cf-" + f).value = t[f] || "");
     $("card-sub").textContent = doctrine ? `${base.name}: the doctrine card, with the live numbers.` : "A proposal card: edit the words, then render the PNG for Discord.";
     cardPng = null; $("card-png").hidden = true; $("card-save").hidden = true; $("card-copy").hidden = true; $("card-status").textContent = "";
@@ -1168,6 +1169,8 @@
     // (2026-10-12). The box lets go of the focus instead, so the wheel scrolls the page and the number stays.
     document.addEventListener("wheel", e => { const t = document.activeElement; if (t && t === e.target && t.tagName === "INPUT" && t.type === "number") t.blur(); }, { passive: true, capture: true });
     window.addEventListener("resize", () => { if (tourI >= 0) tourShow(tourI); });
+    // the site's other pages: the tour waits while the Forge is not on screen and picks up where it was when it is back
+    window.addEventListener("site:page", e => { if (tourI < 0 || !$("tour")) return; if (e.detail === "forge") tourShow(tourI); else { $("tour").hidden = true; document.querySelectorAll(".tour-hi").forEach(x => x.classList.remove("tour-hi")); } });
     // first visit: the tour waits until the Forge is on screen (the public site opens on About us; a proposal link skips it)
     const tourStart = () => {
       const fp = document.getElementById("tab-forge"), visible = () => !fp || (!fp.hidden && fp.offsetParent !== null);
@@ -1288,6 +1291,9 @@
   // the public site adds the doctrine fits here once a tribe member has logged in (tribe.js)
   // the fit on screen in the preset shape (tribe.js "Set as doctrine" writes it into the site's doctrine store)
   window.__forgeCurrentFit = () => ({ name: state.name, hull: state.hull, placements: state.placements.map(p => [p[0], p[1], rotOf(p[0], p[3], p[2]) || 0, p[3].map(c => [c[0], c[1]])]), exterior: Object.assign({}, state.exterior), preset: state.preset });
+  // for the Doctrine page: a stored fit made sound (or null), and loading a stored doctrine fit by its name
+  window.__forgeSoundFit = p => { if (!p || !D.hulls[p.hull] || !Array.isArray(p.placements)) return null; const pl = soundPlacements(p.hull, JSON.parse(JSON.stringify(p.placements))); return pl ? { placements: pl, exterior: soundExterior(p.exterior) } : null; };
+  window.__forgeLoadByName = name => { const l = String(name).toLowerCase(); const p = D.presets.find(x => x.fromStore && String(x.name).toLowerCase() === l) || D.presets.find(x => String(x.name).toLowerCase() === l); if (!p || busy()) return false; loadPreset(p.n); return true; };
   window.__forgeAddPresets = list => {
     let next = D.presets.reduce((m, p) => Math.max(m, +p.n || 0), 100) + 1, added = 0; const skipped = [];
     for (const p of list || []) {

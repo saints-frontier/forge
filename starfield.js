@@ -44,10 +44,6 @@
       }`, `
       precision mediump float; varying float vAlpha; varying vec3 vCol;
       void main() { float d = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.12, d) * vAlpha; gl_FragColor = vec4(vCol * a, a); }`);
-    const lineProg = program(`
-      attribute vec3 aPos; attribute vec4 aCol; uniform mat4 uVP; varying vec4 vCol;
-      void main() { gl_Position = uVP * vec4(aPos, 1.0); vCol = aCol; }`, `
-      precision mediump float; varying vec4 vCol; void main() { gl_FragColor = vec4(vCol.rgb * vCol.a, vCol.a); }`);
     const markProg = program(`
       attribute vec3 aPos; attribute vec4 aCol; attribute float aSize; uniform mat4 uVP; uniform float uDpr; uniform float uK; varying vec4 vCol;
       void main() { gl_Position = uVP * vec4(aPos, 1.0); gl_PointSize = max(1.5, aSize * uDpr * uK); vCol = aCol; }`, `
@@ -59,13 +55,13 @@
       attribute vec3 aPos; uniform mat4 uVP; void main() { gl_Position = uVP * vec4(aPos, 1.0); }`, `
       precision mediump float; uniform vec4 uCol; void main() { gl_FragColor = vec4(uCol.rgb * uCol.a, uCol.a); }`);
     const loc = (p, n) => gl.getAttribLocation(p, n), uloc = (p, n) => gl.getUniformLocation(p, n);
-    const starBuf = gl.createBuffer(), glowBuf = gl.createBuffer(), lineBuf = gl.createBuffer(), markBuf = gl.createBuffer(), gateBuf = gl.createBuffer();
+    const starBuf = gl.createBuffer(), glowBuf = gl.createBuffer(), markBuf = gl.createBuffer(), gateBuf = gl.createBuffer();
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.disable(gl.DEPTH_TEST);
 
     // ---------- state ----------
     let n = 0, pos = null, byId = new Map(), ids = null, names = null, galaxy = { c: [0, 0, 0], r: 9000 };
-    const readNames = (dv, o, n) => { if (o + 4 > dv.byteLength) return null; const cnt = dv.getUint32(o, true); o += 4; const dec = new TextDecoder(), out = new Array(cnt); for (let i = 0; i < cnt; i++) { const l = dv.getUint8(o); out[i] = dec.decode(new Uint8Array(dv.buffer, o + 1, l)); o += 1 + l; } return out; };
-    let scene = { systems: [], roads: [] }, lines = [], lineCount = 0, marks = [], markCount = 0, polylines = [];
+    const readNames = (dv, o) => { if (o + 4 > dv.byteLength) return null; const cnt = dv.getUint32(o, true); o += 4; const dec = new TextDecoder(), out = new Array(cnt); for (let i = 0; i < cnt; i++) { const l = dv.getUint8(o); out[i] = dec.decode(new Uint8Array(dv.buffer, o + 1, l)); o += 1 + l; } return out; };
+    let scene = { systems: [], roads: [] }, marks = [], markCount = 0, polylines = [];
     let selected = null, hovered = null, marked = null;
     let many = [], sphereOf = null;             // Check a jump: rings for every legal / blocked target, the sphere of the tested jump
     let starDim = 1;                            // Chart the uncharted: the background stars dimmed so only the targets stand out
@@ -133,8 +129,7 @@
         polys.push({ road: r, pts, col, heavy: /Heavy/.test(r.kind || ""), dash: r.status === "planned" ? [2, 5] : r.status === "progress" || r.online === false || r.source === "inferred" ? [7, 6] : [], alpha: r.status === "planned" ? 0.6 : 0.95 });
       }
       for (const s of scene.systems) { const p = P(s.id), col = COLORS[s.cls] || COLORS.far, minor = s.cls === "charted" || s.cls === "uncharted", size = s.cls === "home" ? 9 : s.cls === "ours" ? 7 : s.cls === "uncharted" ? 2 : minor ? 2.6 : 5; M.push(...p, ...rgba(col, minor ? 0.07 : 0.16), size * 4.5); M.push(...p, ...rgba(col, minor ? 0.75 : 0.95), size); }
-      lines = new Float32Array(L); lineCount = L.length / 7; marks = new Float32Array(M); markCount = M.length / 8; polylines = polys;
-      gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf); gl.bufferData(gl.ARRAY_BUFFER, lines, gl.STATIC_DRAW);
+      marks = new Float32Array(M); markCount = M.length / 8; polylines = polys;
       gl.bindBuffer(gl.ARRAY_BUFFER, markBuf); gl.bufferData(gl.ARRAY_BUFFER, marks, gl.STATIC_DRAW);
       dirty = true; schedule();
     }
@@ -188,12 +183,6 @@
         gl.bindBuffer(gl.ARRAY_BUFFER, gateBuf); const ap = loc(gateProg, "aPos"); gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap, 3, gl.FLOAT, false, 0, 0);
         gl.drawArrays(gl.LINES, 0, gateVerts);
       }
-      if (false && lineCount) {
-        gl.useProgram(lineProg); gl.uniformMatrix4fv(uloc(lineProg, "uVP"), false, VP);
-        gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf); const ap = loc(lineProg, "aPos"), ac = loc(lineProg, "aCol");
-        gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(ac); gl.vertexAttribPointer(ac, 4, gl.FLOAT, false, 28, 12);
-        gl.drawArrays(gl.LINES, 0, lineCount);
-      }
       if (markCount) {
         gl.useProgram(markProg); gl.uniformMatrix4fv(uloc(markProg, "uVP"), false, VP); gl.uniform1f(uloc(markProg, "uDpr"), dpr); gl.uniform1f(uloc(markProg, "uK"), zoomK());
         gl.bindBuffer(gl.ARRAY_BUFFER, markBuf); const ap = loc(markProg, "aPos"), ac = loc(markProg, "aCol"), as = loc(markProg, "aSize");
@@ -208,7 +197,7 @@
       // the public gates of the system under the pointer, the selected one and a picked star: bright over the faint network
       if (gatesOn && gateAdj.size) {
         const hot = new Set([selected, hovered, marked && marked.id].filter(x => x != null));
-        for (const id of hot) { const a = project(P(id)); if (!a) continue;
+        for (const id of hot) { const pa = P(id); if (!pa) continue; const a = project(pa); if (!a) continue;
           for (const o of gateAdj.get(id) || []) { const b = project(P(o)); if (!b) continue;
             ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.strokeStyle = "#aab3bc"; ctx.lineWidth = 1.4; ctx.globalAlpha = 0.85; ctx.stroke(); ctx.globalAlpha = 1;
             ctx.beginPath(); ctx.arc(b[0], b[1], 3, 0, Math.PI * 2); ctx.fillStyle = "#aab3bc"; ctx.fill(); } }
@@ -290,7 +279,7 @@
     const pickStar = (x, y) => { let best = null, bd = 9; for (let i = 0; i < n; i++) { const p = project([pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]]); if (!p) continue; const d = Math.hypot(p[0] - x, p[1] - y); if (d < bd) { bd = d; best = ids[i]; } } return best; };
     ov.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY, moved: false, pan: e.button === 2 || e.shiftKey, id: e.pointerId }; ov.setPointerCapture(e.pointerId); e.preventDefault(); });
     ov.addEventListener("pointermove", e => {
-      if (!drag) { const id = pickAt(e.offsetX, e.offsetY); if (id !== hovered) { hovered = id; ov.classList.toggle("over", !!id); /* the gauntlet lights up over a system (cursor rules: roads.css, tools/make_cursors.py) */ dirty = true; schedule(); if (opts.onHover) opts.onHover(id); } return; }
+      if (!drag) { const id = pickAt(e.offsetX, e.offsetY); if (id !== hovered) { hovered = id; ov.classList.toggle("over", !!id); /* pointer over a system (cursor rules: roads.css; tools/make_cursors.py) */ dirty = true; schedule(); if (opts.onHover) opts.onHover(id); } return; }
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) { drag.moved = true; ov.classList.add("drag"); } /* the closed gauntlet while the map is dragged */ drag.x = e.clientX; drag.y = e.clientY;
       if (drag.pan) { mat(); const s = 2 * Math.tan(LY_FOV / 2) * cam.dist / h;   // light-years per pixel at the target: the map follows the pointer
         const right = norm3(cross3(norm3([Math.sin(cam.yaw), 0, Math.cos(cam.yaw)]), [0, 1, 0])), up = [0, 1, 0];

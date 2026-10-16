@@ -119,14 +119,14 @@
     const said = o => gs.find(g => g.ore === o);
     let h = head(sub.name, "Rock");
     const rows = [];
-    if (a) for (const [o, f] of Object.entries(a.share)) rows.push({ o, f });
+    if (a) for (const [o, f] of Object.entries(a.share)) if (f > 0) rows.push({ o, f });
     for (const g of gs) if (!rows.some(r => r.o === g.ore)) rows.push({ o: g.ore, f: 0 });
     rows.sort((x, y) => y.f - x.f || LEVEL_RANK[(said(y.o) || {}).level] - LEVEL_RANK[(said(x.o) || {}).level]);
     h += a ? measuredMeta(a) : `<div class="meta">not measured yet</div>`;
     h += `<div class="rows">` + rows.map(r => {
       const g = said(r.o);
       const tag = g ? `<span class="gtag" title="The game says: ${esc(D.levels[g.level])} (\u201c${esc(g.quote)}\u201d)">\u25c6</span>` : "";
-      return `<div class="row"><span class="nm">${dot(r.o)}${go(r.o)}${tag}</span>${r.f ? bar(r.f, COLOR[r.o] || "#888") + `<span class="pc">${pct(r.f)}</span>` : `<span class="gonly">game says: ${esc(D.levels[g.level])}</span>`}</div>`;
+      return `<div class="row"><span class="nm">${dot(r.o)}${go(r.o)}${tag}</span>${r.f ? bar(r.f, COLOR[r.o] || "#888") + `<span class="pc">${pct(r.f)}</span>` : (g ? `<span class="gonly">game says: ${esc(D.levels[g.level])}</span>` : "")}</div>`;
     }).join("") + `</div>`;
     if (gs.length) h += `<p class="key"><span class="gtag">\u25c6</span> named in the game's own ore description</p>`;
     if (a && a.note) h += `<p class="note">${esc(a.note)}</p>`;
@@ -322,13 +322,13 @@
       if (!(tot > 0)) continue;
       used++;
       (byRock[r.rock] = byRock[r.rock] || []).push({ share: Object.fromEntries(Object.entries(r.ores).filter(([o]) => ORESET.has(o)).map(([o, q]) => [o, q / tot])),
-        rate: r.minutes > 0 ? tot / r.minutes : null, units: tot, by: typeof r.by === "string" ? r.by : "", date: String(r.date || "").slice(0, 10) });
+        rate: r.minutes >= 1 && (r.cuts == null || r.cuts >= 5) ? tot / r.minutes : null, units: tot, by: typeof r.by === "string" ? r.by : "", date: String(r.date || "").slice(0, 10) });
     }
     for (const [rock, rs] of Object.entries(byRock)) {
       let a = D.rocks.find(x => x.rock === rock);
       if (!a) {
         const [prefix, family] = splitRock(rock);
-        a = { rock, prefix, family, n: 0, units: 0, share: {}, per_min: null, by: [], note: "" };
+        a = { rock, prefix, family, n: 0, units: 0, share: {}, per_min: null, rated: 0, by: [], note: "" };
         D.rocks.push(a);
         if (!FAMS.includes(family)) { FAMS.push(family); INDEX.push({ name: family, tag: "rock" }); }
         if (!seenRock.has(rock)) { seenRock.add(rock); INDEX.push({ name: rock, tag: "rock" }); }
@@ -337,8 +337,8 @@
       for (const o of new Set([...Object.keys(a.share), ...rs.flatMap(r => Object.keys(r.share))]))
         share[o] = (a.n * (a.share[o] || 0) + rs.reduce((s, r) => s + (r.share[o] || 0), 0)) / n;
       a.share = Object.fromEntries(Object.entries(share).sort((x, y) => y[1] - x[1]).map(([o, v]) => [o, Math.round(v * 10000) / 10000]));
-      const rates = rs.filter(r => r.rate).map(r => r.rate), had = a.per_min ? a.n : 0;
-      if (had + rates.length) a.per_min = Math.round(((a.per_min || 0) * had + rates.reduce((s, x) => s + x, 0)) / (had + rates.length));
+      const rates = rs.filter(r => r.rate).map(r => r.rate), had = a.per_min ? (a.rated || a.n) : 0;
+      if (had + rates.length) { a.per_min = Math.round(((a.per_min || 0) * had + rates.reduce((s, x) => s + x, 0)) / (had + rates.length)); a.rated = had + rates.length; }
       a.units += rs.reduce((s, r) => s + r.units, 0);
       a.n = n;
       for (const r of rs) if (r.by && !a.by.includes(r.by)) a.by.push(r.by);
@@ -355,6 +355,7 @@
     for (const c of CR) c.samples.sort((x, y) => y.units - x.units);
     CR.sort((x, y) => x.name.localeCompare(y.name));
     drawRoll();
+    if ($("q-rocks")) $("q-rocks").innerHTML = FAMS.map(f => go(f)).join("");
     if (cur) render();
     if ($("q-foot") && used) $("q-foot").textContent = "data of " + D.generated + " + " + used + " tribe session" + (used === 1 ? "" : "s");
     return used;

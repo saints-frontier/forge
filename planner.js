@@ -31,7 +31,7 @@ let CATA = null, cataLoading = null, CATA_RANGE = 0;  // star index -> [[star in
 // ---------- data ----------
 function load(url) {
   if (loading) return loading;
-  loading = fetch(url).then(r => { if (!r.ok) throw new Error("stars " + r.status); return r.arrayBuffer(); }).then(buf => {
+  loading = fetch(url).catch(e => { loading = null; throw e; }).then(r => { if (!r.ok) { loading = null; throw new Error("stars " + r.status); } return r.arrayBuffer(); }).then(buf => {
     const dv = new DataView(buf); N = dv.getUint32(4, true);
     X = new Float32Array(N); Y = new Float32Array(N); Z = new Float32Array(N); ID = new Uint32Array(N); index = new Map(); grid = new Map();
     for (let i = 0, o = 8; i < N; i++, o += 20) {
@@ -118,7 +118,7 @@ function edgesOf(s, ctx, dst, cand) {
 const hopCost = (kind, ly, free, ctx) => ctx.prio.map(c => c === "launchers" ? (free ? 0 : LAUNCHERS[kind] || 0) : c === "hops" ? 1 : c === "foam" ? (free ? 0 : FOAM[kind] || 0) : c === "nonpublic" ? (kind === "Public Gate" || free ? 0 : 1) : c === "noncatapult" ? (/Catapult/.test(kind) || free === "road" || free === "built" ? 0 : 1) : ly);
 // everything a builder can reach from the seeds with catapults, public gates and free hops (the far end of a gate pair must be reachable)
 function component(seeds, ctx) {
-  const seen = new Set(seeds), q = [...seeds], cand = [];
+  const seen = new Set(seeds), q = [...seeds];
   for (let qi = 0; qi < q.length; qi++) { const s = q[qi];
     for (const e of ctx.own.get(s) || []) if (!seen.has(e.n)) { seen.add(e.n); q.push(e.n); }
     for (const e of ctx.built.get(s) || []) if (!seen.has(e.n)) { seen.add(e.n); q.push(e.n); }
@@ -164,6 +164,7 @@ const gapHop = (a, b) => ({ from: ID[a], to: ID[b], gap: true, ly: +dist(a, b).t
 function diagnose(end, dst, ctx) {
   const ly = dist(end, dst), d = { end: ID[end], endName: NAME ? NAME[end] : undefined, ly: +ly.toFixed(1), reason: "gap" };
   const catR = ctx.catR, gateR = ctx.gateR, best = Math.max(catR, gateR);
+  if (!best) return d;                                                     // public gates only: a gap, not a range
   if (ly > best) { d.reason = "range"; d.beyond = best; return d; }
   if (catR && ly <= catR) { d.reason = "blocked"; d.blockers = blockers(end, dst).map(i => ({ id: ID[i], name: NAME ? NAME[i] : undefined, ly: +dist(end, i).toFixed(1) })); if (!d.blockers.length) d.reason = "avoided"; return d; }
   if (gateR && ly <= gateR) { d.reason = "gatefar"; return d; }             // a gate pair could span it, but the far end cannot be reached to build its gate
@@ -188,7 +189,7 @@ function plan(m, progress) {
   if (m.mode === "corridor") {
     // 1. the permanent corridor: gate pairs only, range-only, fewest pairs then light-years
     const gctx = Object.assign({}, ctx, { catR: 0, gatesOn: false, own: new Map(), built: new Map(), reach: null, prio: ["launchers", "ly"] });
-    gctx.reach = null; const allReach = { has: () => true }; gctx.reach = allReach;
+    const allReach = { has: () => true }; gctx.reach = allReach;
     if (!gctx.gateR) return { error: "a corridor needs Mini Gate or Heavy Gate among the tools" };
     const cor = search([src], dst, gctx, prog); expanded += cor.expanded;
     const sites = [src, ...cor.hops.map(h => index.get(h.to))];

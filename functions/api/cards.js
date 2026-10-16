@@ -4,7 +4,7 @@
         never in the public files: the card art, fonts and renderer are public, the words of the doctrine cards are not.
    POST: replace it (Paladins, Knights, the tribe leader and the ids in DOCTRINE_ADMINS): the body is the file written
         by tools/export_card_payload.py ({generated, cards: {name: {...}}}), checked before it is stored. */
-import { session, json, canUpload } from "./_lib.js";
+import { session, json, canUpload, atLeastSaint } from "./_lib.js";
 
 const FIELDS = ["title", "role", "origin", "motto", "latin", "weapon", "purpose", "how", "why", "sigil"];
 const MAX_CARDS = 60, MAX_NAME = 60, MAX_TEXT = 2000;
@@ -27,6 +27,7 @@ function checkPayload(d) {
 export async function onRequestGet({ request, env }) {
   const { s, cookies } = await session(env, request);
   if (!s) return json({ ok: false }, 401, cookies);
+  if (!atLeastSaint(s)) return json({ ok: false, error: "Saint rank or above." }, 403, cookies);
   const data = env.DOCTRINE ? await env.DOCTRINE.get("cards") : null;
   if (!data) return json({ ok: false, error: "No card text is stored yet." }, 503, cookies);
   const h = new Headers({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, no-store" });
