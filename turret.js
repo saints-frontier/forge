@@ -14,7 +14,7 @@ const LISTS = [
   { k: "f", label: "Allied tribes", hint: "spared unless they attack the base", what: "tribe id" },
   { k: "e", label: "Enemy tribes", hint: "always shot", what: "tribe id" },
   { k: "p", label: "Ally pilots", hint: "never shot", what: "character id" },
-  { k: "x", label: "Enemy pilots", hint: "always shot, even a Saint", what: "character id" },
+  { k: "x", label: "Enemy pilots", hint: "always shot, even from your own tribe", what: "character id" },
 ];
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -203,10 +203,10 @@ document.addEventListener("click", async e => {
   const b = e.target.closest("button"); if (!b || b.disabled) return;
   if (b.id === "t-connect") {
     try { me = await connect(true); await findOwner(); }
-    catch (x) { render(); say(x && x.message ? x.message + " Use thesaintsforge.com/machines in your browser instead." : String(x), "bad"); }
+    catch (x) { render(); say(x && x.message ? x.message + " Or open thesaintsforge.com/turret in a browser with EVE Vault and pick your turret there." : String(x), "bad"); }
     diag(); return;
   }
-  if (b.id === "t-pick") { b.disabled = true; try { await pickList(); } catch (x) { say((x && x.message || String(x)) + " Use thesaintsforge.com/machines in your browser instead.", "bad"); } b.disabled = false; return; }
+  if (b.id === "t-pick") { b.disabled = true; try { await pickList(); } catch (x) { say((x && x.message || String(x)) + " Or open thesaintsforge.com/turret in a browser with EVE Vault and pick your turret there.", "bad"); } b.disabled = false; return; }
   if (b.dataset.pick) {
     const t = pickList.list[+b.dataset.pick]; if (!t) return;
     history.replaceState(null, "", "?id=" + t.id);

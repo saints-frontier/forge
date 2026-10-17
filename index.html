@@ -843,7 +843,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 <div class="band" aria-hidden="true"></div>
 <div class="wrap">
   <span class="corner tl" aria-hidden="true">✠</span><span class="corner tr" aria-hidden="true">✠</span><span class="corner bl" aria-hidden="true">✠</span><span class="corner br" aria-hidden="true">✠</span>
-  <nav class="sidenav" aria-label="Pages"><button type="button" class="gobtn" id="nav-about">✠ About us</button><button type="button" class="gobtn" id="nav-guide">✠ Beginner's guide</button><button type="button" class="gobtn on" id="nav-forge">✠ The Forge</button><button type="button" class="gobtn" id="nav-doctrine" title="The doctrine ships of The Saints: Saint rank and above">✠ The Doctrine</button><button type="button" class="gobtn" id="nav-lodge">✠ The Mason's Lodge</button><button type="button" class="gobtn" id="nav-quarry">✠ The Quarry</button><button type="button" class="gobtn" id="nav-roads">✠ The Pilgrim Roads</button><button type="button" class="gobtn" id="nav-machines" title="Our own turret code: tribe login">✠ Thinking Machines</button><a class="gobtn" id="nav-join" href="https://discord.gg/wcveHb9zgA" target="_blank" rel="noopener">✠ Join the tribe</a><a class="navout" id="nav-logout" href="/api/logout" hidden>✠ Log out</a></nav>
+  <nav class="sidenav" aria-label="Pages"><button type="button" class="gobtn" id="nav-about">✠ About us</button><button type="button" class="gobtn" id="nav-guide">✠ Beginner's guide</button><button type="button" class="gobtn on" id="nav-forge">✠ The Forge</button><button type="button" class="gobtn" id="nav-doctrine" title="The doctrine ships of The Saints: Saint rank and above">✠ The Doctrine</button><button type="button" class="gobtn" id="nav-lodge">✠ The Mason's Lodge</button><button type="button" class="gobtn" id="nav-quarry">✠ The Quarry</button><button type="button" class="gobtn" id="nav-roads">✠ The Pilgrim Roads</button><button type="button" class="gobtn" id="nav-machines" title="Our own turret code, free for any pilot">✠ Thinking Machines</button><a class="gobtn" id="nav-join" href="https://discord.gg/wcveHb9zgA" target="_blank" rel="noopener">✠ Join the tribe</a><a class="navout" id="nav-logout" href="/api/logout" hidden>✠ Log out</a></nav>
   <header class="top">
     <img class="crest" id="crest" alt="The Saints" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
     <div class="brand"><span class="house">THE SAINTS</span><span class="eyebrow">EVE Frontier · Ship Fitting Tool</span><h1>SAINTS FORGE</h1></div>
@@ -970,10 +970,9 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 <section id="tab-doctrine" class="doctrine-page" hidden><h2 class="gtitle">The Doctrine</h2><p class="gintro">The Saints' doctrine ships, one card each, drawn from the fits in the tribe store with their live numbers. Open one in the Forge to fly it, or to propose a change.</p><div class="d-who" id="d-who"></div><div class="d-lock" id="d-lock"><div class="d-seal">✠</div><h3>Saints only</h3><div id="d-lockbody"></div></div><div class="d-grid" id="d-grid" hidden></div><p class="lfoot" id="d-status"></p><div class="d-view" id="d-view" hidden role="dialog" aria-modal="true" aria-label="Doctrine card"><div class="d-view-in"><img id="d-view-img" alt=""><div class="d-view-bar"><button type="button" class="d-btn" id="d-view-prev">◀ Previous</button><button type="button" class="d-btn" id="d-view-forge">Open in the Forge</button><button type="button" class="d-btn" id="d-view-png">Save PNG</button><button type="button" class="d-btn" id="d-view-next">Next ▶</button><button type="button" class="d-btn" id="d-view-close">Close</button></div></div></div></section>
 <section id="tab-machines" class="machines-page" hidden>
   <h2 class="gtitle">Thinking Machines</h2>
-  <p class="gintro">The Saints' own code for our structures, written by us and run on the game's chain. No other tribe's app sits in between, so nothing about the tribe passes through anyone else's hands. Turrets first; storage and gates later.</p>
+  <p class="gintro">The Saints' own code for structures, written by us and run on the game's chain, free for any pilot. It keeps you and your own tribe safe and lets you set the turret to war, peace or hold. Turrets first; storage and gates later.</p>
   <div class="d-who" id="s-who"></div>
-  <div class="d-lock" id="s-lock"><div class="d-seal">✠</div><h3>Saints only</h3><div id="s-lockbody"></div></div>
-  <div id="s-body" hidden>
+  <div id="s-body">
     <div class="s-pane">
       <h3>Your turrets</h3>
       <p class="s-row"><button type="button" class="d-btn s-go" id="s-connect">Connect EVE Vault</button> <span id="s-wallet" class="s-dim"></span></p>
@@ -994,11 +993,11 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
         <tr><th>Allied tribes</th><td>Spared unless they attack the base.</td></tr>
         <tr><th>Enemy tribes</th><td>Always shot.</td></tr>
         <tr><th>Ally pilots</th><td>Never shot.</td></tr>
-        <tr><th>Enemy pilots</th><td>Always shot, even a Saint.</td></tr>
+        <tr><th>Enemy pilots</th><td>Always shot, even from your own tribe.</td></tr>
       </table>
       <ul class="s-notes">
         <li>To add a pilot: select their name in chat, right-click, <b>Copy selected with formatting</b>, and paste it into the panel's Add box. For a tribe, type its tribe id (The Saints are 98000655).</li>
-        <li>You and every Saint are never shot, unless you put one on Enemy pilots.</li>
+        <li>You and your own tribe are never shot, unless you put someone on Enemy pilots.</li>
         <li>NPCs are shot only while they attack the base or someone nearby: no ammo spent on passers-by.</li>
         <li>Attackers of the base are shot first, then listed enemies, then the most damaged.</li>
         <li>The turret only sees attacks on the base itself. To answer an attack on a Saint, add the attacker to Enemy pilots, or switch to War.</li>
@@ -1290,5 +1289,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=3f355545"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=df71176f"></script><script src="quarry-data.js?v=bdb296ac"></script><script src="quarry-app.js?v=6df2b6e1"></script><script src="doctrine.js?v=29fd59e4"></script><script src="tribe.js?v=9b47c294"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=442f1930"></script><script type="module" src="machines.js?v=739f4db2"></script>
+<script src="lodge-data.js?v=3f355545"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=df71176f"></script><script src="quarry-data.js?v=bdb296ac"></script><script src="quarry-app.js?v=6df2b6e1"></script><script src="doctrine.js?v=29fd59e4"></script><script src="tribe.js?v=9b47c294"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=442f1930"></script><script type="module" src="machines.js?v=c085ca6e"></script>
 </body></html>

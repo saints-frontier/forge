@@ -1,7 +1,7 @@
 /* Saints Forge, public site: THINKING MACHINES (/machines). The Saints' own turret code (frontier-onchain/saints_turret)
    installed on a member's turrets, behind the tribe login (user 2026-10-17). Reads the public Sui testnet; every change
-   is a transaction the member signs in EVE Vault; no key is ever held here. The page holds nothing private: the lock
-   only keeps the tool for the tribe. The package ids and the helper's address are filled in by tools/build_forge_public.py from
+   is a transaction the member signs in EVE Vault; no key is ever held here. The page holds nothing private and is open to
+   every pilot (2026-10-17). The package ids and the helper's address are filled in by tools/build_forge_public.py from
    frontier-onchain/deploy/packages.json. */
 import { connect, signAndExecute, simulate, characterOf, turretsOf, installTx, removeTx, runsSaints, parseSettings, suiBalance } from "./saints-chain.js?v=3b61e9ff";
 
@@ -14,20 +14,8 @@ const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&a
 const page = $("tab-machines");
 let me = null, char = null, turrets = [];
 
-function lock(kind, msg) {
-  $("s-body").hidden = true; $("s-lock").hidden = false; $("s-who").textContent = "";
-  $("s-lockbody").innerHTML = kind === "denied"
-    ? "<p>Your Discord account is not of rank Saint or above on The Saints' server. Ask in Discord.</p>"
-    : kind === "checking" ? "<p>Checking who you are…</p>"
-    : "<p>The Saints' own code for our turrets. Log in with Discord to use it.</p>" + (msg ? '<p class="d-msg">' + esc(msg) + "</p>" : "")
-      + '<a class="d-login" href="/api/login?next=machines">✠ Log in with Discord</a>';
-}
-function gate(td) {
-  if (td.state === "denied") return lock("denied");
-  if (td.state !== "in") return lock(td.state === "out" ? "out" : "checking", td.msg);
-  $("s-lock").hidden = true; $("s-body").hidden = false;
-  $("s-who").textContent = td.me ? "✠ " + td.me.name + " · " + td.me.rank : "";
-}
+// open to every pilot (user 2026-10-17: "Open /machines to everyone"); a logged-in Saint just sees their name
+function who(td) { $("s-who").textContent = td && td.state === "in" && td.me ? "✠ " + td.me.name + " · " + td.me.rank : ""; }
 
 function describe(s) {
   const n = (k, w) => s[k].length ? `${s[k].length} ${w}` : "";
@@ -82,7 +70,6 @@ page.addEventListener("click", async e => {
     setTimeout(() => load().catch(() => {}), 2500);
   } catch (x) { out.innerHTML = `<span class="s-bad">${esc(x.message)}</span>`; b.disabled = false; }
 });
-window.addEventListener("tribe:data", () => gate(window.__tribeData || {}));
-const onSite = /thesaintsforge\.com$/.test(location.hostname);
-gate(window.__tribeData || (onSite ? { state: "checking" } : { state: "out", msg: "Thinking Machines open on thesaintsforge.com." }));
+window.addEventListener("tribe:data", () => who(window.__tribeData));
+who(window.__tribeData);
 window.__machinesTest = async address => { me = { account: { address } }; await load(); return turrets.map(t => ({ name: t.name, code: codeOf(t), desc: t.description })); };   // read-only test hook
