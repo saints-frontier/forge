@@ -104,14 +104,59 @@ function empty(title, text) {
   $("t-empty").innerHTML = `<b>${esc(title)}</b>${text}`;
 }
 
-async function load() {
-  let id = q.get("id");
-  const item = q.get("itemId") || q.get("itemid") || q.get("item_id");
-  if (!id && item && /^\d{1,20}$/.test(item)) id = objectIdOf(item);
-  if (!id || !/^0x[0-9a-fA-F]{1,64}$/.test(id)) {
-    empty("No turret", "<p>Open this panel from a turret in the game: set the turret's Custom dApp link to <code>https://www.thesaintsforge.com/turret</code>, then press F on it. The full tool is on <a href=\"/machines\">thesaintsforge.com/machines</a>.</p>");
-    diag(); return;
+// Where the game might name the turret (2026-10-17: it opened the panel with no ?itemId): every query and hash
+// parameter, and messages the game window posts to the page. What came is shown on the "No turret" screen.
+const messages = [];
+function paramsAll() {
+  const out = [];
+  for (const src of [location.search.slice(1), location.hash.slice(1)]) for (const [k, v] of new URLSearchParams(src)) out.push([k.toLowerCase(), v]);
+  return out;
+}
+function findId() {
+  const ps = paramsAll();
+  const pick = names => { for (const [k, v] of ps) if (names.includes(k)) return v; return null; };
+  const raw = pick(["id", "objectid", "object_id", "assemblyid", "assembly_id", "smartobjectid", "smart_object_id"]);
+  const item = pick(["itemid", "item_id", "smartassemblyid", "smart_assembly_id", "assemblykey", "key"]);
+  if (raw && /^0x[0-9a-fA-F]{1,64}$/.test(raw)) return raw;
+  const digits = [raw, item].find(v => v && /^\d{1,20}$/.test(v));
+  return digits ? objectIdOf(digits) : null;
+}
+function seen() {
+  const w = suiWallets().map(x => x.name);
+  return "address: " + location.href.replace(location.origin, "") + "\nreferrer: " + (document.referrer || "none") + "\nwindow name: " + (window.name || "none")
+    + "\nmessages from the game: " + (messages.length ? messages.join(" | ") : "none") + "\nwallets: " + (w.length ? w.join(", ") : "none");
+}
+window.addEventListener("message", e => {
+  let d = e.data; try { d = typeof d === "string" ? d : JSON.stringify(d); } catch (x) { d = String(d); }
+  messages.push((e.origin || "?") + ": " + String(d).slice(0, 200));
+  if (!turret) {
+    const m = String(d).match(/"?(?:itemId|item_id|objectId|assemblyId)"?\s*[:=]\s*"?(0x[0-9a-fA-F]{1,64}|\d{1,20})/i);
+    if (m) { const v = m[1]; history.replaceState(null, "", "?" + (v.startsWith("0x") ? "id=" : "itemId=") + v); load(); return; }
+    const pre = document.getElementById("t-seen"); if (pre) pre.textContent = seen();
   }
+});
+
+/** No turret named: say what came, and let the owner pick one of their turrets with their wallet. */
+function noTurret() {
+  empty("No turret named", "<p>The game opened this panel without saying which turret it is. Connect your wallet and pick your turret:</p>"
+    + '<p><button type="button" class="btn go" id="t-pick">Connect wallet and pick</button></p><div id="t-picklist"></div>'
+    + '<div class="msg" id="t-msg"></div><pre class="seen" id="t-seen"></pre>');
+  $("t-seen").textContent = seen();
+}
+async function pickList() {
+  say("asking the wallet…");
+  me = await connect(true);
+  char = await characterOf(me.account.address);
+  if (!char || !char.id) { say("No EVE Frontier character belongs to this wallet.", "bad"); return; }
+  const list = await turretsOf(char.id);
+  say(list.length ? "" : "This character owns no turret.", list.length ? "" : "bad");
+  $("t-picklist").innerHTML = list.map((t, i) => `<button type="button" class="btn pick" data-pick="${i}">${esc(t.name || "Turret")} · ${t.online ? "online" : "offline"} · ${esc(parseSettings(t.description).mode)}</button>`).join("");
+  pickList.list = list;
+}
+
+async function load() {
+  const id = findId();
+  if (!id) { noTurret(); diag(); return; }
   const t = await turretById(id);
   if (!t) { empty("Not a turret", "<p>The game opened this panel for an object that is not a turret on the chain. The Saints code runs on turrets only (storage and gates later).</p>"); diag(); return; }
   turret = t;
@@ -160,6 +205,13 @@ document.addEventListener("click", async e => {
     try { me = await connect(true); await findOwner(); }
     catch (x) { render(); say(x && x.message ? x.message + " Use thesaintsforge.com/machines in your browser instead." : String(x), "bad"); }
     diag(); return;
+  }
+  if (b.id === "t-pick") { b.disabled = true; try { await pickList(); } catch (x) { say((x && x.message || String(x)) + " Use thesaintsforge.com/machines in your browser instead.", "bad"); } b.disabled = false; return; }
+  if (b.dataset.pick) {
+    const t = pickList.list[+b.dataset.pick]; if (!t) return;
+    history.replaceState(null, "", "?id=" + t.id);
+    turret = t; mine = t; saved = parseSettings(t.description); draft = null;
+    $("t-empty").hidden = true; $("t-main").hidden = false; render(); diag(); return;
   }
   if (b.id === "t-install") { send(() => installTx(PKG, char.id, mine), "Saints code installed."); return; }
   if (b.dataset.mode && mine && !busy) {

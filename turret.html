@@ -85,6 +85,13 @@ a { color: var(--gold); }
 details.diag { font: 11px/1.5 var(--mono); color: var(--dim); }
 details.diag summary { cursor: pointer; letter-spacing: 1px; }
 details.diag div { overflow-wrap: anywhere; margin-top: 4px; }
+.empty p { margin: 0 0 10px; }
+.empty code, .own code { overflow-wrap: anywhere; }
+pre.seen { margin: 10px 0 0; padding: 8px; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.45 var(--mono); color: var(--dim); background: #070608; border: 1px solid var(--line); }
+#t-picklist { display: grid; gap: 6px; margin: 0 0 8px; }
+.btn.pick { text-align: left; text-transform: none; letter-spacing: 0; font: 600 13px var(--body); color: var(--title); padding: 8px 10px; }
+@media (max-width: 360px) { .wrap { padding-inline: 10px; } .hd h1 { font-size: 18px; } .eyebrow { letter-spacing: 1.5px; font-size: 9.5px; } .seal { width: 38px; height: 38px; font-size: 21px; }
+  .mode { padding: 10px 4px 8px; } .mode svg { width: 26px; height: 26px; } .mode b { font-size: 12px; letter-spacing: 1.5px; } .mode.on::after { display: none; } .add input { width: 7.5em; } }
 @media (max-width: 460px) { .modes { gap: 6px; } .mode span { display: none; } .row { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -106,6 +113,6 @@ details.diag div { overflow-wrap: anywhere; margin-top: 4px; }
   </div>
   <details class="diag"><summary>details</summary><div id="t-diag"></div></details>
 </main>
-<script type="module" src="turret.js?v=1e3bad5c"></script>
+<script type="module" src="turret.js?v=80faec31"></script>
 </body>
 </html>
