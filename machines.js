@@ -82,8 +82,6 @@ page.addEventListener("click", async e => {
     setTimeout(() => load().catch(() => {}), 2500);
   } catch (x) { out.innerHTML = `<span class="s-bad">${esc(x.message)}</span>`; b.disabled = false; }
 });
-const tryIt = () => { $("s-tryout").innerHTML = describe(parseSettings($("s-try").value)); };
-$("s-try").addEventListener("input", tryIt); tryIt();
 window.addEventListener("tribe:data", () => gate(window.__tribeData || {}));
 const onSite = /thesaintsforge\.com$/.test(location.hostname);
 gate(window.__tribeData || (onSite ? { state: "checking" } : { state: "out", msg: "Thinking Machines open on thesaintsforge.com." }));
