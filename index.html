@@ -663,10 +663,16 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 /* the beginner's guide: section cards with code-drawn art, bigger text */
 .guide-on .topctl, .guide-on .tier { display: none; }           /* the guide page shows no fitting controls */
 .sidenav { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 10px; }
+.sidenav .navout { align-self: center; padding: 6px 12px; border: 1px solid var(--gold-soft); color: var(--silver); text-decoration: none; font: 600 11px var(--mono); letter-spacing: 2px; text-transform: uppercase; background: rgba(10,9,12,.7); }
+.sidenav .navout:hover, .sidenav .navout:focus-visible { color: var(--gold); border-color: var(--gold); }
+.sidenav .navout b { color: var(--gold); font-weight: 600; letter-spacing: 1px; text-transform: none; }
+.sidenav .navout[hidden] { display: none; }
+.sidenav .navout { flex: 0 0 100%; text-align: center; }   /* its own row while the menu wraps: it never squeezes a page button */
 .sidenav .gobtn { min-width: 340px; flex: 1 1 340px; white-space: nowrap; }
 @media (min-width: 1600px) {
   .sidenav { position: fixed; left: calc(var(--band-w) + 28px); top: 120px; flex-direction: column; width: 400px; margin: 0; z-index: 6; }
   .sidenav .gobtn { flex: none; min-width: 0; width: 100%; }
+  .sidenav .navout { flex: none; align-self: stretch; text-align: center; }
   .wrap { margin-left: calc(var(--band-w) + 460px); margin-right: 28px; max-width: none; }
 }
 @media (max-width: 560px) { .sidenav .gobtn { min-width: 0; flex-basis: 100%; font-size: 13px; letter-spacing: 2px; } }
@@ -805,7 +811,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 <div class="band" aria-hidden="true"></div>
 <div class="wrap">
   <span class="corner tl" aria-hidden="true">✠</span><span class="corner tr" aria-hidden="true">✠</span><span class="corner bl" aria-hidden="true">✠</span><span class="corner br" aria-hidden="true">✠</span>
-  <nav class="sidenav" aria-label="Pages"><button type="button" class="gobtn" id="nav-about">✠ About us</button><button type="button" class="gobtn" id="nav-guide">✠ Beginner's guide</button><button type="button" class="gobtn on" id="nav-forge">✠ The Forge</button><button type="button" class="gobtn" id="nav-doctrine" title="The doctrine ships of The Saints: Saint rank and above">✠ The Doctrine</button><button type="button" class="gobtn" id="nav-lodge">✠ The Mason's Lodge</button><button type="button" class="gobtn" id="nav-quarry">✠ The Quarry</button><button type="button" class="gobtn" id="nav-roads">✠ The Pilgrim Roads</button><a class="gobtn" id="nav-join" href="https://discord.gg/wcveHb9zgA" target="_blank" rel="noopener">✠ Join the tribe</a></nav>
+  <nav class="sidenav" aria-label="Pages"><button type="button" class="gobtn" id="nav-about">✠ About us</button><button type="button" class="gobtn" id="nav-guide">✠ Beginner's guide</button><button type="button" class="gobtn on" id="nav-forge">✠ The Forge</button><button type="button" class="gobtn" id="nav-doctrine" title="The doctrine ships of The Saints: Saint rank and above">✠ The Doctrine</button><button type="button" class="gobtn" id="nav-lodge">✠ The Mason's Lodge</button><button type="button" class="gobtn" id="nav-quarry">✠ The Quarry</button><button type="button" class="gobtn" id="nav-roads">✠ The Pilgrim Roads</button><a class="gobtn" id="nav-join" href="https://discord.gg/wcveHb9zgA" target="_blank" rel="noopener">✠ Join the tribe</a><a class="navout" id="nav-logout" href="/api/logout" hidden>✠ Log out</a></nav>
   <header class="top">
     <img class="crest" id="crest" alt="The Saints" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
     <div class="brand"><span class="house">THE SAINTS</span><span class="eyebrow">EVE Frontier · Ship Fitting Tool</span><h1>SAINTS FORGE</h1></div>
@@ -1212,5 +1218,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=3f355545"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=df71176f"></script><script src="quarry-data.js?v=bdb296ac"></script><script src="quarry-app.js?v=6df2b6e1"></script><script src="doctrine.js?v=29fd59e4"></script><script src="tribe.js?v=8b1b6fea"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=442f1930"></script>
+<script src="lodge-data.js?v=3f355545"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=df71176f"></script><script src="quarry-data.js?v=bdb296ac"></script><script src="quarry-app.js?v=6df2b6e1"></script><script src="doctrine.js?v=29fd59e4"></script><script src="tribe.js?v=b050673d"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=442f1930"></script>
 </body></html>

@@ -28,7 +28,15 @@
                 + '<button type="button" class="tribe-up" id="tribe-manage" title="Rename or remove doctrine fits">manage</button>'
                 + '<label class="tribe-up" title="Replace every doctrine fit with an exported doctrine-payload.json">upload file<input type="file" accept="application/json,.json" hidden></label>' : "")
       + '<button type="button" class="tribe-up" id="tribe-key" title="A key for the Quarry companion (python frontier.py quarry key): it sends your mining sessions to The Quarry as you">quarry key</button>'
-      + '<a class="tribe-out" href="/api/logout">log out</a>';
+      ;
+    // Log out under the page menu, on every page but About us; it comes back to the page it was pressed on
+    var out = document.getElementById("nav-logout");
+    if (out) {
+      out.innerHTML = "✠ Log out <b>" + esc(me.name) + "</b>";
+      var place = function () { out.hidden = document.body.classList.contains("about-on"); };
+      out.addEventListener("click", function () { var seg = nextPage(); out.href = "/api/logout" + seg; });
+      window.addEventListener("site:page", place); place();
+    }
     var who = box.querySelector(".tribe-who");
     // Quarry key: minted by /api/appkey for the logged-in member, pasted once into the companion on their PC
     box.querySelector("#tribe-key").addEventListener("click", function () {
