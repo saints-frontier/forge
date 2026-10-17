@@ -4,6 +4,8 @@
 import { Transaction } from "https://cdn.jsdelivr.net/npm/@mysten/sui@2.33.2/transactions/+esm";
 import { SuiGraphQLClient } from "https://cdn.jsdelivr.net/npm/@mysten/sui@2.33.2/graphql/+esm";
 import { getWallets } from "https://cdn.jsdelivr.net/npm/@mysten/wallet-standard@0.21.31/+esm";
+import { deriveObjectID } from "https://cdn.jsdelivr.net/npm/@mysten/sui@2.33.2/utils/+esm";
+import { bcs } from "https://cdn.jsdelivr.net/npm/@mysten/sui@2.33.2/bcs/+esm";
 
 export { Transaction };
 export const GQL = "https://graphql.testnet.sui.io/graphql";
@@ -13,6 +15,9 @@ export const WORLD = "0x7be18d6294e533bedd9a5d70a96ce8d9d4b87a7c74188ba65d3fe966
 export const TURRET_T = `${WORLD}::turret::Turret`;
 export const OWNERCAP_TURRET_T = `${WORLD}::access::OwnerCap<${TURRET_T}>`;
 export const PROFILE_T = `${WORLD}::character::PlayerProfile`;
+// the registry every in-game object id is derived from (object_registry::ObjectRegistry, shared; read 2026-10-17)
+export const OBJECT_REGISTRY = "0x8fd47e6e5cf8cb9b789cef26fbb674be819d8abd6afccaf50e95451212f0813a";
+export const TENANT = "stillness";
 
 export const client = new SuiGraphQLClient({ url: GQL, network: "testnet" });
 
@@ -61,12 +66,29 @@ export async function turretsOf(characterId) {
   const d = await gql(`query($k: [ObjectKey!]!) { multiGetObjects(keys: $k) { address asMoveObject { contents { json } } } }`, { k: ids.map(address => ({ address })) });
   return d.multiGetObjects.map((o, i) => {
     if (!o || !o.asMoveObject) return null;                    // the key outlived its turret (taken down): skip it
-    const j = o.asMoveObject.contents.json || {};
-    const ext = j.extension ? (typeof j.extension === "string" ? j.extension : j.extension.name || JSON.stringify(j.extension)) : null;
-    const meta = j.metadata || {};
-    return { id: ids[i], ownerCap: caps[i].address, typeId: j.type_id, name: meta.name || "", description: meta.description || "",
-      online: /online/i.test(JSON.stringify(j.status || "")), extension: ext };
+    return { ...turretFields(ids[i], o.asMoveObject.contents.json || {}), ownerCap: caps[i].address };
   }).filter(Boolean);
+}
+
+function turretFields(id, j) {
+  const ext = j.extension ? (typeof j.extension === "string" ? j.extension : j.extension.name || JSON.stringify(j.extension)) : null;
+  const meta = j.metadata || {};
+  return { id, typeId: j.type_id, itemId: j.key && j.key.item_id, name: meta.name || "", description: meta.description || "", url: meta.url || "",
+    online: /online/i.test(JSON.stringify(j.status || "")), extension: ext, ownerCapId: j.owner_cap_id || null };
+}
+
+/** The chain id of an in-game object (its item id under the tenant), derived like the world package does. */
+export function objectIdOf(itemId) {
+  const key = bcs.struct("TenantItemId", { item_id: bcs.u64(), tenant: bcs.string() }).serialize({ item_id: String(itemId), tenant: TENANT }).toBytes();
+  return deriveObjectID(OBJECT_REGISTRY, `${WORLD}::in_game_id::TenantItemId`, key);
+}
+
+/** One turret by its chain id, or null when it is not a turret (or gone). */
+export async function turretById(id) {
+  const d = await gql(`query($a: SuiAddress!) { object(address: $a) { asMoveObject { contents { type { repr } json } } } }`, { a: id });
+  const c = d.object && d.object.asMoveObject && d.object.asMoveObject.contents;
+  if (!c || !/::turret::Turret$/.test(c.type.repr)) return null;
+  return turretFields(id, c.json || {});
 }
 
 // ---- the settings line (a copy of the Move parser in saints_turret::turret, for the preview) ---------------------
@@ -89,9 +111,14 @@ export function vault() {
   const all = getWallets().get();
   return all.find(w => /eve\s*vault/i.test(w.name)) || null;
 }
-export async function connect() {
-  let w = vault();
-  if (!w) { await new Promise(r => setTimeout(r, 800)); w = vault(); }       // extensions register a moment after load
+/** Every wallet this browser offers that can sign Sui transactions (the game's own browser may name it differently). */
+export function suiWallets() {
+  return getWallets().get().filter(w => w.features && w.features["sui:signAndExecuteTransaction"]);
+}
+export async function connect(any = false) {
+  const pick = () => vault() || (any ? suiWallets()[0] || null : null);
+  let w = pick();
+  if (!w) { await new Promise(r => setTimeout(r, 800)); w = pick(); }       // extensions register a moment after load
   if (!w) throw new Error("EVE Vault was not found in this browser. Install it, sign in, then reload this page.");
   const res = await w.features["standard:connect"].connect();
   const account = (res.accounts || w.accounts)[0];
@@ -127,6 +154,12 @@ function withTurretCap(tx, characterId, ownerCapId, body) {
 export function installTx(pkg, characterId, turret) {
   const tx = new Transaction();
   withTurretCap(tx, characterId, turret.ownerCap, cap => tx.moveCall({ target: `${WORLD}::turret::authorize_extension`, typeArguments: [`${pkg}::turret::SaintsTurretAuth`], arguments: [tx.object(turret.id), cap] }));
+  return tx;
+}
+/** Rewrite the turret's description (the owner's key, borrowed from the character for this one transaction). */
+export function describeTx(characterId, turret, text) {
+  const tx = new Transaction();
+  withTurretCap(tx, characterId, turret.ownerCap, cap => tx.moveCall({ target: `${WORLD}::turret::update_metadata_description`, arguments: [tx.object(turret.id), cap, tx.pure.string(text)] }));
   return tx;
 }
 export function removeTx(characterId, turret) {

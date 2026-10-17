@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Saints turret · Thinking Machines</title>
+<link rel="icon" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800;900&family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+/* The in-game panel of a Saints turret (the turret's Custom dApp link opens it beside the game's own settings).
+   One deliberate dark look, sized for the ~600 px Behaviour panel. */
+:root { --ink: #07070a; --panel: #110f12; --panel2: #18141a; --line: #2c2630; --fg: #ebe7df; --title: #f4ecd6; --silver: #b8bcc6;
+  --dim: #8a8590; --gold: #d9b24c; --gold2: #f0d27a; --goldsoft: rgba(217,178,76,.35); --red: #e3222c; --crimson: #7d0f15;
+  --good: #6fc27c; --warn: #e0a83a; --bad: #ff8a8f;
+  --display: Cinzel, Georgia, serif; --mono: "IBM Plex Mono", Consolas, monospace; --body: "IBM Plex Sans", "Segoe UI", Arial, sans-serif; color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--ink); color: var(--fg); font: 15px/1.5 var(--body); }
+body { background: radial-gradient(120% 60% at 50% 0%, rgba(125,15,21,.35), transparent 60%), var(--ink); min-height: 100vh; }
+.wrap { max-width: 640px; margin: 0 auto; padding-inline: 16px; padding-block: 14px 22px; display: grid; gap: 14px; }
+.band { height: 6px; background: repeating-linear-gradient(90deg, var(--crimson) 0 18px, var(--red) 18px 20px); border-bottom: 1px solid var(--gold); }
+
+.hd { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: center; }
+.seal { grid-row: span 2; width: 46px; height: 46px; display: grid; place-items: center; border: 1.5px solid var(--gold); border-radius: 50%;
+  color: var(--red); font: 900 26px/1 var(--display); background: radial-gradient(circle, #1d1216, #0b090b); box-shadow: 0 0 14px rgba(227,34,44,.25), inset 0 0 0 3px #0b090b, inset 0 0 0 4px var(--goldsoft); }
+.eyebrow { font: 700 10.5px var(--mono); letter-spacing: 3px; color: var(--gold); text-transform: uppercase; }
+.hd h1 { margin: 0; font: 900 22px/1.15 var(--display); color: var(--title); letter-spacing: 1px; text-wrap: balance; min-width: 0; overflow-wrap: anywhere; }
+.chips { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: 600 11px var(--mono); letter-spacing: 1.5px; text-transform: uppercase; padding: 3px 8px; border: 1px solid var(--line); color: var(--silver); background: #0c0a0d; }
+.chip.ok { color: var(--good); border-color: rgba(111,194,124,.45); }
+.chip.warn { color: var(--warn); border-color: rgba(224,168,58,.45); }
+.chip.off { color: var(--bad); border-color: rgba(255,138,143,.4); }
+
+.modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.mode { position: relative; display: grid; justify-items: center; gap: 6px; padding: 14px 8px 12px; min-width: 0;
+  border: 1px solid #3a3238; background: linear-gradient(180deg, #17131a, #0d0b0e); color: var(--silver); cursor: pointer; font: inherit; text-align: center;
+  clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%, 0 10px); transition: border-color .15s, background .15s; }
+.mode svg { width: 34px; height: 34px; }
+.mode b { font: 800 15px var(--display); letter-spacing: 3px; text-transform: uppercase; color: var(--title); }
+.mode span { font: 12.5px/1.35 var(--body); color: var(--dim); }
+.mode:hover:not(:disabled) { border-color: var(--gold); }
+.mode:disabled { cursor: default; }
+.mode.on { border-color: var(--gold); background: linear-gradient(180deg, #4a0c12, #1a0a0d 70%); box-shadow: inset 0 0 0 1px var(--goldsoft), 0 0 22px rgba(227,34,44,.25); color: var(--gold2); }
+.mode.on b { color: var(--gold2); }
+.mode.on span { color: var(--fg); }
+.mode.on::after { content: "ACTIVE"; position: absolute; top: 6px; right: 10px; font: 700 9px var(--mono); letter-spacing: 2px; color: var(--gold); }
+.mode.busy { opacity: .6; cursor: wait; }
+#t-main { display: grid; gap: 12px; }
+#t-main[hidden] { display: none; }
+.always { margin: -4px 0 2px; font: 12.5px/1.5 var(--body); color: var(--dim); text-align: center; }
+
+.pane { border: 1px solid var(--line); border-top: 3px solid var(--red); background: var(--panel); padding: 10px 12px 12px; min-width: 0; }
+.pane h2 { margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(217,178,76,.25); font: 700 11px var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--gold); display: flex; justify-content: space-between; gap: 8px; }
+.pane h2 i { font-style: normal; color: var(--dim); letter-spacing: 1px; }
+.row { display: grid; grid-template-columns: 9.5em 1fr; gap: 6px 10px; align-items: start; padding: 7px 0; border-bottom: 1px solid #221d24; }
+.row:last-child { border-bottom: 0; }
+.row .lab { font: 600 13px var(--body); color: var(--title); }
+.row .lab small { display: block; font: 11px var(--mono); color: var(--dim); }
+.ids { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.id { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px; border: 1px solid #3a3238; background: #0c0a0d; font: 600 12.5px var(--mono); color: var(--fg); }
+.id.new { border-color: var(--gold); color: var(--gold2); }
+.id button { border: 0; background: none; color: var(--dim); font: 700 14px/1 var(--mono); cursor: pointer; padding: 0 4px; }
+.id button:hover { color: var(--red); }
+.none { font: 12.5px var(--body); color: var(--dim); }
+.add { display: inline-flex; gap: 4px; }
+.add input { width: 9.5em; padding: 3px 6px; background: #070608; border: 1px solid #4a4048; color: var(--title); font: 12.5px var(--mono); }
+.add button, .btn { padding: 4px 10px; border: 1px solid var(--goldsoft); background: #17131a; color: var(--gold); font: 700 11.5px var(--mono); letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
+.add button:hover, .btn:hover:not(:disabled) { border-color: var(--gold); }
+.btn.go { background: var(--crimson); color: #fff; border-color: var(--gold); }
+.btn:disabled { opacity: .5; cursor: default; }
+
+.save { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--gold); background: #1a1410; }
+.save[hidden] { display: none; }
+.save .meter { font: 600 12px var(--mono); color: var(--silver); margin-right: auto; }
+.save .meter.over { color: var(--bad); }
+
+.own { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); background: var(--panel2); font: 13.5px/1.5 var(--body); color: var(--silver); }
+.own .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.msg { font: 12.5px/1.45 var(--mono); min-height: 1.2em; }
+.msg.ok { color: var(--good); } .msg.bad { color: var(--bad); } .msg.warn { color: var(--warn); }
+.empty { padding: 18px 14px; text-align: center; border: 1px solid var(--line); background: var(--panel); color: var(--silver); }
+.empty b { display: block; font: 800 17px var(--display); letter-spacing: 2px; color: var(--title); margin-bottom: 6px; text-transform: uppercase; }
+a { color: var(--gold); }
+details.diag { font: 11px/1.5 var(--mono); color: var(--dim); }
+details.diag summary { cursor: pointer; letter-spacing: 1px; }
+details.diag div { overflow-wrap: anywhere; margin-top: 4px; }
+@media (max-width: 460px) { .modes { gap: 6px; } .mode span { display: none; } .row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="band"></div>
+<main class="wrap">
+  <header class="hd"><div class="seal">✠</div><div class="eyebrow">The Saints · Thinking Machines</div><h1 id="t-name">Saints turret</h1><div class="chips" id="t-chips"></div></header>
+  <div class="empty" id="t-empty" hidden></div>
+  <div id="t-main" hidden>
+    <div class="modes" id="t-modes" role="group" aria-label="Turret mode">
+      <button type="button" class="mode" data-mode="war"><svg viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 8 L28 28 M32 8 L12 28"/><path d="M26 32 L32 26 M8 26 L14 32"/><path d="M28 28 L33 33 M12 28 L7 33"/></g></svg><b>War</b><span>Shoots every outsider in range.</span></button>
+      <button type="button" class="mode" data-mode="peace"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 4 L33 9 V19 C33 27 27 33 20 36 C13 33 7 27 7 19 V9 Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M20 12 V28 M13 19 H27" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><b>Peace</b><span>Only whoever attacks the base, and listed enemies.</span></button>
+      <button type="button" class="mode" data-mode="hold"><svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="14" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M11 11 L29 29" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><b>Hold</b><span>Holds fire. Shoots no one.</span></button>
+    </div>
+    <p class="always">Saints are never shot. NPCs only while they attack.</p>
+    <section class="pane"><h2>Lists <i id="t-count"></i></h2><div id="t-lists"></div></section>
+    <div class="save" id="t-save" hidden><span class="meter" id="t-meter"></span><button type="button" class="btn" id="t-undo">Undo</button><button type="button" class="btn go" id="t-commit">Save to the turret</button></div>
+    <div class="own" id="t-own"></div>
+  </div>
+  <details class="diag"><summary>details</summary><div id="t-diag"></div></details>
+</main>
+<script type="module" src="turret.js?v=fe0045a0"></script>
+</body>
+</html>
