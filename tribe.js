@@ -10,7 +10,7 @@
   // what the login knows, for the other pages (the Doctrine page draws the cards from it): window.__tribeData + an event
   function share(o) { var d = window.__tribeData = window.__tribeData || {}; for (var k in o) d[k] = o[k]; window.dispatchEvent(new Event("tribe:data")); }
   // the login comes back to the page it started from
-  function nextPage() { var seg = (location.pathname.split("/").filter(Boolean).pop() || "").toLowerCase(); return /^(forge|doctrine|lodge|quarry|roads|guide|aboutus)$/.test(seg) ? "?next=" + seg : ""; }
+  function nextPage() { var seg = (location.pathname.split("/").filter(Boolean).pop() || "").toLowerCase(); return /^(forge|doctrine|lodge|quarry|roads|machines|guide|aboutus)$/.test(seg) ? "?next=" + seg : ""; }
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function loggedOut(msg) {
     box.innerHTML = (msg ? '<span class="tribe-msg">' + esc(msg) + "</span>" : "") + '<a class="tribe-btn" href="/api/login' + nextPage() + '">✠ Tribe fits · log in with Discord</a>';
