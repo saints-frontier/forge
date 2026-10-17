@@ -337,6 +337,9 @@
   if ($("q-rifts")) { $("q-rifts").innerHTML = R ? [go("Rifts", "what rifts give")].concat(RIFT_NAMES.map(n => go(n))).concat(R.kinds.map(k => go(k.crude, k.crude.replace("Crude - ", "")))).join("") : ""; if ($("q-riftrow")) $("q-riftrow").hidden = !R; }
   $("q-foot").textContent = "data of " + D.generated;
   const CR = D.contributors || [];
+  /* a sender's name as the roll shows it (user 2026-10-17: "my name pops up twice"): a Discord rank tag in front
+     ("[SAINT] Name") is dropped, and a name the roll already has, in any capitals, is that pilot */
+  const pilot = n => { n = typeof n === "string" ? n.replace(/^\s*\[[^\]]*\]\s*/, "").trim() : ""; const c = CR.find(x => x.name.toLowerCase() === n.toLowerCase()); return c ? c.name : n; };
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const day = d => { const p = String(d).split("-"); return p.length === 3 ? `${+p[2]} ${MON[+p[1] - 1]} ${p[0]}` : esc(d); };
   function drawRoll() {
@@ -359,7 +362,7 @@
   const splitRock = name => { const p = String(name).split(" "); return p.length > 1 && PREF.includes(p[0]) ? [p[0], p.slice(1).join(" ")] : ["", name]; };
   // a rift or salvage run from the store joins its crude kind / salvage material (and its named rift / source)
   function mergeOther(r, tot) {
-    const date = String(r.date || "").slice(0, 10), by = typeof r.by === "string" ? r.by : "", minutes = +r.minutes || 0;
+    const date = String(r.date || "").slice(0, 10), by = pilot(r.by), minutes = +r.minutes || 0;
     for (const [mat, q] of Object.entries(r.ores)) {
       if (r.kind === "rift" && R) {
         let k = riftKind(mat);
@@ -390,7 +393,7 @@
       if (r.kind === "rift" || r.kind === "salvage") { if (mergeOther(r, tot)) used++; continue; }
       used++;
       (byRock[r.rock] = byRock[r.rock] || []).push({ share: Object.fromEntries(Object.entries(r.ores).filter(([o]) => ORESET.has(o)).map(([o, q]) => [o, q / tot])),
-        rate: r.minutes >= 1 && (r.cuts == null || r.cuts >= 5) ? tot / r.minutes : null, units: tot, by: typeof r.by === "string" ? r.by : "", date: String(r.date || "").slice(0, 10) });
+        rate: r.minutes >= 1 && (r.cuts == null || r.cuts >= 5) ? tot / r.minutes : null, units: tot, by: pilot(r.by), date: String(r.date || "").slice(0, 10) });
     }
     for (const [rock, rs] of Object.entries(byRock)) {
       let a = D.rocks.find(x => x.rock === rock);
