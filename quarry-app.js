@@ -383,11 +383,12 @@
     if (by) { let c = CR.find(x => x.name === by); if (!c) { c = { name: by, samples: [] }; CR.push(c); } let s = c.samples.find(x => x.rock === r.rock); if (!s) { s = { rock: r.rock, date, units: 0, n: 0 }; c.samples.push(s); } s.units += tot; s.n++; if (date > s.date) s.date = date; }
     return true;
   }
+  const KNOWN = new Set(D.known || []);     /* companion samples already in the baked numbers: never counted twice */
   function mergeRuns(runs) {
     const byRock = {};
     let used = 0;
     for (const r of runs || []) {
-      if (!r || typeof r.rock !== "string" || !r.ores || typeof r.ores !== "object") continue;
+      if (!r || typeof r.rock !== "string" || !r.ores || typeof r.ores !== "object" || KNOWN.has(r.id)) continue;
       const tot = Object.values(r.ores).reduce((a, b) => a + (+b || 0), 0);
       if (!(tot > 0)) continue;
       if (r.kind === "rift" || r.kind === "salvage") { if (mergeOther(r, tot)) used++; continue; }
