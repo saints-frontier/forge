@@ -119,6 +119,14 @@ async function readAll(env) {
 const cacheKey = request => new Request(new URL(request.url).origin + CACHE_PATH, { method: "GET" });
 
 export async function onRequestGet({ request, env, waitUntil }) {
+  if (new URL(request.url).searchParams.get("mine")) {                 // a member's own samples: pending or on the Quarry
+    const { s, key, cookies } = await who(env, request);
+    if (!s) return json({ ok: false, error: key ? "This Quarry key is not valid any more: fetch a new one on the site." : "Not logged in (a Quarry key or the tribe login)." }, 401, cookies);
+    if (!env.DOCTRINE) return json({ ok: false, error: "No store is bound." }, 503, cookies);
+    const mine = await readUser(env, String(s.u));
+    const runs = Object.values(mine.runs).map(r => ({ id: r.id, kind: r.kind || "rock", rock: r.rock, status: r.status, at: r.at }));
+    return json({ ok: true, runs }, 200, cookies);
+  }
   if (new URL(request.url).searchParams.get("review")) {               // a keeper's review list: never cached
     const { s, cookies } = await session(env, request);
     if (!s) return json({ ok: false, error: "Log in with Discord first." }, 401, cookies);

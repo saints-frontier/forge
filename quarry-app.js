@@ -115,9 +115,13 @@
     return open ? `<h3>Used in</h3>` + byKind(rs).map(recipeLine).join("")
       : `<details class="fold"><summary>Used in ${rs.length} recipe${rs.length === 1 ? "" : "s"}</summary>${byKind(rs).map(recipeLine).join("")}</details>`;
   };
+  // units a cut (2026-10-17): one rock's figure, or the range over the rocks that have a cut count
+  const cutN = v => v < 10 ? (Math.round(v * 10) / 10).toString() : n0(v);
+  const perCut = pc => (pc[0] === pc[1] ? cutN(pc[0]) : cutN(pc[0]) + " to " + cutN(pc[1])) + " a cut";
   // the line under a rock's name: how many rocks, how fast; the long words sit in the (i)
   function measuredMeta(a) {
     const bits = ["cut from " + (a.n === 1 ? "1 rock" : a.n + " rocks"), "~" + n0(a.per_min || 0) + "/min"];
+    if (a.per_cut) bits.push(perCut(a.per_cut));
     if (a.by && a.by.length) bits.push("by " + a.by.map(esc).join(", "));
     const more = `${a.n === 1 ? "What we cut from one rock" : "The average of what we cut from " + a.n + " rocks, every rock counted once"}: ${n0(a.units)} units. A rock is seldom mined out, so this is the part that was cut, not the whole rock. Units a minute depend on the ship's lasers and lens.`;
     return `<div class="meta">${bits.join(" \u00b7 ")} ${info(esc(more))}</div>`;
@@ -394,7 +398,8 @@
       if (r.kind === "rift" || r.kind === "salvage") { if (mergeOther(r, tot)) used++; continue; }
       used++;
       (byRock[r.rock] = byRock[r.rock] || []).push({ share: Object.fromEntries(Object.entries(r.ores).filter(([o]) => ORESET.has(o)).map(([o, q]) => [o, q / tot])),
-        rate: r.minutes >= 1 && (r.cuts == null || r.cuts >= 5) ? tot / r.minutes : null, units: tot, by: pilot(r.by), date: String(r.date || "").slice(0, 10) });
+        rate: r.minutes >= 1 && (r.cuts == null || r.cuts >= 5) ? tot / r.minutes : null, units: tot, by: pilot(r.by), date: String(r.date || "").slice(0, 10),
+        pc: r.cuts > 0 ? tot / r.cuts : null });
     }
     for (const [rock, rs] of Object.entries(byRock)) {
       let a = D.rocks.find(x => x.rock === rock);
@@ -412,6 +417,8 @@
       const rates = rs.filter(r => r.rate).map(r => r.rate), had = a.per_min ? (a.rated || a.n) : 0;
       if (had + rates.length) { a.per_min = Math.round(((a.per_min || 0) * had + rates.reduce((s, x) => s + x, 0)) / (had + rates.length)); a.rated = had + rates.length; }
       a.units += rs.reduce((s, r) => s + r.units, 0);
+      const pcs = rs.filter(r => r.pc).map(r => r.pc).concat(a.per_cut || []);
+      if (pcs.length) { a.per_cut = [Math.min(...pcs), Math.max(...pcs)]; a.per_cut_n = (a.per_cut_n || 0) + rs.filter(r => r.pc).length; }
       a.n = n;
       for (const r of rs) if (r.by && !a.by.includes(r.by)) a.by.push(r.by);
       // the Roll of Honour
