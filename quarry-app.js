@@ -421,7 +421,8 @@
       }
     }
     for (const c of CR) c.samples.sort((x, y) => y.units - x.units);
-    CR.sort((x, y) => x.name.localeCompare(y.name));
+    const tot = c => c.samples.reduce((a, x) => a + (+x.units || 0), 0);   /* a leaderboard: most units first */
+    CR.sort((x, y) => tot(y) - tot(x) || x.name.localeCompare(y.name));
     drawRoll();
     if ($("q-rocks")) $("q-rocks").innerHTML = FAMS.map(f => go(f)).join("");
     if (cur) render();
@@ -430,7 +431,7 @@
   }
   // ---------- the review list: samples sent from the Quarry companion wait here until a keeper approves them ----------
   // Shown to Paladins, Knights and the site keepers who are logged in (tribe.js shares the login: window.__tribeData).
-  const SALV = new Set(["Debris", "Cargo Debris", "Salvaged Materials", "Cinderwrack"]);
+  const SALV = new Set(["Debris", "Salvaged Materials", "Cinderwrack"]);
   let reviewRuns = [], reviewBusy = false;
   const maxRate = () => Math.max(0, ...D.rocks.map(a => a.per_min || 0));
   function checksOf(r) {

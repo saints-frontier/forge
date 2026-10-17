@@ -30,7 +30,7 @@
     const payload = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     try {
       if (solver && solver.terminate) solver.terminate();
-      solver = new Worker("solver.js?v=1b341ca7");
+      solver = new Worker("solver.js?v=52969717");
       solver.onmessage = e => onSolver(e.data);
       solver.onerror = () => {                           // a dead Worker: free whatever waited on it, then carry on in the page
         solver = null; const waiting = pendingResolve, was = running; pendingResolve = null; running = null;
@@ -44,7 +44,7 @@
   }
   function fallbackSolver(payload) {
     if (!window.ForgeSolver || !window.ForgeSolver.post) {
-      const s = document.createElement("script"); s.src = "solver.js?v=1b341ca7"; s.onload = () => fallbackSolver(payload); document.head.appendChild(s); return;
+      const s = document.createElement("script"); s.src = "solver.js?v=52969717"; s.onload = () => fallbackSolver(payload); document.head.appendChild(s); return;
     }
     window.ForgeSolver.onmessage = onSolver;
     solver = { postMessage: m => setTimeout(() => window.ForgeSolver.post(m), 0), terminate() {} };
@@ -321,12 +321,20 @@
     placements.forEach((p, i) => {
       const [label, s, rot, cells] = p; const [sx, sy] = L.slots[s]; const m = MOD[label] || { color: "#888" };
       const set = new Set(cells.map(c => c.join(",")));
-      svg += `<g class="mod${i === opts.selected ? " sel" : ""}" data-i="${i}">`;
+      svg += `<g class="mod${i === opts.selected ? " sel" : ""}${p[4] === 1 ? " locked" : p[4] === 2 ? " kept" : ""}" data-i="${i}">`;
       cells.forEach(([x, y]) => { svg += `<rect x="${padX + sx + x * cell}" y="${padT + sy + y * cell}" width="${cell}" height="${cell}" fill="${m.color}"/>`; });
       cells.forEach(([x, y]) => { const X = padX + sx + x * cell, Y = padT + sy + y * cell;     // outline + bevel like the cards
         [[x, y - 1, X, Y, X + cell, Y, "#fff", 0.35], [x, y + 1, X, Y + cell, X + cell, Y + cell, "#000", 0.45], [x - 1, y, X, Y, X, Y + cell, "#fff", 0.25], [x + 1, y, X + cell, Y, X + cell, Y + cell, "#000", 0.35]].forEach(([nx, ny, a, b, c2, d, colr, op]) => {
           if (set.has(nx + "," + ny)) return;
           svg += `<line x1="${a}" y1="${b}" x2="${c2}" y2="${d}" stroke="${th.ink}" stroke-width="2.4"/><line x1="${a}" y1="${b}" x2="${c2}" y2="${d}" stroke="${colr}" stroke-opacity="${op}" stroke-width="1"/>`; }); });
+      if (p[4] === 2) { const [lx, ly] = cells.reduce((a, c) => (c[1] < a[1] || (c[1] === a[1] && c[0] < a[0])) ? c : a), X = padX + sx + lx * cell, Y = padT + sy + ly * cell, u = cell / 11;
+        /* kept in its section: four silver corner brackets (it may move, but not out of these walls) */
+        svg += `<g class="keepmark" pointer-events="none"><rect x="${X + 1.5 * u}" y="${Y + 1.5 * u}" width="${7 * u}" height="${7 * u}" rx="${1.2 * u}" fill="${th.ink}" fill-opacity="0.85"/>`
+          + `<path d="M${X + 3 * u},${Y + 4.4 * u} v${-1.4 * u} h${1.4 * u} M${X + 5.6 * u},${Y + 3 * u} h${1.4 * u} v${1.4 * u} M${X + 7 * u},${Y + 5.6 * u} v${1.4 * u} h${-1.4 * u} M${X + 4.4 * u},${Y + 7 * u} h${-1.4 * u} v${-1.4 * u}" fill="none" stroke="#c9ced8" stroke-width="${0.8 * u}"/></g>`; }
+      if (p[4] === 1) { const [lx, ly] = cells.reduce((a, c) => (c[1] < a[1] || (c[1] === a[1] && c[0] < a[0])) ? c : a), X = padX + sx + lx * cell, Y = padT + sy + ly * cell, u = cell / 11;
+        svg += `<g class="lockmark" pointer-events="none"><rect x="${X + 1.5 * u}" y="${Y + 1.5 * u}" width="${7 * u}" height="${7 * u}" rx="${1.2 * u}" fill="${th.ink}" fill-opacity="0.85"/>`
+          + `<path d="M${X + 3.6 * u},${Y + 5 * u} v${-1.2 * u} a${1.4 * u},${1.4 * u} 0 0 1 ${2.8 * u},0 v${1.2 * u}" fill="none" stroke="#d9b24c" stroke-width="${0.8 * u}"/>`
+          + `<rect x="${X + 3 * u}" y="${Y + 5 * u}" width="${4 * u}" height="${2.8 * u}" rx="${0.5 * u}" fill="#d9b24c"/></g>`; }
       if (opts.numbers !== false) { const [nx, ny] = numberSpot(cells), fs = +(cell * 0.82).toFixed(1);   // as large as two digits fit in one cell (Rajdhani 700: two digits = 1.19 em)
         nums.push(`<text class="modnum" data-i="${i}" style="font-size:${fs}px" x="${(padX + sx + nx * cell).toFixed(1)}" y="${(padT + sy + ny * cell + fs * 0.34).toFixed(1)}">${i + 1}</text>`); }
       svg += `</g>`;
@@ -474,7 +482,7 @@
     const minx = Math.min(...p[3].map(c => c[0])), miny = Math.min(...p[3].map(c => c[1]));
     const cells = p[3].map(c => [c[0] - minx + x, c[1] - miny + y]);
     if (s === p[1] && cells.every((c, k) => c[0] === p[3][k][0] && c[1] === p[3][k][1])) { render(); return; }
-    if (canPlace(s, cells, i)) { state.placements[i] = [p[0], s, p[2], cells]; markDirty(); render(); setStatus(`${p[0]} moved to the ${D.hulls[state.hull].sections[s].name} section.`, "ok"); }
+    if (canPlace(s, cells, i)) { state.placements[i] = [p[0], s, p[2], cells].concat(p[4] ? [p[4]] : []); markDirty(); render(); setStatus(`${p[0]} moved to the ${D.hulls[state.hull].sections[s].name} section.`, "ok"); }
     else { render(); setStatus(`${p[0]} does not fit there.`, "bad"); }
   }
   // Turn the selected module to `rot` degrees, keeping its centre where it was; nudges up to 3 cells, nearest spot first.
@@ -487,7 +495,7 @@
     offs.sort((a, b) => (a[0] * a[0] + a[1] * a[1]) - (b[0] * b[0] + b[1] * b[1]));
     for (const [dx, dy] of offs) {
       const cells = shape.map(c => [c[0] + bx + dx, c[1] + by + dy]);
-      if (canPlace(p[1], cells, i)) { state.placements[i] = [p[0], p[1], rot, cells]; markDirty(); render(); return true; }
+      if (canPlace(p[1], cells, i)) { state.placements[i] = [p[0], p[1], rot, cells].concat(p[4] ? [p[4]] : []); markDirty(); render(); return true; }
     }
     return false;
   }
@@ -516,7 +524,25 @@
     if (i < 0 || !state.placements[i]) { state.selected = -1; box.hidden = true; return; }
     const p = state.placements[i]; const m = MOD[p[0]]; box.hidden = false;
     $("sel-name").textContent = `#${i + 1} ${p[0]}`;
-    $("sel-detail").textContent = `${m.size} cells · ${D.hulls[state.hull].sections[p[1]].name} · rotation ${p[2]}°` + (m.draw_mw ? ` · ${m.draw_mw} MW` : "") + (m.drain ? ` · ${m.drain} GJ/s active` : "");
+    $("sel-detail").textContent = `${m.size} cells · ${D.hulls[state.hull].sections[p[1]].name} · rotation ${p[2]}°` + (m.draw_mw ? ` · ${m.draw_mw} MW` : "") + (m.drain ? ` · ${m.drain} GJ/s active` : "") + (p[4] === 1 ? " · locked in place" : p[4] === 2 ? " · kept in its section" : "");
+    $("btn-lock").textContent = p[4] === 1 ? "Unlock" : "Lock in place"; $("btn-lock").classList.toggle("on", p[4] === 1);
+    $("btn-keepsec").textContent = p[4] === 2 ? "Free to move" : "Keep in section"; $("btn-keepsec").classList.toggle("on", p[4] === 2);
+  }
+  // Lock in place (user 2026-10-16): the forge, + and the polish keep a locked module exactly where it is (flag 1,
+  // solver.js splitFixed). Keep in section (user 2026-10-17: "stay in the section but ... move around for the optimal
+  // layout"): flag 2, the forge may move and turn it but only inside its section. By hand the pilot can still move,
+  // turn or remove either; a module moved by hand keeps its flag (kept = in the section it now sits in).
+  // L toggles the lock, K the section on the selected module; one replaces the other.
+  function lockSelected(mode) {
+    const i = state.selected, p = state.placements[i]; if (!p || busy()) return;
+    const want = mode === 2 ? 2 : 1;
+    if (p[4] === want) p.length = 4; else p[4] = want;
+    markDirty(); render(); renderSelection();
+    const sec = D.hulls[state.hull].sections[p[1]].name;
+    const nl = state.placements.filter(x => x[4] === 1).length, nk = state.placements.filter(x => x[4] === 2).length;
+    setStatus(p[4] === 1 ? `${p[0]} is locked here: the forge packs everything else around it (${nl} locked).`
+      : p[4] === 2 ? `${p[0]} stays in the ${sec} section: the forge may move and turn it there (${nk} kept in their section).`
+      : `${p[0]} is free again: the forge may move it anywhere.`, "ok");
   }
 
   function renderPalette() {
@@ -752,7 +778,7 @@
     const init = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
     const consider = m => { if (m.value > P.best) { P.best = m.value; P.bestPl = m.placements; P.lastGain = Date.now(); P.gains++; state.placements = m.placements; render(); } };
     const spawn = i => {
-      let w; try { w = new Worker("solver.js?v=1b341ca7"); } catch (e) { return null; }
+      let w; try { w = new Worker("solver.js?v=52969717"); } catch (e) { return null; }
       const launch = () => { P.wBest[i] = P.best; P.wLast[i] = Date.now(); P.restarting[i] = false;
         w.postMessage({ type: "optimize", placements: P.bestPl, fillers, values, keepMin, keepSum, seconds: FORGE_MAX, seed: (Date.now() + i * 7919 + P.restarts * 104729) & 0xffff || i + 1, maxSections: 3 }); };
       w.onmessage = e => {
@@ -792,7 +818,7 @@
     if (P.polishing || P.finished) return; P.polishing = true;
     clearInterval(P.timer); P.workers.forEach(w => w.terminate());
     if (P.reason === "stopped") { forgeFinish(P); return; }
-    let w; try { w = new Worker("solver.js?v=1b341ca7"); } catch (e) { forgeFinish(P); return; }
+    let w; try { w = new Worker("solver.js?v=52969717"); } catch (e) { forgeFinish(P); return; }
     $("fb-fill").classList.add("busy"); $("fb-text").textContent = `Polishing · ${hold(P.bestPl)} m³…`;
     const t0 = Date.now(); P.polishWorker = w;
     w.onmessage = e => { const m = e.data;
@@ -1243,8 +1269,10 @@
     $("btn-cw").addEventListener("click", () => turnSelected("cw"));
     $("btn-180").addEventListener("click", () => turnSelected("half"));
     $("btn-remove").addEventListener("click", removeSelected);
+    $("btn-lock").addEventListener("click", () => lockSelected(1));
+    $("btn-keepsec").addEventListener("click", () => lockSelected(2));
     const keysOff = e => e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT" || !!document.querySelector(".modal:not([hidden])") || !$("grid").offsetParent;   // offsetParent: the Forge is not the page on screen
-    document.addEventListener("keydown", e => { if (keysOff(e) || e.ctrlKey || e.metaKey || e.altKey) return; if (e.key === "r") turnSelected("cw"); if (e.key === "R" || e.key === "e" || e.key === "E") turnSelected("ccw"); if (e.key === "f" || e.key === "F") turnSelected("half"); if (e.key === "Delete" || e.key === "Backspace") removeSelected(); });
+    document.addEventListener("keydown", e => { if (keysOff(e) || e.ctrlKey || e.metaKey || e.altKey) return; if (e.key === "r") turnSelected("cw"); if (e.key === "R" || e.key === "e" || e.key === "E") turnSelected("ccw"); if (e.key === "f" || e.key === "F") turnSelected("half"); if (e.key === "Delete" || e.key === "Backspace") removeSelected(); if (e.key === "l" || e.key === "L") lockSelected(1); if (e.key === "k" || e.key === "K") lockSelected(2); });
     document.addEventListener("keydown", e => {
       if (!(e.ctrlKey || e.metaKey) || keysOff(e)) return;
       const k = e.key.toLowerCase();

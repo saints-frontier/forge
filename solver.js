@@ -101,6 +101,10 @@ function waste(s, p, free) {
    Returns {value, placed:[[label,s,rot,cells]]} or null. */
 function pack(free0, mandatory, fillers, values, budget, rnd) {
   const n = HULL.n;
+  // a mandatory entry is a label, or [label, section] for a module kept in its section: placed there only, flagged 2
+  const homeOf = new Map(); let homed = 0;
+  mandatory = mandatory.map(m => { if (typeof m === "string") return m; const k = "\u0000" + (homed++); homeOf.set(k, m); return k; });
+  const labelOf = k => homeOf.has(k) ? homeOf.get(k)[0] : k;
   const active = [];
   for (let s = 0; s < n; s++) if (anyFree(free0[s])) active.push(s);
   const steps = { n: 0 }; let limit = budget;
@@ -155,20 +159,22 @@ function pack(free0, mandatory, fillers, values, budget, rnd) {
     fillExact(free, placed, value, bnd - cb[low]);
     fs[low >>> 5] = (fs[low >>> 5] | ((1 << (low & 31)) >>> 0)) >>> 0;
   }
-  const bigFirst = mandatory.slice().sort((a, b) => SHAPES[b][0][1].length - SHAPES[a][0][1].length);
+  const size = k => SHAPES[labelOf(k)][0][1].length;
+  const bigFirst = mandatory.slice().sort((a, b) => size(b) - size(a));
   let restart = 0;
   while (steps.n <= budget && !STOP) {
     restart++;
     // big first with noise. One random key per module, then a plain sort: a comparator that draws its own random numbers
     // is not repeatable in V8 (the same seed gave different orders), so seeds never reproduced a run before 2026-10-09.
-    const order = restart === 1 ? bigFirst : mandatory.map(l => [l, SHAPES[l][0][1].length + (rnd() - 0.5) * 10]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+    const order = restart === 1 ? bigFirst : mandatory.map(l => [l, size(l) + (rnd() - 0.5) * 10]).sort((a, b) => b[1] - a[1]).map(x => x[0]);
     const free = free0.map(f => Uint32Array.from(f));
     const placed = [];
     let ok = true;
-    for (const l of order) {
+    for (const k of order) {
+      const l = labelOf(k), home = homeOf.has(k) ? homeOf.get(k)[1] : -1;
       let bestOpt = null, bestW = Infinity;
       for (const s of active) {
-        if (!anyFree(free[s])) continue;
+        if (!anyFree(free[s]) || (home >= 0 && s !== home)) continue;
         for (const p of placementsOf(s, l).list) {
           if (!fits(p.mask, free[s])) continue;
           const w = waste(s, p, free[s]) + (restart === 1 ? 0 : rnd() * 2.5);
@@ -176,7 +182,7 @@ function pack(free0, mandatory, fillers, values, budget, rnd) {
         }
       }
       if (!bestOpt) { ok = false; break; }
-      take(free[bestOpt.s], bestOpt.mask); placed.push([l, bestOpt.s, bestOpt.rot, bestOpt.cells]);
+      take(free[bestOpt.s], bestOpt.mask); placed.push(home >= 0 ? [l, bestOpt.s, bestOpt.rot, bestOpt.cells, 2] : [l, bestOpt.s, bestOpt.rot, bestOpt.cells]);
     }
     steps.n += 50;
     if (!ok) { if (restart > 60 && !best.placed) return null; continue; }
@@ -238,7 +244,7 @@ function sumNeeds(keep, gone, keepSum, fillSet, rnd, mandatory) {
     const names = Object.keys(g.per).filter(n => SHAPES[n] && g.per[n] > 0); if (!names.length) continue;
     let out = 0, inGone = 0, fixed = 0;                  // outside the ruined sections; inside them now; inside and re-placed anyway (not a filler)
     for (const p of keep) out += g.per[p[0]] || 0;
-    for (const p of gone) { const a = g.per[p[0]] || 0; inGone += a; if (!fillSet.has(p[0])) fixed += a; }
+    for (const p of gone) { const a = g.per[p[0]] || 0; inGone += a; if (!fillSet.has(p[0]) || p[4] === 2) fixed += a; }
     let want = g.min - out;
     if (out + inGone < g.min) { const small = Math.min(...names.map(n => g.per[n])), gap = g.min - out - inGone; want = Math.min(want, inGone + small * (1 + Math.floor(rnd() * Math.ceil(gap / small)))); }
     let need = want - fixed; if (need <= 0) continue;
@@ -250,12 +256,31 @@ function sumNeeds(keep, gone, keepSum, fillSet, rnd, mandatory) {
     }
   }
 }
+// locked modules (5th element 1): they stay exactly where they are. The packer never sees their cells (base masks with
+// them taken), they count for the minimums and the score, and they come back unchanged. Modules kept in their section
+// (5th element 2) stay in the search: whenever their section is re-packed they go back into it, anywhere and any turn.
+function splitFixed(placements) {
+  const fix = [], cur = [];
+  for (const p of placements) { if (p[4] === 1) fix.push(p); else cur.push(p[4] === 2 ? [p[0], p[1], p[2], p[3], 2] : [p[0], p[1], p[2], p[3]]); }
+  return { fix, cur, base: occupancy(fix) };
+}
+// what a ruined section must get back: every module that is not a filler, and every module kept in its section (with
+// its home); `outside` then counts the kept fillers as present, so a minimum does not ask for them twice
+function reMandatory(gone, fillSet, outside) {
+  const out = [];
+  for (const p of gone) {
+    if (p[4] === 2) { out.push([p[0], p[1]]); if (fillSet.has(p[0])) outside[p[0]] = (outside[p[0]] || 0) + 1; }
+    else if (!fillSet.has(p[0])) out.push(p[0]);
+  }
+  return out;
+}
 function optimize(msg) {
   const { placements, fillers, values, keepMin, keepSum, seconds, seed, maxSections } = msg;
   const rnd = rng(seed || 1);
   const fillSet = new Set(fillers);
-  let cur = placements.map(p => [p[0], p[1], p[2], p[3]]);
-  let curValue = scoreOf(cur, fillers, values, keepMin, keepSum);
+  const { fix: FIX, cur: cur0, base: BASE } = splitFixed(placements);
+  let cur = cur0;
+  let curValue = scoreOf(cur.concat(FIX), fillers, values, keepMin, keepSum);
   const t0 = Date.now(); let it = 0, gains = 0, lastPost = 0;
   const trace = [[0, curValue]];                     // [ms, value] at every strict gain: how fast the search converges
   const n = HULL.n;
@@ -266,37 +291,38 @@ function optimize(msg) {
     const k = n === 1 || rnd() < 0.3 ? 1 : 2 + Math.floor(rnd() * (Math.min(maxSections || 3, n) - 1));   // 2 .. maxSections (audit 2026-10-09: the old formula gave 4)
     const chosen = new Set(); while (chosen.size < Math.min(k, n)) chosen.add(Math.floor(rnd() * n));
     const keep = cur.filter(p => !chosen.has(p[1])), gone = cur.filter(p => chosen.has(p[1]));
-    const mandatory = gone.filter(p => !fillSet.has(p[0])).map(p => p[0]);
-    const outside = {}; for (const p of keep) outside[p[0]] = (outside[p[0]] || 0) + 1;
+    const outside = {}; for (const p of keep.concat(FIX)) outside[p[0]] = (outside[p[0]] || 0) + 1;
+    const mandatory = reMandatory(gone, fillSet, outside);
     for (const f in keepMin) for (let i = 0; i < Math.max(0, keepMin[f] - (outside[f] || 0)); i++) mandatory.push(f);
-    sumNeeds(keep, gone, keepSum, fillSet, rnd, mandatory);
-    const free = HULL.full.map((f, s) => chosen.has(s) ? Uint32Array.from(f) : new Uint32Array(HULL.words));
+    sumNeeds(keep.concat(FIX), gone, keepSum, fillSet, rnd, mandatory);
+    const free = HULL.full.map((f, s) => chosen.has(s) ? Uint32Array.from(BASE[s]) : new Uint32Array(HULL.words));
     const res = pack(free, mandatory, fillers, values, k === 1 ? 60000 : 120000, rnd);
     if (!res) continue;
     const cand = keep.concat(res.placed);
-    const counts = {}; for (const p of cand) counts[p[0]] = (counts[p[0]] || 0) + 1;
+    const counts = {}; for (const p of cand.concat(FIX)) counts[p[0]] = (counts[p[0]] || 0) + 1;
     let okMin = true; for (const f in keepMin) if ((counts[f] || 0) < keepMin[f]) okMin = false;
     if (!okMin) continue;
-    const v = scoreOf(cand, fillers, values, null, keepSum);
+    const v = scoreOf(cand.concat(FIX), fillers, values, null, keepSum);
     if (v >= curValue) {
       const gain = v > curValue;
       if (gain) { gains++; trace.push([Date.now() - t0, v]); }
       cur = cand; curValue = v;
-      if (gain || Date.now() - lastPost > 400) { lastPost = Date.now(); emit({ type: "progress", placements: cur, value: curValue, iterations: it, gains }); }
+      if (gain || Date.now() - lastPost > 400) { lastPost = Date.now(); emit({ type: "progress", placements: cur.concat(FIX), value: curValue, iterations: it, gains }); }
     }
   }
-  emit({ type: "done", placements: cur, value: curValue, iterations: it, gains, seconds: (Date.now() - t0) / 1000, trace });
+  emit({ type: "done", placements: cur.concat(FIX), value: curValue, iterations: it, gains, seconds: (Date.now() - t0) / 1000, trace });
 }
 
 /* Try to add modules: first a direct spot for each; if none, ruin-and-recreate with the new modules mandatory. */
 function tryAdd(msg) {
   const { placements, add, seconds, seed } = msg;
   const rnd = rng(seed || 1);
-  let cur = placements.map(p => [p[0], p[1], p[2], p[3]]);
+  const { fix: FIX, cur: cur0, base: BASE } = splitFixed(placements);
+  let cur = cur0;
   const left = add.slice();
   // pass 1: direct placement, tightest spot
   for (const l of left.slice()) {
-    const free = occupancy(cur);
+    const free = occupancy(cur.concat(FIX));
     let bestOpt = null, bestW = Infinity;
     for (let s = 0; s < HULL.n; s++) for (const p of placementsOf(s, l).list) {
       if (!fits(p.mask, free[s])) continue;
@@ -305,12 +331,12 @@ function tryAdd(msg) {
     }
     if (bestOpt) { cur.push([l, bestOpt.s, bestOpt.rot, bestOpt.cells]); left.splice(left.indexOf(l), 1); }
   }
-  if (!left.length) { emit({ type: "done", placements: cur, added: add.length, missing: [] }); return; }
+  if (!left.length) { emit({ type: "done", placements: cur.concat(FIX), added: add.length, missing: [] }); return; }
   // pass 2: ruin-and-recreate with the missing modules as mandatory in the ruined sections. The sections' own
   // fillers (containers, capacitors) are re-placed by the exact fill, and the result counts only if none is lost.
   const FILL = ["Cargo Container", "Emergency Container", "Capacitor"].filter(f => SHAPES[f]);
   const vals = { "Cargo Container": 36, "Emergency Container": 25, "Capacitor": 12 };
-  const before = {}; for (const p of cur) before[p[0]] = (before[p[0]] || 0) + 1;
+  const before = {}; for (const p of cur.concat(FIX)) before[p[0]] = (before[p[0]] || 0) + 1;
   const t0 = Date.now(); const n = HULL.n; let it = 0;
   while (Date.now() - t0 < seconds * 1000 && left.length && !STOP) {
     it++;
@@ -318,20 +344,20 @@ function tryAdd(msg) {
     const chosen = new Set(); while (chosen.size < k) chosen.add(Math.floor(rnd() * n));
     const keep = cur.filter(p => !chosen.has(p[1])), gone = cur.filter(p => chosen.has(p[1]));
     const fillers = FILL.filter(f => !left.includes(f));
-    const mandatory = gone.filter(p => !fillers.includes(p[0])).map(p => p[0]).concat(left);
-    const free = HULL.full.map((f, s) => chosen.has(s) ? Uint32Array.from(f) : new Uint32Array(HULL.words));
+    const mandatory = reMandatory(gone, new Set(fillers), {}).concat(left);
+    const free = HULL.full.map((f, s) => chosen.has(s) ? Uint32Array.from(BASE[s]) : new Uint32Array(HULL.words));
     const res = pack(free, mandatory, fillers, vals, 60000, rnd);
     if (!res) continue;
-    const counts = {}; for (const p of keep.concat(res.placed)) counts[p[0]] = (counts[p[0]] || 0) + 1;
+    const counts = {}; for (const p of keep.concat(res.placed, FIX)) counts[p[0]] = (counts[p[0]] || 0) + 1;
     let lost = false; for (const f of fillers) if ((counts[f] || 0) < (before[f] || 0)) lost = true;
     if (lost) continue;
     // the exact fill packs every free cell; adding one module must not add containers or capacitors the pilot did not ask for
     const extra = {}; for (const f of fillers) extra[f] = (counts[f] || 0) - (before[f] || 0);
-    const placed = res.placed.filter(p => !(extra[p[0]] > 0 && extra[p[0]]-- > 0));
+    const placed = res.placed.filter(p => p[4] === 2 || !(extra[p[0]] > 0 && extra[p[0]]-- > 0));
     const cand = keep.concat(placed);
     cur = cand; left.length = 0; break;
   }
-  emit({ type: "done", placements: cur, added: add.length - left.length, missing: left, iterations: it });
+  emit({ type: "done", placements: cur.concat(FIX), added: add.length - left.length, missing: left, iterations: it });
 }
 
 /* Finishing polish: each section on its own, re-packed from scratch with a big budget and several seeds (the
@@ -341,8 +367,9 @@ function polish(msg) {
   const { placements, fillers, values, keepMin, keepSum, seconds, seed, tries } = msg;
   const rnd = rng(seed || 3);
   const fillSet = new Set(fillers);
-  let cur = placements.map(p => [p[0], p[1], p[2], p[3]]);
-  let curValue = scoreOf(cur, fillers, values, keepMin, keepSum);
+  const { fix: FIX, cur: cur0, base: BASE } = splitFixed(placements);
+  let cur = cur0;
+  let curValue = scoreOf(cur.concat(FIX), fillers, values, keepMin, keepSum);
   const t0 = Date.now(); let gains = 0, it = 0;
   const n = HULL.n;
   outer: for (let round = 0; round < 2; round++) {
@@ -351,23 +378,23 @@ function polish(msg) {
         if (Date.now() - t0 > seconds * 1000 || STOP) break outer;
         it++;
         const keep = cur.filter(p => p[1] !== s), gone = cur.filter(p => p[1] === s);
-        const mandatory = gone.filter(p => !fillSet.has(p[0])).map(p => p[0]);
-        const outside = {}; for (const p of keep) outside[p[0]] = (outside[p[0]] || 0) + 1;
+        const outside = {}; for (const p of keep.concat(FIX)) outside[p[0]] = (outside[p[0]] || 0) + 1;
+        const mandatory = reMandatory(gone, fillSet, outside);
         for (const f in keepMin) for (let i = 0; i < Math.max(0, keepMin[f] - (outside[f] || 0)); i++) mandatory.push(f);
-        sumNeeds(keep, gone, keepSum, fillSet, rnd, mandatory);
-        const free = HULL.full.map((f, k) => k === s ? Uint32Array.from(f) : new Uint32Array(HULL.words));
+        sumNeeds(keep.concat(FIX), gone, keepSum, fillSet, rnd, mandatory);
+        const free = HULL.full.map((f, k) => k === s ? Uint32Array.from(BASE[k]) : new Uint32Array(HULL.words));
         const res = pack(free, mandatory, fillers, values, 400000, rnd);
         if (!res) continue;
         const cand = keep.concat(res.placed);
-        const counts = {}; for (const p of cand) counts[p[0]] = (counts[p[0]] || 0) + 1;
+        const counts = {}; for (const p of cand.concat(FIX)) counts[p[0]] = (counts[p[0]] || 0) + 1;
         let okMin = true; for (const f in keepMin) if ((counts[f] || 0) < keepMin[f]) okMin = false;
         if (!okMin) continue;
-        const v = scoreOf(cand, fillers, values, null, keepSum);
-        if (v > curValue) { gains++; cur = cand; curValue = v; emit({ type: "progress", placements: cur, value: curValue, iterations: it, gains }); }
+        const v = scoreOf(cand.concat(FIX), fillers, values, null, keepSum);
+        if (v > curValue) { gains++; cur = cand; curValue = v; emit({ type: "progress", placements: cur.concat(FIX), value: curValue, iterations: it, gains }); }
       }
     }
   }
-  emit({ type: "done", placements: cur, value: curValue, iterations: it, gains, seconds: (Date.now() - t0) / 1000 });
+  emit({ type: "done", placements: cur.concat(FIX), value: curValue, iterations: it, gains, seconds: (Date.now() - t0) / 1000 });
 }
 
 function handle(m) {

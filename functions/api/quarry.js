@@ -28,7 +28,7 @@ export const PREFIXES = ["Hollow", "Shocked", "Prime", "Deep"];
 // rifts give crude, wrecks and ruins give salvage (user 2026-10-16: "add salvageable debris to the app and website"); their
 // sources are named by the pilot (any one to three words: every sample is reviewed by a keeper before it shows)
 const CRUDE = ["Crude - Old/Rough", "Crude - Young/Rough", "Crude - Young/Fine", "Crude - Old/Fine"];
-const SALVAGE = ["Debris", "Cargo Debris", "Salvaged Materials", "Cinderwrack"];
+const SALVAGE = ["Debris", "Salvaged Materials", "Cinderwrack"]   // no Cargo Debris: nothing uses it since 0.7.1.0;
 const KINDS = { rock: ORES, rift: CRUDE, salvage: SALVAGE };
 const TS = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$/;
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
