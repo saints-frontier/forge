@@ -151,9 +151,21 @@ function withTurretCap(tx, characterId, ownerCapId, body) {
   body(cap);
   tx.moveCall({ target: `${WORLD}::character::return_owner_cap`, typeArguments: [TURRET_T], arguments: [tx.object(characterId), cap, receipt] });
 }
+/** The description an install writes: "[SAINTS peace]" in front when it has no settings line yet (user 2026-10-17:
+ *  "default to peace mode when installing"); null = leave it as it is (it has a line, or the line would not fit the
+ *  game's 100 characters). */
+export function peaceOnInstall(desc) {
+  const d = String(desc || "").trim();
+  if (d.toLowerCase().includes("[saints")) return null;
+  const text = d ? "[SAINTS peace] " + d : "[SAINTS peace]";
+  return text.length <= 100 ? text : null;
+}
 export function installTx(pkg, characterId, turret) {
-  const tx = new Transaction();
-  withTurretCap(tx, characterId, turret.ownerCap, cap => tx.moveCall({ target: `${WORLD}::turret::authorize_extension`, typeArguments: [`${pkg}::turret::SaintsTurretAuth`], arguments: [tx.object(turret.id), cap] }));
+  const tx = new Transaction(), text = peaceOnInstall(turret.description);
+  withTurretCap(tx, characterId, turret.ownerCap, cap => {
+    tx.moveCall({ target: `${WORLD}::turret::authorize_extension`, typeArguments: [`${pkg}::turret::SaintsTurretAuth`], arguments: [tx.object(turret.id), cap] });
+    if (text !== null) tx.moveCall({ target: `${WORLD}::turret::update_metadata_description`, arguments: [tx.object(turret.id), cap, tx.pure.string(text)] });
+  });
   return tx;
 }
 /** Rewrite the turret's description (the owner's key, borrowed from the character for this one transaction). */

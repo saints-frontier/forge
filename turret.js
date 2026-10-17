@@ -4,7 +4,7 @@
    turret's description in one transaction the owner signs in their wallet; the wallet proves ownership, so the panel
    needs no tribe login. No key is ever held here. The package ids and the helper's address are filled in by
    tools/build_forge_public.py from frontier-onchain/deploy/packages.json (user 2026-10-17: "build it"). */
-import { connect, suiWallets, signAndExecute, simulate, characterOf, turretsOf, turretById, objectIdOf, installTx, describeTx, runsSaints, parseSettings } from "./saints-chain.js?v=bde582e9";
+import { connect, suiWallets, signAndExecute, simulate, characterOf, turretsOf, turretById, objectIdOf, installTx, describeTx, runsSaints, parseSettings } from "./saints-chain.js?v=3b61e9ff";
 
 const PKG = "0x2c8c37e9dc3658d899f75dde149f798901e17a37fb07c5a01709dc450f970950";
 const OLDER = [];
@@ -85,7 +85,7 @@ function renderOwn(code) {
   } else if (!mine) {
     body = `<div>Your wallet${char && char.name ? " (" + esc(char.name) + ")" : ""} does not own this turret: only its owner can change it.</div>`;
   } else if (code !== "saints") {
-    body = `<div>${code === "default" ? "This turret still uses the game's default targeting." : code === "older" ? "This turret runs an older version of the Saints code." : "This turret runs someone else's code."} Install the Saints code so the mode and lists take effect.</div>`
+    body = `<div>${code === "default" ? "This turret still uses the game's default targeting." : code === "older" ? "This turret runs an older version of the Saints code." : "This turret runs someone else's code."} Install the Saints code so the mode and lists take effect. It starts in peace.</div>`
       + `<div class="acts"><button type="button" class="btn go" id="t-install">${code === "older" ? "Update the Saints code" : "Install the Saints code"}</button></div>`;
   } else {
     body = `<div>Press a mode to switch it, or edit a list and save. Your wallet asks you to sign each change.</div>`;

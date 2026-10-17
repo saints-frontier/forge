@@ -3,7 +3,7 @@
    is a transaction the member signs in EVE Vault; no key is ever held here. The page holds nothing private: the lock
    only keeps the tool for the tribe. The package ids and the helper's address are filled in by tools/build_forge_public.py from
    frontier-onchain/deploy/packages.json. */
-import { connect, signAndExecute, simulate, characterOf, turretsOf, installTx, removeTx, runsSaints, parseSettings, suiBalance } from "./saints-chain.js?v=bde582e9";
+import { connect, signAndExecute, simulate, characterOf, turretsOf, installTx, removeTx, runsSaints, parseSettings, suiBalance } from "./saints-chain.js?v=3b61e9ff";
 
 // opened by the game with a turret id (the Custom dApp link set to /machines): that is the turret panel
 if (/[?&]itemId=/i.test(location.search)) location.replace("/turret" + location.search);
