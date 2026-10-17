@@ -283,13 +283,13 @@
         : e && e.status === "conflict" ? `Not confirmed: players disagree on its name (most reported: ${esc(e.name)}).`
         : e ? `Not confirmed: one player has reported the name ${esc(e.name)}. A second matching report on EF-Map charts it.`
         : `Nobody has reported a name for it yet${old ? ` (its Cycle 6 name was ${esc(old)})` : ""}.`;
-      el.hidden = false; el.innerHTML = `<div class="roads-dh">${ok ? esc(e.name) : "Uncharted"}</div><div class="roads-hint">${what}${where}</div>` + (showGates ? `<div class="roads-dcols"><div>${gateList(picked)}</div></div>` : ""); return; }
+      el.hidden = false; el.innerHTML = `<div class="roads-dh">${ok ? esc(e.name) : "Uncharted"} <button type="button" class="roads-quiet" data-checkfrom="${picked}" title="every catapult or gate jump from this star">Check jumps from here</button></div><div class="roads-hint">${what}${where}</div>` + (showGates ? `<div class="roads-dcols"><div>${gateList(picked)}</div></div>` : ""); return; }
     if (!selected || !M.systems.has(selected)) { el.hidden = true; el.innerHTML = ""; return; }
     el.hidden = false;
     const s = M.systems.get(selected), out = M.roads.filter(r => r.from === selected || (r.twoWay && r.to === selected)), inn = M.roads.filter(r => r.to === selected && !r.twoWay);
     const row = (r, other) => `<li><b>${esc(other)}</b> · ${esc(r.kind)}${r.twoWay ? " · both ways" : ""}${r.online === false ? ' · <span class="bad">offline</span>' : ""}${r.ly != null ? ` · ${r.ly.toFixed(0)} LY` : ""}${r.tooFar ? ` · <span class="bad">beyond its ${RANGE[r.kind]} LY reach: check the name</span>` : ""}${r.name ? ` · <i>${esc(r.name)}</i>` : ""}${r.inferred ? ` · <span class="roads-hint">worked out: ${esc(r.why)}</span>` : ""}</li>`;
     const kSel = M.ids.get(selected);
-    el.innerHTML = `<div class="roads-dh">${esc(selected)}${kSel && kSel.ef ? ` <span class="roads-hint">· its place on the star map comes from EF-Map (${esc(kSel.ef)})</span>` : ""}</div>` +
+    el.innerHTML = `<div class="roads-dh">${esc(selected)}${kSel ? ` <button type="button" class="roads-quiet" data-checkfrom="${kSel.id}" title="every catapult or gate jump from this system">Check jumps from here</button>` : ""}${kSel && kSel.ef ? ` <span class="roads-hint">· its place on the star map comes from EF-Map (${esc(kSel.ef)})</span>` : ""}</div>` +
       `<div class="roads-dcols"><div><h4>Roads out</h4><ul>${out.map(r => row(r, r.from === selected ? r.to : r.from)).join("") || "<li>None: a dead end.</li>"}</ul></div>` +
       `<div><h4>Roads in</h4><ul>${inn.map(r => row(r, r.from)).join("") || "<li>None.</li>"}</ul></div>` +
       `<div><h4>Our nodes here</h4><ul>${s.nodes.map(n => `<li><b>${esc(n.name || short(n.id))}</b>${M.nodeGuess(n.id) ? " · worked out" : ""} · ${n.fuel.quantity.toLocaleString("en-US")} ${esc(fuelName(n))}${M.daysOf(n) == null ? " · " + noDays(n, "not burning") : ` · <span class="${fuelClass(M.daysOf(n))}">${fmtDays(M.daysOf(n))}</span>${fullDays(n) ? ` <span class="roads-hint">(full: ${fmtDays(fullDays(n))})</span>` : ""}`}</li>`).join("") || "<li>None known.</li>"}</ul></div>` +
@@ -338,8 +338,8 @@
     if (sf) return Promise.resolve(sf);
     if (!window.Starfield) return Promise.resolve(null);
     if (!sfLoading) {
-      sf = window.Starfield(box, { onPick: id => { const name = [...M.ids].find(([, v]) => v.id === id); selected = name ? name[0] : null; picked = !name && M.ef.byId.has(id) ? id : null; if (sf) sf.mark(null); drawDetail(); },
-        onPickStar: id => { if (selected) return; picked = id || null; if (sf) sf.mark(id, "uncharted"); drawDetail(); }, onHover: () => {},
+      sf = window.Starfield(box, { onPick: id => { if (checkClick(id)) return; const name = [...M.ids].find(([, v]) => v.id === id); selected = name ? name[0] : null; picked = !name && M.ef.byId.has(id) ? id : null; if (sf) sf.mark(null); drawDetail(); },
+        onPickStar: id => { if (checkClick(id)) return; if (selected) return; picked = id || null; if (sf) sf.mark(id, "uncharted"); drawDetail(); }, onHover: () => {},
         onPlainWheel: () => { const h = box.querySelector(".sf-hint"); if (!h) return; h.classList.add("flash"); clearTimeout(h._t); h._t = setTimeout(() => h.classList.remove("flash"), 1800); } });   // a plain wheel scrolls the page: light up how to zoom
       if (!sf) return Promise.resolve(null);
       window.__roadsStars = sf;                                      // tests
@@ -585,6 +585,21 @@
   }
   // ---------- Check a jump: one structure from one star, every legal target on the map ----------
   let checkTarget = null;                        // the jump under test, picked from the list
+  let checkLit = new Set();                      /* the stars the last check lit green or red: a map click on one tests that jump */
+  const checkOpen = () => !$("roads-p-check").hidden;
+  /* Check a jump from any star (user 2026-10-17): with the panel open, a click on the star map sets From to that star,
+     ours, charted or uncharted, and lists every jump from it; a click on a lit result ring tests that jump instead */
+  function checkClick(id) {
+    if (!id || !checkOpen()) return false;
+    if (checkLit.has(id) && lastCheck) { runChecker(id === checkTarget ? null : id); return true; }
+    setSys("check-from", id); runChecker(null); return true;
+  }
+  function checkFrom(id) {                       /* "Check jumps from here": open the panel on that star */
+    const tab = root.querySelector('.roads-tabs [data-panel="check"]');
+    if (!checkOpen() && tab) tab.click();
+    setSys("check-from", id); runChecker(null);
+    const p = $("roads-p-check"); if (p && p.scrollIntoView) p.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
   function runChecker(target) {
     const from = sysId("check-from"), structure = $("check-kind").value; checkTarget = target || null;
     if (!from) { $("check-status").textContent = "type the system you jump from and pick it from the matches."; return; }
@@ -608,6 +623,7 @@
     $("roads-check").innerHTML = verdict + `<div class="roads-dcols"><div><h4>Can jump to · ${m.legal.length}</h4><ul>${m.legal.slice(0, CAP).map(([id, ly]) => li(id, ly, "ok")).join("") || "<li>none within range</li>"}${m.legal.length > CAP ? `<li class="roads-hint">and ${m.legal.length - CAP} more, nearest first</li>` : ""}</ul></div>` +
       (/Catapult/.test(m.structure) ? `<div><h4>In range, blocked · ${m.blocked.length}</h4><ul>${m.blocked.slice(0, CAP).map(([id, ly]) => li(id, ly, "bad")).join("") || "<li>none</li>"}${m.blocked.length > CAP ? `<li class="roads-hint">and ${m.blocked.length - CAP} more</li>` : ""}</ul></div>` : "") +
       `</div><div class="roads-hint">Click a system to test that jump. Green rings on the star map can be jumped to, red ones are in range but blocked; the dashed circle is the interference sphere of the tested jump. Gates ignore interference. <button type="button" class="roads-quiet" data-checkclear="1">clear the marks</button></div>`;
+    checkLit = new Set(m.legal.map(([id]) => id).concat(m.blocked.map(([id]) => id)));
     if (sf) { const marks = m.legal.map(([id]) => ({ id, cls: "ok" })).concat(m.blocked.map(([id]) => ({ id, cls: "bad" }))); if (m.target) marks.push({ id: m.target.id, cls: m.target.legal ? "ok" : "aim", label: starName(m.target.id) }); sf.markMany(marks); sf.sphere(m.target && m.target.inRange && !m.target.legal ? { a: from, b: m.target.id } : null); sf.fitTo([from].concat(m.target ? [m.target.id] : m.legal.slice(0, 12).map(x => x[0]))); }
   }
 
@@ -820,7 +836,8 @@
     if (b.id === "check-run") { runChecker(checkTarget); return; }
     if (b.dataset.jump) { runChecker(+b.dataset.jump === checkTarget ? null : +b.dataset.jump); return; }
     if (b.dataset.stepto) { setSys("check-from", +b.dataset.stepto); runChecker(checkTarget); return; }
-    if (b.dataset.checkclear) { checkTarget = null; if (sf) { sf.markMany([]); sf.sphere(null); } $("roads-check").innerHTML = ""; $("check-status").textContent = ""; return; }
+    if (b.dataset.checkfrom) { checkFrom(+b.dataset.checkfrom); return; }
+    if (b.dataset.checkclear) { checkLit = new Set(); checkTarget = null; if (sf) { sf.markMany([]); sf.sphere(null); } $("roads-check").innerHTML = ""; $("check-status").textContent = ""; return; }
     if (b.dataset.plansave) { const l = listCopy(); l.plans = l.plans.filter(p => !p.draft); l.plans.push({ name: draft.name, note: draft.note, hops: draft.hops, mode: draft.mode, priorities: draft.priorities }); save(l, "Plan"); return; }
     if (b.dataset.plandrop) { draft = null; render(lastData); $("plan-status").textContent = "dropped."; return; }
     if (b.dataset.planremove) { const l = listCopy(); l.plans.splice(+b.dataset.planremove, 1); openPlan = null; save(l, "Plan"); return; }
@@ -900,5 +917,6 @@
   }, 5000);
   window.__roadsRender = d => { loaded = true; render(d); };          // tests and local previews feed a fixture
   window.__roadsParse = readName; window.__roadsModel = () => M;
+  window.__roadsCheckClick = id => checkClick(id);   /* tests: what a map click on any star does while Check a jump is open */
   window.__roadsPick = id => { selected = null; picked = id; drawDetail(); return $("roads-detail").hidden ? null : $("roads-detail").innerText; };   // tests: what a click on any star says
 })();
