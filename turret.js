@@ -132,18 +132,6 @@ async function findOwner() {
   render();
 }
 
-async function trySilent() {
-  for (const w of suiWallets()) {
-    const f = w.features["standard:connect"];
-    if (!f) continue;
-    try {
-      const r = await f.connect({ silent: true });
-      const account = (r && r.accounts || w.accounts || [])[0];
-      if (account) { me = { wallet: w, account }; await findOwner(); return; }
-    } catch (e) { /* not authorised yet: the button asks */ }
-  }
-}
-
 async function send(makeTx, doneText) {
   busy = true; render(); say("checking with the chain…");
   try {
@@ -203,4 +191,8 @@ function addFrom(input) {
 
 // read-only test hook: show the panel as the given wallet sees it (no wallet, so nothing can be signed)
 window.__turretOwnerTest = async address => { me = { account: { address } }; await findOwner(); return { owner: !!mine, char: char && char.name }; };
-load().then(trySilent).catch(e => { empty("Could not read the chain", "<p>" + esc(e && e.message || e) + "</p><p>Close and open the panel again.</p>"); diag(); });
+// No wallet call on load (2026-10-17: in the game's panel the page showed for a second, then went grey); the wallet
+// is asked only when Connect wallet is pressed. Errors are shown under 'details' instead of breaking the page.
+window.addEventListener("error", e => { $("t-diag").innerHTML += "<br>error: " + esc(e.message); });
+window.addEventListener("unhandledrejection", e => { $("t-diag").innerHTML += "<br>error: " + esc(e.reason && e.reason.message || e.reason); });
+load().catch(e => { empty("Could not read the chain", "<p>" + esc(e && e.message || e) + "</p><p>Close and open the panel again.</p>"); diag(); });

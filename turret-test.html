@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Turret panel test</title>
+<style>
+/* A step-by-step test of what the game's in-game browser can do (2026-10-17: the turret panel showed for a second,
+   then the panel went grey). No fonts from elsewhere, no script until a button is pressed. */
+:root { color-scheme: dark; }
+body { margin: 0; padding: 14px 16px; background: #0b090c; color: #ebe7df; font: 15px/1.5 "Segoe UI", Arial, sans-serif; }
+h1 { margin: 0 0 4px; font-size: 18px; color: #d9b24c; letter-spacing: 1px; }
+p { margin: 0 0 10px; color: #b8bcc6; font-size: 13.5px; }
+.steps { display: grid; gap: 8px; }
+button { text-align: left; padding: 9px 12px; border: 1px solid #6a5a30; background: #17131a; color: #f0d27a; font: 600 14px "Segoe UI", Arial, sans-serif; cursor: pointer; }
+button:hover { border-color: #d9b24c; }
+#log { margin-top: 12px; padding: 8px 10px; border: 1px solid #333; background: #050405; font: 12.5px/1.5 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; min-height: 6em; }
+.ok { color: #6fc27c; } .bad { color: #ff8a8f; }
+</style>
+</head>
+<body>
+<h1>✠ Turret panel test</h1>
+<p>Press the steps in order. If the panel goes grey, the last step you pressed is the one the game's browser cannot take: tell us its number.</p>
+<div class="steps">
+  <button type="button" data-step="1">1 · This page works (no script yet)</button>
+  <button type="button" data-step="2">2 · Load the Sui library</button>
+  <button type="button" data-step="3">3 · Read this turret from the chain</button>
+  <button type="button" data-step="4">4 · Look for wallets</button>
+  <button type="button" data-step="5">5 · Ask the wallet quietly (no popup)</button>
+  <button type="button" data-step="6">6 · Connect the wallet (popup)</button>
+</div>
+<div id="log">opened with: </div>
+<script>
+(function () {
+  var log = document.getElementById("log"), m = null;
+  log.textContent += (location.search || "(nothing)") + "\nuser agent: " + navigator.userAgent + "\n";
+  function out(text, cls) { var s = document.createElement("div"); if (cls) s.className = cls; s.textContent = text; log.appendChild(s); }
+  window.addEventListener("error", function (e) { out("error: " + e.message, "bad"); });
+  window.addEventListener("unhandledrejection", function (e) { out("error: " + (e.reason && e.reason.message || e.reason), "bad"); });
+  var steps = {
+    1: function () { out("1 ok: the page and its script run", "ok"); return Promise.resolve(); },
+    2: function () { return import("./saints-chain.js").then(function (x) { m = x; out("2 ok: Sui library loaded", "ok"); }); },
+    3: function () {
+      if (!m) return Promise.reject(new Error("do step 2 first"));
+      var q = new URLSearchParams(location.search), item = q.get("itemId");
+      if (!item) { out("3: no itemId in the address, nothing to read"); return Promise.resolve(); }
+      var id = m.objectIdOf(item);
+      return m.turretById(id).then(function (t) { out("3 ok: " + (t ? (t.name || "turret") + " · " + (t.online ? "online" : "offline") + " · " + t.description : "not a turret"), "ok"); });
+    },
+    4: function () {
+      if (!m) return Promise.reject(new Error("do step 2 first"));
+      var w = m.suiWallets();
+      out("4 ok: " + w.length + " wallet(s): " + (w.map(function (x) { return x.name; }).join(", ") || "none"), "ok");
+      return Promise.resolve();
+    },
+    5: function () {
+      if (!m) return Promise.reject(new Error("do step 2 first"));
+      var w = m.suiWallets()[0];
+      if (!w) { out("5: no wallet to ask"); return Promise.resolve(); }
+      return w.features["standard:connect"].connect({ silent: true }).then(function (r) { out("5 ok: " + ((r && r.accounts || []).length) + " account(s) without a popup", "ok"); });
+    },
+    6: function () {
+      if (!m) return Promise.reject(new Error("do step 2 first"));
+      return m.connect(true).then(function (me) { out("6 ok: connected " + me.account.address.slice(0, 12) + "… (" + me.wallet.name + ")", "ok"); });
+    }
+  };
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    var n = b.getAttribute("data-step"); out("pressed " + n + "…");
+    steps[n]().catch(function (x) { out(n + " failed: " + (x && x.message || x), "bad"); });
+  });
+})();
+</script>
+</body>
+</html>
