@@ -232,8 +232,9 @@ document.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.da
 
 function addFrom(input) {
   if (!input) return;
-  const k = input.dataset.add, raw = input.value.trim();
-  if (!/^\d+$/.test(raw) || Number(raw) > U32 || Number(raw) === 0) { say("An id is a whole number (a tribe id like 98000655, a character id like 2112112652).", "bad"); input.focus(); return; }
+  // a pilot or tribe copied in game with "Copy selected with formatting" carries its id: showinfo:1373//2112112383
+  const k = input.dataset.add, typed = input.value.trim(), link = typed.match(/showinfo:\d+\/\/(\d+)/i), raw = link ? link[1] : typed;
+  if (!/^\d+$/.test(raw) || Number(raw) > U32 || Number(raw) === 0) { say("An id is a whole number (a tribe id like 98000655, a character id like 2112112652), or paste a name copied in game with Copy selected with formatting.", "bad"); input.focus(); return; }
   draft = copy(draft || saved);
   const v = Number(raw);
   if (!draft[k].includes(v)) draft[k].push(v);
