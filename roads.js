@@ -804,7 +804,7 @@
     if (!/(^|\.)thesaintsforge\.com$|^localhost$|^127\.0\.0\.1$/.test(location.hostname)) { gate("The roads are kept for the tribe. Open them on <b>thesaintsforge.com</b> and log in with Discord."); return Promise.resolve(); }   // localhost = tools/roads_local.py
     gate("Reading the roads from the chain…");
     return fetch("/api/network" + (fresh ? "?fresh=1" : ""), { credentials: "same-origin" }).then(r => {
-      if (r.status === 401) { gate('The roads are for the tribe only. <a class="tribe-btn" href="/api/login">✠ Log in with Discord</a><br><span class="roads-hint">Saint rank or above. After the login, come back to this page.</span>'); return null; }
+      if (r.status === 401) { gate('The roads are for the tribe only. <a class="tribe-btn" href="/api/login?next=roads">✠ Log in with Discord</a><br><span class="roads-hint">Squire rank or above.</span>'); return null; }
       if (!r.ok) throw new Error("the site answered " + r.status);
       return r.json();
     }).then(d => { if (d) render(d); }).catch(e => gate("The roads could not be read: " + esc(e.message) + "."));

@@ -18,10 +18,13 @@
   }
   fetch("/api/me", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (me) {
     if (!me || !me.ok) {
-      loggedOut(q === "denied" ? "Saint rank or above needed. Ask in Discord." : q === "error" ? "The login did not go through. Try again." : "");
+      loggedOut(q === "denied" ? "A Saints rank is needed (Squire or above). Ask in Discord." : q === "error" ? "The login did not go through. Try again." : "");
       return;
     }
-    share({ state: "in", me: { name: me.name, rank: me.rank, upload: !!me.upload } });
+    // Squires log in since 2026-10-18 (user: "unlock the maps to squires"): the Pilgrim Roads and the Quarry key; the
+    // doctrine (fits, card words, Make a card) stays Saint and above, and the server refuses it to a Squire anyway
+    var squire = /squire/i.test(me.rank || "") && !/saint|paladin|knight/i.test(me.rank || "");
+    share({ state: "in", me: { name: me.name, rank: me.rank, upload: !!me.upload, squire: squire } });
     var knight = !!me.upload;                       // Paladins, Knights and the site keepers (DOCTRINE_ADMINS) may replace the fits
     box.innerHTML = '<span class="tribe-who">✠ ' + esc(me.name) + " · " + esc(me.rank) + '</span>'
       + (knight ? '<button type="button" class="tribe-up" id="tribe-set" title="Make the fit on screen a doctrine fit: it replaces the doctrine fit of the same name, or is added as a new one">set as doctrine</button>'
@@ -51,8 +54,8 @@
     // Make a card (the doctrine card design) is for Saints: the button is hidden in the public build until a login is
     // seen, and the words of the doctrine cards come from the store (user 2026-10-15: the only Forge lives on the site)
     var cardBtn = document.getElementById("btn-card");
-    if (cardBtn) cardBtn.hidden = false;
-    fetch("/api/cards", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; })
+    if (cardBtn) cardBtn.hidden = squire;
+    if (!squire) fetch("/api/cards", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) { share({ cards: d && d.cards ? d : null }); if (d && window.__forgeCardText) window.__forgeCardText(d); }).catch(function () {});
     function note(t) { var n = box.querySelector(".tribe-note"); if (!n) { n = document.createElement("span"); n.className = "tribe-note"; who.after(n); } n.textContent = t ? " · " + t : ""; }
     if (knight) box.querySelector(".tribe-up input").addEventListener("change", function (e) {
@@ -160,7 +163,8 @@
           .then(function (res) { if (res.ok) applied(d, name + (old ? " replaced" : " added"), p.n); else note("not saved: " + (res.x && res.x.error || "error")); });
       }).catch(function (e) { note("not saved: " + (e && e.message || "could not reach the doctrine store")); });
     });
-    return fetch("/api/doctrine", { credentials: "same-origin" }).then(function (r) { if (r.status === 403) share({ state: "denied" }); return r.ok ? r.json() : null; }).then(function (d) {
+    if (squire) { share({ doctrineDenied: true }); note("the doctrine opens at Saint rank"); return; }   // the server refuses it anyway
+    return fetch("/api/doctrine", { credentials: "same-origin" }).then(function (r) { if (r.status === 403) share({ doctrineDenied: true }); return r.ok ? r.json() : null; }).then(function (d) {
       share(d && d.presets ? { fits: JSON.parse(JSON.stringify(d.presets)) } : { fits: null, fitsError: "The doctrine store is empty." });   // a copy: the Forge reworks its own
       if (d && d.presets && window.__forgeAddPresets) {
         var n = 0; try { n = window.__forgeAddPresets(d.presets); } catch (e) { n = -1; }

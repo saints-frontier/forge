@@ -1,6 +1,7 @@
 /* Saints Forge tribe login: shared code for the Cloudflare Pages Functions under /api.
    Discord OAuth2 (identify + guilds.members.read) -> the member's roles on The Saints server -> a signed cookie only
-   when the member holds Saint or above (ALLOWED_ROLES decides; Squires are left out since 2026-10-09). Secrets live in the project's environment variables, never in this repo:
+   when the member holds a rank listed in ALLOWED_ROLES (Squires were left out 2026-10-09 and let in 2026-10-18 for the
+   Pilgrim Roads; the doctrine checks atLeastSaint on its own). Secrets live in the project's environment variables, never in this repo:
      DISCORD_CLIENT_SECRET  the application's client secret (also seeds the cookie signing key)
      ALLOWED_ROLES          "Squire=<roleId>,Saint=<roleId>,Paladin=<roleId>,Knight=<roleId>,..." (or, instead,)
      DISCORD_BOT_TOKEN      a bot in the server with no permissions: roles are then matched by name

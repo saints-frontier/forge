@@ -34,7 +34,7 @@
 
   function draw(td) {
     var me = td.me, fits = td.fits, words = td.cards && td.cards.cards;
-    if (td.state === "denied") return lock("denied");
+    if (td.state === "denied" || td.doctrineDenied) return lock("denied");
     if (td.state !== "in") return lock(td.state === "out" ? "out" : "checking", td.msg);
     $("d-lock").hidden = true;
     $("d-who").textContent = me ? "✠ " + me.name + " · " + me.rank : "";
