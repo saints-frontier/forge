@@ -294,7 +294,7 @@
     // map swallowed page scrolls and ended up at galaxy scale). A trackpad pinch arrives as ctrl + wheel with small steps.
     const zoomBy = f => { cam.dist = Math.max(15, Math.min(30000, cam.dist * f)); dirty = true; schedule(); };
     ov.addEventListener("wheel", e => { if (!(e.ctrlKey || e.metaKey)) { if (opts.onPlainWheel) opts.onPlainWheel(); return; } e.preventDefault(); zoomBy(Math.exp(Math.max(-1, Math.min(1, e.deltaY / 100)) * 0.14)); }, { passive: false });
-    ov.addEventListener("dblclick", e => { const id = pickAt(e.offsetX, e.offsetY); if (id) { cam.target = P(id); cam.dist = Math.max(30, Math.min(cam.dist, 160)); dirty = true; schedule(); } });
+    ov.addEventListener("dblclick", e => { const id = pickAt(e.offsetX, e.offsetY) || pickStar(e.offsetX, e.offsetY); /* any star, ringed or not (user 2026-10-18) */ if (id) { cam.target = P(id); cam.dist = Math.max(30, Math.min(cam.dist, 160)); dirty = true; schedule(); } });
 
     return {
       load, setScene, fit, fitTo, fitAll, project, has: id => byId.has(id), position: P, oldName: id => { const i = byId.get(id); return names && i != null ? names[i] : null; },
