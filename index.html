@@ -987,12 +987,12 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
         <li>Press <b>F</b> on the turret. Our panel opens beside the game's settings: pick <b>War</b>, <b>Peace</b> or <b>Hold</b>, and add pilots and tribes to the lists. Your wallet asks you to sign each change.</li>
       </ol>
       <table class="s-tt">
-        <tr><th>War</th><td>Shoots every outsider in range.</td></tr>
-        <tr><th>Peace</th><td>Shoots outsiders who open fire within its reach (at the base, a tribe mate or an NPC), and the enemies on your lists.</td></tr>
+        <tr><th>War</th><td>Shoots every outsider in range, peaceful visitors and miners included.</td></tr>
+        <tr><th>Peace</th><td>Shoots outsiders who open fire on <b>anything</b> near the base (a structure, a tribe mate, another ship or an NPC), and the enemies on your lists.</td></tr>
         <tr><th>Hold</th><td>Shoots no one.</td></tr>
-        <tr><th>Allied tribes</th><td>Spared unless they open fire within its reach.</td></tr>
+        <tr><th>Allied tribes</th><td>Spared until they open fire on anything near the base, an NPC included.</td></tr>
         <tr><th>Enemy tribes</th><td>Always shot.</td></tr>
-        <tr><th>Ally pilots</th><td>Never shot.</td></tr>
+        <tr><th>Ally pilots</th><td>Never shot, whatever they do.</td></tr>
         <tr><th>Enemy pilots</th><td>Always shot, even from your own tribe.</td></tr>
       </table>
       <ul class="s-notes">
@@ -1000,7 +1000,8 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
         <li>You and your own tribe are never shot, unless you put someone on Enemy pilots.</li>
         <li>NPCs are shot only while they attack: no ammo spent on passers-by.</li>
         <li>Attackers of the base are shot first, then listed enemies, then the most damaged.</li>
-        <li>In peace, an outsider who opens fire near the base is shot whoever he aims at: tested on 17 October with an outsider shooting a tribe mate, and one shooting an NPC. Both were shot.</li>
+        <li><b>Careful with visitors.</b> The game tells a turret only that a ship started shooting, never at what. So in Peace an outsider who fights ferals near your base is shot, even if he is helping (tested on 17 October: an outsider shooting a tribe mate, and one shooting an NPC, were both shot). Put friendly pilots on Ally pilots, or switch to Hold while visitors are around.</li>
+        <li>Mining near a turret has not been tested yet: until it is, treat outside miners as visitors.</li>
         <li>What the panel saves goes into the turret's description, which anyone can read.</li>
       </ul>
     </div>

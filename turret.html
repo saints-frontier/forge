@@ -102,17 +102,17 @@ pre.seen { margin: 10px 0 0; padding: 8px; text-align: left; white-space: pre-wr
   <div class="empty" id="t-empty" hidden></div>
   <div id="t-main" hidden>
     <div class="modes" id="t-modes" role="group" aria-label="Turret mode">
-      <button type="button" class="mode" data-mode="war"><svg viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 8 L28 28 M32 8 L12 28"/><path d="M26 32 L32 26 M8 26 L14 32"/><path d="M28 28 L33 33 M12 28 L7 33"/></g></svg><b>War</b><span>Shoots every outsider in range.</span></button>
-      <button type="button" class="mode" data-mode="peace"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 4 L33 9 V19 C33 27 27 33 20 36 C13 33 7 27 7 19 V9 Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M20 12 V28 M13 19 H27" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><b>Peace</b><span>Only outsiders who open fire nearby, and listed enemies.</span></button>
+      <button type="button" class="mode" data-mode="war"><svg viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 8 L28 28 M32 8 L12 28"/><path d="M26 32 L32 26 M8 26 L14 32"/><path d="M28 28 L33 33 M12 28 L7 33"/></g></svg><b>War</b><span>Shoots every outsider in range, visitors included.</span></button>
+      <button type="button" class="mode" data-mode="peace"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 4 L33 9 V19 C33 27 27 33 20 36 C13 33 7 27 7 19 V9 Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><path d="M20 12 V28 M13 19 H27" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><b>Peace</b><span>Outsiders who open fire on anything nearby, NPCs included, and listed enemies.</span></button>
       <button type="button" class="mode" data-mode="hold"><svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="14" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M11 11 L29 29" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><b>Hold</b><span>Holds fire. Shoots no one.</span></button>
     </div>
-    <p class="always">The owner and the owner's tribe are never shot. NPCs only while they attack.</p>
+    <p class="always">The owner and the owner's tribe are never shot. NPCs only while they attack.<br><b>Visitors:</b> in Peace an outsider fighting ferals near the base is shot too. Put friends on Ally pilots, or Hold.</p>
     <section class="pane"><h2>Lists <i id="t-count"></i></h2><div id="t-lists"></div></section>
     <div class="save" id="t-save" hidden><span class="meter" id="t-meter"></span><button type="button" class="btn" id="t-undo">Undo</button><button type="button" class="btn go" id="t-commit">Save to the turret</button></div>
     <div class="own" id="t-own"></div>
   </div>
   <details class="diag"><summary>details</summary><div id="t-diag"></div></details>
 </main>
-<script type="module" src="turret.js?v=e8111cfe"></script>
+<script type="module" src="turret.js?v=90da8091"></script>
 </body>
 </html>
