@@ -675,6 +675,27 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-chart-save { margin-top: 12px; display: grid; gap: 6px; }
 .roads-chart-save textarea { width: 100%; font: 12px var(--mono); background: #0b0a0e; color: var(--fg); border: 1px solid var(--line-strong); padding: 6px 8px; resize: vertical; }
 
+/* Points of interest (2026-10-18): a filter box over the star map, opened from its toolbar */
+.roads-stars .sf-poi { position: absolute; left: 8px; top: 8px; z-index: 3; width: min(300px, calc(100% - 16px)); max-height: calc(100% - 56px); overflow: auto;
+  background: rgba(7,7,10,.88); border: 1px solid var(--gold-soft); padding: 8px 10px; font-size: 12px; }
+.roads-stars .sf-poi h4 { margin: 8px 0 4px; font-size: 11px; }
+.roads-stars .sf-poi .roads-poirows { grid-template-columns: 1fr; gap: 3px; }
+.roads-stars .sf-poi .roads-poiacts { align-items: center; }
+.roads-stars .sf-poi .roads-poiacts b { flex: 1; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); }
+.roads-stars .sf-poi .roads-poiacts button { padding: 2px 8px; font-size: 10px; }
+.roads-stars .sf-poi .roads-poinear { flex-direction: column; align-items: stretch; gap: 3px; }
+.roads-stars .sf-poi .roads-poinear button { justify-content: flex-start; padding: 2px 6px; font-size: 11px; text-align: left; text-transform: none; letter-spacing: 0; font-family: inherit; }
+.roads-page .poikey { display: inline-block; width: 9px; height: 9px; transform: rotate(45deg); border: 1.6px solid var(--c); margin: 0 8px 0 2px; flex: none; }
+.roads-page .roads-poiacts { display: flex; gap: 8px; margin-bottom: 8px; }
+.roads-page .roads-poirows { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 18px; }
+.roads-page .roads-poirow { display: grid; grid-template-columns: auto auto 1fr auto; gap: 0 4px; align-items: center; column-gap: 2px; cursor: pointer; min-width: 0; }
+.roads-page .roads-poirow .n { font-variant-numeric: tabular-nums; opacity: .75; }
+.roads-page .roads-poirow .roads-hint { grid-column: 2 / -1; margin: 0 0 4px 0; }
+.roads-page .roads-poinear { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.roads-page .roads-poinear button { display: inline-flex; align-items: center; gap: 4px; }
+.roads-page .roads-poilines { margin: 4px 0 6px; display: grid; gap: 3px; }
+.roads-page .roads-poilines div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; }
+
 .tribe { display: inline-flex; align-items: center; gap: 8px; margin-left: 6px; }
 .tribe-btn { font: 600 11px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold-soft); padding: 7px 10px; text-decoration: none; background: var(--panel); white-space: nowrap;
   clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
@@ -1291,5 +1312,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=3f355545"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=df71176f"></script><script src="quarry-data.js?v=bdb296ac"></script><script src="quarry-app.js?v=6df2b6e1"></script><script src="doctrine.js?v=6d8bc11d"></script><script src="tribe.js?v=975bec30"></script><script src="starfield.js?v=6b9ecfc8"></script><script src="roads.js?v=88e128d1"></script><script type="module" src="machines.js?v=c085ca6e"></script>
+<script src="lodge-data.js?v=3f355545"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=df71176f"></script><script src="quarry-data.js?v=bdb296ac"></script><script src="quarry-app.js?v=6df2b6e1"></script><script src="doctrine.js?v=6d8bc11d"></script><script src="tribe.js?v=975bec30"></script><script src="starfield.js?v=9df96e00"></script><script src="roads.js?v=5641f110"></script><script type="module" src="machines.js?v=c085ca6e"></script>
 </body></html>
