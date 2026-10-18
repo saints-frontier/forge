@@ -210,7 +210,7 @@
     // drain running the burn is the draw plus what the Capacitors can put back (the drain itself, or the recharge if smaller)
     const burnBusy = (draw + Math.min(drain, rech)) * 60 / factor;
     emParts.sort((a, b) => b[1] - a[1]);
-    return { cells, total, free: total - cells, hold: hold(placements), fuel, cap, hp, repair, draw, power: power || D.models.power_mw, drain, rech, rechMax, capLimited, free, trickle, nCaps, hits,
+    return { cells, total, freeCells: total - cells, hold: hold(placements), fuel, cap, hp, repair, draw, power: power || D.models.power_mw, drain, rech, rechMax, capLimited, free, trickle, nCaps, hits,
              mass, hullMass, em, emHull, emRaw, emDark, emWith, emParts: emParts.filter(p => p[1] > 0), emCaps: emStore, emPower: emOther, scramblers, burnBusy, refill: cap / factor,
              burn, hours: burn > 0 ? fuel / burn / 60 : Infinity, dps, dpsRamped, mining, payload, stable: rech >= drain, lastMin: drain > rech ? cap / (drain - rech) : Infinity };
   }
@@ -592,7 +592,7 @@
   function renderStats() {
     const st = stats();
     const f = (n, d) => n.toLocaleString(undefined, { maximumFractionDigits: d === undefined ? 0 : d });
-    $("st-cells").textContent = `${st.cells} / ${st.total}`; $("st-cells-sub").textContent = `${st.free} free`;
+    $("st-cells").textContent = `${st.cells} / ${st.total}`; $("st-cells-sub").textContent = `${st.freeCells} free`;
     $("st-hold").textContent = f(st.hold); $("st-hold-sub").textContent = st.payload ? `+ ${st.payload} m³ in Launch Bays` : `${Math.floor(st.hold / D.models.field_sentry_m3)} Field Sentries`;
     $("st-fuel").textContent = f(st.fuel); $("st-fuel-sub").textContent = st.burn > 0 ? `${st.burn.toFixed(2)}/min on ${state.fuelGrade} · ${isFinite(st.hours) ? st.hours.toFixed(1) + " h" : "—"}` + (st.burnBusy > st.burn + 0.005 ? ` · ${st.burnBusy.toFixed(2)}/min with everything running` : "") : "—";
     $("st-fuel-sub").title = "At rest the burn is the power drawn. Recharging the capacitor burns fuel as well: 1 MW for every GJ/s that flows back in, so weapons, repairers and a refill from empty all cost fuel.";
@@ -1097,7 +1097,7 @@
     const cb = counts(B.placements), ca = counts(state.placements), diff = [];
     new Set([...Object.keys(cb), ...Object.keys(ca)]).forEach(n => { const d = (ca[n] || 0) - (cb[n] || 0); if (d) diff.push([d, n]); }); diff.sort((x, y) => y[0] - x[0]);
     $("fd-head").innerHTML = `<span class="lab">The forge changed</span>` + (moved.length ? moved.join(" · ") : "the arrangement only: the numbers are the same");
-    $("fd-mods").textContent = (diff.length ? diff.map(([d, n]) => `${d > 0 ? "+" : "−"}${Math.abs(d)} ${n}`).join(", ") : "The same modules, placed differently") + ` · ${sa.free} free cell${sa.free === 1 ? "" : "s"} left (was ${sb.free})`;
+    $("fd-mods").textContent = (diff.length ? diff.map(([d, n]) => `${d > 0 ? "+" : "−"}${Math.abs(d)} ${n}`).join(", ") : "The same modules, placed differently") + ` · ${sa.freeCells} free cell${sa.freeCells === 1 ? "" : "s"} left (was ${sb.freeCells})`;
     el.hidden = false;
   }
   function revertForge() {
