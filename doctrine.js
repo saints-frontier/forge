@@ -18,9 +18,9 @@
     $("d-grid").hidden = true; $("d-lock").hidden = false; $("d-who").textContent = "";
     var here = "/api/login?next=doctrine";
     var body = kind === "denied"
-      ? "<p>Your Discord account is not of rank Saint or above on The Saints' server. The doctrine opens with the rank: ask in Discord.</p>"
+      ? "<p>Your Discord account holds no Saints rank on The Saints' server (Squire or above). Ask in Discord.</p>"
       : kind === "checking" ? "<p>Checking who you are…</p>"
-      : "<p>The doctrine ships are the tribe's own. Log in with Discord to see them: Saint rank or above.</p>" + (msg ? '<p class="d-msg">' + esc(msg) + "</p>" : "") + '<a class="d-login" href="' + here + '">✠ Log in with Discord</a>';
+      : "<p>The doctrine ships are the tribe's own. Log in with Discord to see them: Squire rank or above.</p>" + (msg ? '<p class="d-msg">' + esc(msg) + "</p>" : "") + '<a class="d-login" href="' + here + '">✠ Log in with Discord</a>';
     $("d-lockbody").innerHTML = body;
   }
 
