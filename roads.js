@@ -224,7 +224,7 @@
     if (POI) return; POI = { categories: [] };
     fetch("pois.json?v=1").then(r => r.ok ? r.json() : null).then(d => { if (!d || !Array.isArray(d.categories)) return; POI = d; poiBy = new Map();
       for (const c of d.categories) for (const [id, x] of c.items) { let l = poiBy.get(id); if (!l) poiBy.set(id, l = []); l.push({ c, x }); }
-      if (!poiOn) poiOn = new Set(d.categories.filter(c => c.on).map(c => c.key));
+      if (!poiOn) poiOn = new Set();   /* nothing ticked until the pilot ticks it (user 2026-10-18: "set poi setting to none by default") */
       const pb = $("roads-stars").querySelector('[data-sf="poi"]'); if (pb) { pb.hidden = false; pb.textContent = `POI · ${poiBy.size.toLocaleString("en-US")}`; }
       if (poiBox) openPoiBox(true);
       if (M) { drawStars(); drawPoi(); drawDetail(); } }).catch(() => {});
