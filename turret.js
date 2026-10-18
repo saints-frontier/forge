@@ -11,7 +11,7 @@ const OLDER = [];
 const MAX_LEN = 100;                      // the game's description box takes 100 characters
 const U32 = 4294967295;
 const LISTS = [
-  { k: "f", label: "Allied tribes", hint: "spared unless they attack the base", what: "tribe id" },
+  { k: "f", label: "Allied tribes", hint: "spared unless they open fire nearby", what: "tribe id" },
   { k: "e", label: "Enemy tribes", hint: "always shot", what: "tribe id" },
   { k: "p", label: "Ally pilots", hint: "never shot", what: "character id" },
   { k: "x", label: "Enemy pilots", hint: "always shot, even from your own tribe", what: "character id" },
