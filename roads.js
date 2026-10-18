@@ -283,13 +283,13 @@
         : e && e.status === "conflict" ? `Not confirmed: players disagree on its name (most reported: ${esc(e.name)}).`
         : e ? `Not confirmed: one player has reported the name ${esc(e.name)}. A second matching report on EF-Map charts it.`
         : `Nobody has reported a name for it yet${old ? ` (its Cycle 6 name was ${esc(old)})` : ""}.`;
-      el.hidden = false; el.innerHTML = `<div class="roads-dh">${ok ? esc(e.name) : "Uncharted"} <button type="button" class="roads-quiet" data-checkfrom="${picked}" title="every catapult or gate jump from this star">Check jumps from here</button></div><div class="roads-hint">${what}${where}</div>` + (showGates ? `<div class="roads-dcols"><div>${gateList(picked)}</div></div>` : ""); return; }
+      el.hidden = false; el.innerHTML = `<div class="roads-dh">${ok ? esc(e.name) : "Uncharted"} <button type="button" class="roads-quiet" data-checkfrom="${picked}" title="every catapult or gate jump from this star">Check jumps from here</button> <button type="button" class="roads-quiet" data-planto="${picked}" title="plan a road from the planner's From to this star">Plan a road here</button></div><div class="roads-hint">${what}${where}</div>` + (showGates ? `<div class="roads-dcols"><div>${gateList(picked)}</div></div>` : ""); return; }
     if (!selected || !M.systems.has(selected)) { el.hidden = true; el.innerHTML = ""; return; }
     el.hidden = false;
     const s = M.systems.get(selected), out = M.roads.filter(r => r.from === selected || (r.twoWay && r.to === selected)), inn = M.roads.filter(r => r.to === selected && !r.twoWay);
     const row = (r, other) => `<li><b>${esc(other)}</b> · ${esc(r.kind)}${r.twoWay ? " · both ways" : ""}${r.online === false ? ' · <span class="bad">offline</span>' : ""}${r.ly != null ? ` · ${r.ly.toFixed(0)} LY` : ""}${r.tooFar ? ` · <span class="bad">beyond its ${RANGE[r.kind]} LY reach: check the name</span>` : ""}${r.name ? ` · <i>${esc(r.name)}</i>` : ""}${r.inferred ? ` · <span class="roads-hint">worked out: ${esc(r.why)}</span>` : ""}</li>`;
     const kSel = M.ids.get(selected);
-    el.innerHTML = `<div class="roads-dh">${esc(selected)}${kSel ? ` <button type="button" class="roads-quiet" data-checkfrom="${kSel.id}" title="every catapult or gate jump from this system">Check jumps from here</button>` : ""}${kSel && kSel.ef ? ` <span class="roads-hint">· its place on the star map comes from EF-Map (${esc(kSel.ef)})</span>` : ""}</div>` +
+    el.innerHTML = `<div class="roads-dh">${esc(selected)}${kSel ? ` <button type="button" class="roads-quiet" data-checkfrom="${kSel.id}" title="every catapult or gate jump from this system">Check jumps from here</button> <button type="button" class="roads-quiet" data-planto="${kSel.id}" title="plan a road from the planner's From to this system">Plan a road here</button>` : ""}${kSel && kSel.ef ? ` <span class="roads-hint">· its place on the star map comes from EF-Map (${esc(kSel.ef)})</span>` : ""}</div>` +
       `<div class="roads-dcols"><div><h4>Roads out</h4><ul>${out.map(r => row(r, r.from === selected ? r.to : r.from)).join("") || "<li>None: a dead end.</li>"}</ul></div>` +
       `<div><h4>Roads in</h4><ul>${inn.map(r => row(r, r.from)).join("") || "<li>None.</li>"}</ul></div>` +
       `<div><h4>Our nodes here</h4><ul>${s.nodes.map(n => `<li><b>${esc(n.name || short(n.id))}</b>${M.nodeGuess(n.id) ? " · worked out" : ""} · ${n.fuel.quantity.toLocaleString("en-US")} ${esc(fuelName(n))}${M.daysOf(n) == null ? " · " + noDays(n, "not burning") : ` · <span class="${fuelClass(M.daysOf(n))}">${fmtDays(M.daysOf(n))}</span>${fullDays(n) ? ` <span class="roads-hint">(full: ${fmtDays(fullDays(n))})</span>` : ""}`}</li>`).join("") || "<li>None known.</li>"}</ul></div>` +
@@ -338,8 +338,8 @@
     if (sf) return Promise.resolve(sf);
     if (!window.Starfield) return Promise.resolve(null);
     if (!sfLoading) {
-      sf = window.Starfield(box, { onPick: id => { if (checkClick(id)) return; const name = [...M.ids].find(([, v]) => v.id === id); selected = name ? name[0] : null; picked = !name && M.ef.byId.has(id) ? id : null; if (sf) sf.mark(null); drawDetail(); },
-        onPickStar: id => { if (checkClick(id)) return; if (selected) return; picked = id || null; if (sf) sf.mark(id, "uncharted"); drawDetail(); }, onHover: () => {},
+      sf = window.Starfield(box, { onPick: id => { if (checkClick(id) || planClick(id)) return; const name = [...M.ids].find(([, v]) => v.id === id); selected = name ? name[0] : null; picked = !name && M.ef.byId.has(id) ? id : null; if (sf) sf.mark(null); drawDetail(); },
+        onPickStar: id => { if (checkClick(id) || planClick(id)) return; if (selected) return; picked = id || null; if (sf) sf.mark(id, "uncharted"); drawDetail(); }, onHover: () => {},
         onPlainWheel: () => { const h = box.querySelector(".sf-hint"); if (!h) return; h.classList.add("flash"); clearTimeout(h._t); h._t = setTimeout(() => h.classList.remove("flash"), 1800); } });   // a plain wheel scrolls the page: light up how to zoom
       if (!sf) return Promise.resolve(null);
       window.__roadsStars = sf;                                      // tests
@@ -435,7 +435,7 @@
   const hopKindText = h => h.gap ? "STARGATE NEEDED" : h.step === "gate" ? `BUILD ${esc(h.kind).toUpperCase()} PAIR` : h.kind === "Public Gate" ? "public gate · " + (STATE_TEXT[h.state || (gateRec(h.fromSys, h.toSys) || {}).state] || (gateRec(h.fromSys, h.toSys) ? "jumped before" : "state unknown")) : h.kind === "Our Road" ? "our road · built" : h.free ? esc(h.kind) + " · built above" : "build " + esc(h.kind);
   const STATUS_TEXT = { planned: "planned", progress: "in progress", built: "built" };
   function drawPlans() {
-    $("roads-plan-btns").innerHTML = M.plans.map(p => `<button type="button" data-panel="plan" data-plan="${p.i}">${esc(p.name)}${(M.list.plans[p.i] || {}).draft ? " (unsaved)" : ""}</button>`).join("");
+    $("roads-plan-btns").innerHTML = M.plans.map(p => `<button type="button" data-panel="plan" data-plan="${p.i}"${(M.list.plans[p.i] || {}).mine ? ' title="one of my routes, kept in this browser"' : ""}>${(M.list.plans[p.i] || {}).mine ? "★ " : ""}${esc(p.name)}${(M.list.plans[p.i] || {}).draft ? " (unsaved)" : ""}</button>`).join("");
   }
   let openPlan = null;
   function drawPlan(i) {
@@ -444,8 +444,8 @@
     const fwd = p.hops.filter(h => h.leg !== "back"), back = p.hops.filter(h => h.leg === "back");
     const ly = fwd.reduce((a, h) => a + (h.ly || 0), 0), bill = planBill(fwd), bb = back.length ? planBill(back) : null;
     const row = (h, k) => `<div class="roads-prow${h.step === "gate" ? " step" : ""}"><span>${k + 1}</span><span><b>${esc(h.fromSys)}</b></span><span><b>${esc(h.toSys)}</b></span><span class="${h.gap ? "gap" : h.kind === "Public Gate" ? "pub" : h.free || h.kind === "Our Road" ? "have" : "k"}">${hopKindText(h)}</span><span class="ly">${(h.ly || 0).toFixed(1)}</span>` +
-      (isDraft ? "" : `<span class="st ${h.status || "planned"}" ${isBuild(h) && M.canEdit ? `data-hopstatus="${i}:${h.n}"` : ""} title="${h.auto ? "read from the chain" : "set by hand"}">${isBuild(h) ? STATUS_TEXT[h.status || "planned"] + (h.auto ? " ·" : "") : ""}</span>` +
-      `<span class="who">${isBuild(h) ? (M.canEdit ? `<input type="text" maxlength="24" placeholder="who builds" value="${esc(h.who || "")}" data-hopwho="${i}:${h.n}"><input type="date" value="${esc(h.by || "")}" data-hopby="${i}:${h.n}">` : esc([h.who, h.by].filter(Boolean).join(" · "))) : ""}</span>`) + `</div>`;
+      (isDraft ? "" : `<span class="st ${h.status || "planned"}" ${isBuild(h) && M.canEdit && !raw.mine ? `data-hopstatus="${i}:${h.n}"` : ""} title="${h.auto ? "read from the chain" : "set by hand"}">${isBuild(h) ? STATUS_TEXT[h.status || "planned"] + (h.auto ? " ·" : "") : ""}</span>` +
+      `<span class="who">${isBuild(h) ? (M.canEdit && !raw.mine ? `<input type="text" maxlength="24" placeholder="who builds" value="${esc(h.who || "")}" data-hopwho="${i}:${h.n}"><input type="date" value="${esc(h.by || "")}" data-hopby="${i}:${h.n}">` : esc([h.who, h.by].filter(Boolean).join(" · "))) : ""}</span>`) + `</div>`;
     const head = `<div class="roads-phead"><span>#</span><span>From</span><span>To</span><span>Build</span><span class="ly">LY</span>${isDraft ? "" : "<span>Status</span><span>Builder · by</span>"}</div>`;
     const kinds = Object.entries(bill.kinds).map(([k, n]) => `${n}× ${esc(k)}`).join(", ");
     const sheet = `<div class="ptot"><span><b>${bill.launchers}</b> launcher${bill.launchers === 1 ? "" : "s"} to build${kinds ? ` (${kinds})` : ""}</span><span><b>${bill.newNodes.length}</b> new Network Node${bill.newNodes.length === 1 ? "" : "s"}${bill.oldNodes ? ` (${bill.oldNodes} site${bill.oldNodes === 1 ? "" : "s"} already ha${bill.oldNodes === 1 ? "s" : "ve"} one of ours)` : ""}</span>` +
@@ -455,7 +455,8 @@
     const diag = p.diag ? `<div class="roads-diag">${diagText(p.diag, p.diagTarget)}</div>` : "", dir = p.direct ? directText(p.direct, p.from, p.to) : "";
     const corridor = mode === "corridor" ? `<div class="roads-hint">A corridor: the gate pairs make a permanent two-way road; the catapult hops above each pair get a builder to the next site. Build in the order listed.</div>` : mode === "tree" ? `<div class="roads-hint">A network: each stop was reached from the nearest point of what the plan had built before it.</div>` : "";
     const backHtml = back.length ? `<div class="ph" style="margin-top:12px">The way home<small>${back.length} hops · ${f0(back.reduce((a, h) => a + (h.ly || 0), 0))} LY · ${bb.launchers} more launcher${bb.launchers === 1 ? "" : "s"}</small></div>` + head + back.map(row).join("") : "";
-    const acts = `<div class="pacts">${M.canEdit ? (isDraft ? `<button type="button" class="primary" data-plansave="1">Keep this plan</button><button type="button" data-plandrop="1">Drop it</button>` : `<button type="button" data-planremove="${i}">Remove this plan</button>`) : ""}` +
+    const acts = `<div class="pacts">${isDraft ? `<button type="button" class="primary" data-mysave="1">Save to my routes</button>${M.canEdit ? `<button type="button" data-plansave="1">Keep for the tribe</button>` : ""}<button type="button" data-plandrop="1">Drop it</button>`
+      : raw.mine ? `<button type="button" data-myremove="${esc(raw.id)}">Remove from my routes</button>` : M.canEdit ? `<button type="button" data-planremove="${i}">Remove this plan</button>` : ""}` +
       `<button type="button" data-copynote="${i}">Copy as in-game note</button><button type="button" data-copytext="${i}">Copy for Discord</button>${bill.launchers ? `<button type="button" data-lodge="${i}">⚒ Build it in the Lodge</button>` : ""}<span class="roads-hint" id="plan-copied"></span></div>`;
     const have = fwd.filter(h => !h.gap && (h.free || h.kind === "Our Road" || h.kind === "Public Gate")), ours = have.filter(h => h.kind === "Our Road" || h.free === true && h.kind !== "Public Gate").length, pubs = have.length - ours, todo = fwd.filter(isBuild).length;
     const haveLine = `<div class="roads-have"><span class="have"><b>${have.length}</b> hop${have.length === 1 ? "" : "s"} over what exists</span>${have.length ? ` (${[ours ? `${ours} on our roads` : "", pubs ? `${pubs} through public gates` : ""].filter(Boolean).join(", ")})` : ""} · <span class="k"><b>${todo}</b> to build</span>${bill.gaps ? ` · <span class="gap">${bill.gaps} crossing${bill.gaps > 1 ? "s" : ""} no tool makes</span>` : ""}</div>`;
@@ -467,6 +468,12 @@
   const f0 = n => Math.round(n).toLocaleString("en-US");
   // ---------- the planner: a Worker over stars.bin, gates.bin and catapults.bin; results show as an unsaved plan the editors can keep ----------
   let planner = null, planning = false, draft = null, lastData = null, checker = null, lastCheck = null, onPlanned = null;
+  /* my routes (user 2026-10-18): a plan anyone can save and reopen, kept in this browser (localStorage), listed after the
+     tribe's plans with a star; the tribe's shared plans stay the editors' (Keep for the tribe) */
+  const MINE_KEY = "roads:mine";
+  const loadMine = () => { try { const v = JSON.parse(localStorage.getItem(MINE_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+  const storeMine = a => { try { localStorage.setItem(MINE_KEY, JSON.stringify(a)); return true; } catch (e) { return false; } };
+  function withMine(d) { const c = JSON.parse(JSON.stringify(d)); c.list = c.list || {}; c.list.plans = (c.list.plans || []).filter(p => !p.mine).concat(loadMine().map(p => Object.assign({}, p, { mine: true }))); return c; }
   function getPlanner() {
     if (planner) return planner;
     planner = new Worker("planner.js?v=" + Date.now());
@@ -556,7 +563,7 @@
     planner.postMessage(Object.assign({ type: "plan", id: Date.now(), from, to, stops: planStops, avoid: planAvoid, tools, priorities, mode, roundTrip, roads: ownRoads(), gateStates: gateStateList() }, WORKER_MSG()));
   }
   function showDraft() {                          // the draft rides along as an extra, unsaved plan until kept or dropped
-    const d = JSON.parse(JSON.stringify(lastData)); d.list.plans = (d.list.plans || []).concat([Object.assign({ draft: true }, draft)]);
+    const d = withMine(lastData); d.list.plans = d.list.plans.concat([Object.assign({ draft: true }, draft)]);
     M = build(d); drawMap(); drawStars(); drawPlans(); drawPlan(M.plans.length - 1);
   }
   // ---------- copies: an in-game note (clickable system links, EF-Map's line format), a Discord text, the Lodge ----------
@@ -593,6 +600,24 @@
     if (!id || !checkOpen()) return false;
     if (checkLit.has(id) && lastCheck) { runChecker(id === checkTarget ? null : id); return true; }
     setSys("check-from", id); runChecker(null); return true;
+  }
+  /* Plan by clicking (user 2026-10-18): with the planner open, a click on any star sets To (or From, as chosen) and
+     plans at once when both ends are set; "Plan a road here" in a star's detail line does the same from anywhere */
+  const planOpen = () => !$("roads-p-plan").hidden;
+  function planClick(id) {
+    if (!id || !planOpen()) return false;
+    const which = (root.querySelector('input[name="plan-click"]:checked') || {}).value === "from" ? "plan-from" : "plan-to";
+    setSys(which, id); if (sf) sf.mark(id, which === "plan-to" ? "to" : "from");
+    const f = sysId("plan-from"), t = sysId("plan-to");
+    if (f && t && f !== t) runPlanner(); else $("plan-status").textContent = which === "plan-to" ? "destination set: pick a From too." : "start set: pick a To too.";
+    return true;
+  }
+  function planTo(id) {
+    const tab = root.querySelector('.roads-tabs [data-panel="plan"][data-plan="new"]');
+    if (!planOpen() && tab) tab.click();
+    setSys("plan-to", id);
+    const f = sysId("plan-from");
+    if (f && f !== id) runPlanner(); else $("plan-status").textContent = "destination set: pick a From too.";
   }
   function checkFrom(id) {                       /* "Check jumps from here": open the panel on that star */
     const tab = root.querySelector('.roads-tabs [data-panel="check"]');
@@ -787,14 +812,14 @@
 
   function render(d) {
     lastData = d; draft = null;
-    M = build(d);
+    M = build(withMine(d));
     $("roads-gate").hidden = true; $("roads-app").hidden = false;
     stamp(d);
     $("roads-manage-btn").hidden = !M.canEdit; if (!M.canEdit) $("roads-p-manage").hidden = true;
     setView(view); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); drawPlans(); fillPlanner(); if (openPlan != null && M.plans[openPlan]) drawPlan(openPlan);
     if (chartOn) { $("chart-save").hidden = !M.canEdit; starsReady().then(s => { if (s && chartOn) runChart(); }); }
     const ed = $("roads-editor"); ed.hidden = !M.canEdit; $("roads-gate-form").hidden = !M.canEdit;
-    if (M.canEdit) $("roads-json").value = JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, gates: M.list.gates || [], plans: (M.list.plans || []).filter(p => !p.draft) }, null, 1);
+    if (M.canEdit) $("roads-json").value = JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, gates: M.list.gates || [], plans: (M.list.plans || []).filter(p => !p.draft && !p.mine) }, null, 1);
   }
 
   // ---------- loading and saving ----------
@@ -816,7 +841,7 @@
       .then(res => { if (!res.ok) { $("roads-save-note").textContent = "not saved: " + ((res.x && res.x.error) || "error"); return; } $("roads-save-note").textContent = what + " saved."; if (M && M.list) Object.assign(M.list, JSON.parse(JSON.stringify(list))); if (lastData && lastData.list) Object.assign(lastData.list, JSON.parse(JSON.stringify(list))); return load(true); })
       .catch(() => { $("roads-save-note").textContent = "not saved: the site could not be reached."; });
   }
-  const listCopy = () => JSON.parse(JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, gates: M.list.gates || [], plans: (M.list.plans || []).filter(p => !p.draft) }));
+  const listCopy = () => JSON.parse(JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, gates: M.list.gates || [], plans: (M.list.plans || []).filter(p => !p.draft && !p.mine) }));
 
   root.addEventListener("click", e => {
     const g = e.target.closest("[data-sys]"); if (g) { selected = selected === g.dataset.sys ? null : g.dataset.sys; drawMap(); drawDetail(); if (sf) { const k = selected && M.ids.get(selected); sf.select(k ? k.id : null); } return; }
@@ -840,6 +865,17 @@
     if (b.dataset.checkclear) { checkLit = new Set(); checkTarget = null; if (sf) { sf.markMany([]); sf.sphere(null); } $("roads-check").innerHTML = ""; $("check-status").textContent = ""; return; }
     if (b.dataset.plansave) { const l = listCopy(); l.plans = l.plans.filter(p => !p.draft); l.plans.push({ name: draft.name, note: draft.note, hops: draft.hops, mode: draft.mode, priorities: draft.priorities }); save(l, "Plan"); return; }
     if (b.dataset.plandrop) { draft = null; render(lastData); $("plan-status").textContent = "dropped."; return; }
+    if (b.dataset.mysave && draft) {
+      const name = (window.prompt("Name this route", draft.name) || "").trim(); if (!name) return;
+      const mine = loadMine(), route = { id: String(Date.now()), name: name.slice(0, 40), note: draft.note, hops: draft.hops, mode: draft.mode, priorities: draft.priorities, from: draft.from, to: draft.to,
+        diag: draft.diag, diagTarget: draft.diagTarget, direct: draft.direct, saved: new Date().toISOString().slice(0, 10) };
+      mine.push(route);
+      if (!storeMine(mine)) { $("plan-status").textContent = "this browser would not keep it (private window?)."; return; }
+      draft = null; render(lastData); const p = M.plans.find(x => (M.list.plans[x.i] || {}).id === route.id); if (p) drawPlan(p.i);
+      $("plan-status").textContent = `saved to my routes: \u2605 ${route.name} (kept in this browser).`; return;
+    }
+    if (b.dataset.myremove) { storeMine(loadMine().filter(p => p.id !== b.dataset.myremove)); openPlan = null; $("roads-plan").innerHTML = ""; render(lastData); $("plan-status").textContent = "removed from my routes."; return; }
+    if (b.dataset.planto) { planTo(+b.dataset.planto); return; }
     if (b.dataset.planremove) { const l = listCopy(); l.plans.splice(+b.dataset.planremove, 1); openPlan = null; save(l, "Plan"); return; }
     if (b.dataset.panel) {
       const want = $("roads-p-" + b.dataset.panel), open = want.hidden || (b.dataset.plan != null && b.dataset.plan !== "new" && openPlan !== +b.dataset.plan);
@@ -918,5 +954,6 @@
   window.__roadsRender = d => { loaded = true; render(d); };          // tests and local previews feed a fixture
   window.__roadsParse = readName; window.__roadsModel = () => M;
   window.__roadsCheckClick = id => checkClick(id);   /* tests: what a map click on any star does while Check a jump is open */
+  window.__roadsMapClick = id => checkClick(id) || planClick(id);   // tests: what a map click on a star does first (the same path as onPick / onPickStar)
   window.__roadsPick = id => { selected = null; picked = id; drawDetail(); return $("roads-detail").hidden ? null : $("roads-detail").innerText; };   // tests: what a click on any star says
 })();
