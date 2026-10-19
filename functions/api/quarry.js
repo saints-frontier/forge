@@ -33,7 +33,7 @@ const KINDS = { rock: ORES, rift: CRUDE, salvage: SALVAGE };
 const TS = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$/;
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 
-async function who(env, request) {
+export async function who(env, request) {   // shared with /api/location
   const auth = request.headers.get("Authorization") || "";
   if (/^Bearer\s+/i.test(auth)) {
     const t = await verify(env, auth.replace(/^Bearer\s+/i, "").trim());

@@ -13,7 +13,7 @@
 (function () {
   "use strict";
   const LY_FOV = 50 * Math.PI / 180;
-  const COLORS = { home: "#e3222c", ours: "#d9b24c", inferred: "#b8b3a8", far: "#8a8378", plan: "#9a9389", charted: "#8d98a3", uncharted: "#737d86", road: "#d9b24c", planned: "#b8b3a8", off: "#e3222c", gate: "#f1e9d2", hand: "#b8b3a8", pub: "#7d8894" };
+  const COLORS = { me: "#5fe3ff", mate: "#8fe0b0", home: "#e3222c", ours: "#d9b24c", inferred: "#b8b3a8", far: "#8a8378", plan: "#9a9389", charted: "#8d98a3", uncharted: "#737d86", road: "#d9b24c", planned: "#b8b3a8", off: "#e3222c", gate: "#f1e9d2", hand: "#b8b3a8", pub: "#7d8894" };
 
   function Starfield(container, opts) {
     opts = opts || {};
@@ -128,7 +128,7 @@
         const col = r.online === false ? COLORS.off : r.kind === "Public Gate" ? COLORS.pub : r.status === "planned" ? COLORS.planned : r.source === "inferred" ? COLORS.hand : /Gate/.test(r.kind || "") ? COLORS.gate : COLORS.road;   // a public gate someone has jumped: grey, straight, both ways
         polys.push({ road: r, pts, col, heavy: /Heavy/.test(r.kind || ""), dash: r.status === "planned" ? [2, 5] : r.status === "progress" || r.online === false || r.source === "inferred" ? [7, 6] : [], alpha: r.status === "planned" ? 0.6 : 0.95 });
       }
-      for (const s of scene.systems) { const p = P(s.id), col = s.color || COLORS[s.cls] || COLORS.far, minor = s.cls === "charted" || s.cls === "uncharted" || s.cls === "poi", size = s.cls === "home" ? 9 : s.cls === "ours" ? 7 : s.cls === "uncharted" ? 2 : minor ? 2.6 : 5; M.push(...p, ...rgba(col, minor ? 0.07 : 0.16), size * 4.5); M.push(...p, ...rgba(col, minor ? 0.75 : 0.95), size); }
+      for (const s of scene.systems) { const p = P(s.id), col = s.color || COLORS[s.cls] || COLORS.far, minor = s.cls === "charted" || s.cls === "uncharted" || s.cls === "poi", size = s.cls === "home" || s.cls === "me" ? 9 : s.cls === "ours" ? 7 : s.cls === "uncharted" ? 2 : minor ? 2.6 : 5; M.push(...p, ...rgba(col, minor ? 0.07 : 0.16), size * 4.5); M.push(...p, ...rgba(col, minor ? 0.75 : 0.95), size); }
       marks = new Float32Array(M); markCount = M.length / 8; polylines = polys;
       gl.bindBuffer(gl.ARRAY_BUFFER, markBuf); gl.bufferData(gl.ARRAY_BUFFER, marks, gl.STATIC_DRAW);
       dirty = true; schedule();
@@ -230,7 +230,7 @@
       // cover another label is left out, its ring stays. Nothing is ever stacked.
       ctx.textBaseline = "middle";
       const k = zoomK(), far = k < 0.75, foldR = k < 0.45 ? 34 : k < 0.75 ? 10 : 0, labelPlans = cam.dist < 900;
-      const rank = s => s.id === selected || s.id === hovered ? 0 : s.cls === "home" ? 1 : s.cls === "ours" ? 2 : s.cls === "inferred" ? 3 : s.cls === "plan" ? 5 : s.cls === "charted" ? 6 : s.cls === "poi" ? 6 : s.cls === "uncharted" ? 7 : 4;
+      const rank = s => s.id === selected || s.id === hovered ? 0 : s.cls === "me" ? 0.5 : s.cls === "mate" ? 1.5 : s.cls === "home" ? 1 : s.cls === "ours" ? 2 : s.cls === "inferred" ? 3 : s.cls === "plan" ? 5 : s.cls === "charted" ? 6 : s.cls === "poi" ? 6 : s.cls === "uncharted" ? 7 : 4;
       const order = scene.systems.map(s => ({ s, p: project(P(s.id)) })).filter(o => o.p).sort((a, b) => rank(a.s) - rank(b.s));
       const leaders = [], folded = [];
       for (const o of order) {
@@ -242,9 +242,9 @@
       const boxes = [], hit = (b) => boxes.some(q => b[0] < q[2] && b[2] > q[0] && b[1] < q[3] && b[3] > q[1]);
       for (const o of leaders) {
         const s = o.s, p = o.p, col = s.color || COLORS[s.cls] || COLORS.far, unch = s.cls === "uncharted", poi = s.cls === "poi", charted = s.cls === "charted" || unch || poi, plan = s.cls === "plan" || charted, hot = s.id === selected || s.id === hovered;
-        const R = Math.max(2.5, (s.cls === "home" ? 11 : s.cls === "ours" ? 9 : plan ? (unch ? 3 : 4) : 7) * (plan ? Math.max(k, 0.7) : k));
+        const R = Math.max(2.5, (s.cls === "me" ? 12 : s.cls === "mate" ? 9 : s.cls === "home" ? 11 : s.cls === "ours" ? 9 : plan ? (unch ? 3 : 4) : 7) * (plan ? Math.max(k, 0.7) : k));
         ctx.beginPath(); if (poi) { const D = R + 1.5; ctx.moveTo(p[0], p[1] - D); ctx.lineTo(p[0] + D, p[1]); ctx.lineTo(p[0], p[1] + D); ctx.lineTo(p[0] - D, p[1]); ctx.closePath(); } else ctx.arc(p[0], p[1], R, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.lineWidth = s.id === selected ? 2.5 : poi ? 1.6 : 1.3; ctx.setLineDash(s.cls === "inferred" || unch ? [3, 3] : []); ctx.globalAlpha = charted && !hot ? 0.7 : 1; ctx.stroke(); ctx.globalAlpha = 1; ctx.setLineDash([]);
-        if (hot) { ctx.beginPath(); ctx.arc(p[0], p[1], R + 5, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.globalAlpha = 0.45; ctx.stroke(); ctx.globalAlpha = 1; }
+        if (hot || s.cls === "me") { ctx.beginPath(); ctx.arc(p[0], p[1], R + 5, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.globalAlpha = 0.45; ctx.stroke(); ctx.globalAlpha = 1; }
         if ((plan && !labelPlans && !hot) || (unch && !hot)) continue;   // an uncharted mark is named only under the pointer
         const label = (s.cls === "home" ? "✠ " : "") + (s.name || String(s.id)) + (o.more ? `  +${o.more}` : "");
         ctx.font = charted ? `600 12px ${display}` : `700 13px ${display}`;
@@ -253,7 +253,7 @@
         if (!hot && hit(box)) continue;
         boxes.push(box);
         if (k < 0.45) { ctx.fillStyle = "rgba(7,7,10,.82)"; ctx.fillRect(box[0] - 2, box[1] - 1, box[2] - box[0] + 4, box[3] - box[1] + 2); ctx.strokeStyle = "rgba(217,178,76,.45)"; ctx.lineWidth = 1; ctx.strokeRect(box[0] - 1.5, box[1] - 0.5, box[2] - box[0] + 3, box[3] - box[1] + 1); }
-        ctx.fillStyle = "rgba(7,7,10,.75)"; ctx.fillText(label, x + 1, y + 1); ctx.fillStyle = s.cls === "home" ? "#ffd27a" : poi ? col : charted ? "#aab3bc" : "#f1e9d2"; ctx.fillText(label, x, y);
+        ctx.fillStyle = "rgba(7,7,10,.75)"; ctx.fillText(label, x + 1, y + 1); ctx.fillStyle = s.cls === "home" ? "#ffd27a" : poi || s.cls === "me" || s.cls === "mate" ? col : charted ? "#aab3bc" : "#f1e9d2"; ctx.fillText(label, x, y);
         if (showSub) { ctx.font = `600 11px ${mono}`; ctx.fillStyle = s.subColor || "#b8b3a8"; ctx.fillText(s.sub, x, y + 14); }
       }
       // a star picked from the background (no ring of its own): a dashed ring and its label

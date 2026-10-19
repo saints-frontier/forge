@@ -220,6 +220,35 @@
   let poiBox = false; try { poiBox = localStorage.getItem("roads:poibox") === "1"; } catch (e) {}
   function openPoiBox(on) { poiBox = on; try { localStorage.setItem("roads:poibox", on ? "1" : "0"); } catch (e) {} const box = $("sf-poi"), b = $("roads-stars").querySelector('[data-sf="poi"]'); if (box) box.hidden = !on; if (b) b.classList.toggle("on", on); if (on) drawPoi(); }
   const poiSave = () => { try { localStorage.setItem("roads:poi", JSON.stringify([...poiOn])); } catch (e) {} };
+  /* Where the pilot is (user 2026-10-18: the Saints Frontier Companion "tracks my location on the map and highlights it in
+     the pilgrim roads"): /api/location gives the pilot's own last system (from the game's Local chat log) and the tribe
+     mates who chose to share; asked every 30 s while the page is open and on screen */
+  let LOC = null, locTimer = 0;
+  function locOf(name) {
+    const u = up(name); if (!u || !M) return null;
+    const k = M.ids.get(u); if (k) return k.id;
+    for (const [n, e] of M.ef.byName) if (up(n) === u) return e.id;
+    return null;
+  }
+  const ago = at => { const m = Math.max(0, Math.round((Date.now() - Date.parse(at)) / 60000)); return m < 1 ? "just now" : m < 60 ? m + " min ago" : Math.round(m / 60) + " h ago"; };
+  function locPoll() {
+    clearTimeout(locTimer); locTimer = setTimeout(locPoll, 30000);
+    if (root.hidden || document.hidden || !M) return;
+    fetch("/api/location", { credentials: "same-origin", cache: "no-store" }).then(r => r.ok ? r.json() : null).then(d => {
+      const before = JSON.stringify(LOC); LOC = d && d.ok ? d : null;
+      if (JSON.stringify(LOC) !== before) { drawStars(); drawLoc(); } else drawLoc();
+    }).catch(() => {});
+  }
+  function drawLoc() {
+    const el = $("roads-me"), b = $("roads-stars") && $("roads-stars").querySelector('[data-sf="me"]');
+    const me = LOC && LOC.me, id = me && locOf(me.s), n = LOC ? LOC.mates.length : 0;
+    if (b) { b.hidden = !id; }
+    if (!el) return;
+    if (!me) { el.hidden = !n; el.innerHTML = n ? `<span class="roads-hint">${n} tribe mate${n === 1 ? "" : "s"} on the map (they share their place from the Saints Frontier Companion).</span>` : ""; return; }
+    el.hidden = false;
+    el.innerHTML = `<i class="melive"></i>You are in <b>${esc(me.s)}</b> <span class="roads-hint">· ${ago(me.at)} · ${me.share ? "the tribe sees you" : "only you see this"}${n ? ` · ${n} tribe mate${n === 1 ? "" : "s"} shown` : ""}</span>` +
+      (id ? ` <button type="button" class="roads-quiet" data-sf="me">Find me</button>` : ` <span class="roads-hint">· not on the star map yet: copy its link in game (Manage) to chart it</span>`);
+  }
   function poiLoad() {
     if (POI) return; POI = { categories: [] };
     fetch("/api/pois", { credentials: "same-origin" }).then(r => r.ok ? r.json() : null).then(d => { if (!d || !Array.isArray(d.categories)) return; POI = d; poiBy = new Map();
@@ -380,10 +409,10 @@
       if (!sf) return Promise.resolve(null);
       window.__roadsStars = sf;                                      // tests
       box.insertAdjacentHTML("beforeend", '<div class="sf-hint">drag: turn · shift-drag: move · ctrl + wheel: zoom · click any star</div><div class="sf-missing" id="sf-missing"></div>' +
-        '<div class="sf-poi" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-tools"><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="fit" title="Our network">Our roads</button><button type="button" data-sf="all" title="The whole galaxy">Galaxy</button><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button></div>');
+        '<div class="sf-poi" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-tools"><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="me" title="Fly to where you are (from the Saints Frontier Companion)" hidden>Find me</button><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="fit" title="Our network">Our roads</button><button type="button" data-sf="all" title="The whole galaxy">Galaxy</button><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button></div>');
       sfLoading = sf.load("stars.bin?v=2").then(() => { dist = (a, b) => { const p = sf.position(a), q = sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; }; if (lastData && !draft) { M = build(lastData); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); stamp(lastData); }
         // the public gates come after the stars, never in their way: the button appears once they are in
-        sf.showGates(showGates); poiLoad();
+        sf.showGates(showGates); poiLoad(); locPoll();
         sf.loadGates("gates.bin?v=3").then(n => { const b = box.querySelector('[data-sf="gates"]'); if (b) { b.hidden = false; b.textContent = `Public gates · ${n.toLocaleString("en-US")}`; b.classList.toggle("on", showGates); } if (M) drawDetail(); }).catch(() => {});
         return sf; }).catch(e => { box.insertAdjacentHTML("beforeend", `<div class="sf-nogl">The stars could not be loaded: ${esc(e.message)}.</div>`); return null; });
     }
@@ -408,6 +437,8 @@
       const placed = new Set(systems.map(x => x.id)); let chartedN = 0, waitingN = 0;
       for (const [id, e] of M.ef.byId) { if (!s.has(id) || placed.has(id)) continue; const ok = e.status === "confirmed"; if (ok) chartedN++; else waitingN++;
         if (showCharted && !chartOn) systems.push(ok ? { id, name: e.name, cls: "charted", sub: "" } : { id, name: "uncharted", cls: "uncharted", sub: "" }); }
+      if (LOC) { const mk = (r, cls, label) => { const id = locOf(r.s); if (!id || !s.has(id)) return; const i = systems.findIndex(x => x.id === id); const o = { id, name: label, cls, sub: r.s + " · " + ago(r.at), subColor: cls === "me" ? "#5fe3ff" : "#8fe0b0" }; if (i >= 0) systems.splice(i, 1, o); else systems.push(o); placed.add(id); };
+        for (const m of LOC.mates) mk(m, "mate", m.n || m.c || "a Saint"); if (LOC.me) mk(LOC.me, "me", "\u25B2 You"); }
       if (POI && poiOn) for (const c of POI.categories) { if (!poiOn.has(c.key)) continue;
         for (const [id] of c.items) { if (!s.has(id) || placed.has(id)) continue; placed.add(id); systems.push({ id, name: `${c.label} · ${nameOfId(id).replace(/ \(C6\)$/, "")}`, cls: "poi", color: c.color, sub: "" }); } }
       const cb = $("roads-stars").querySelector('[data-sf="charted"]'); if (cb) { cb.hidden = !(chartedN + waitingN); cb.textContent = `Charted · ${chartedN.toLocaleString("en-US")}`; cb.classList.toggle("on", showCharted); }
@@ -940,6 +971,7 @@
     if (b.dataset.sf === "gates") { showGates = !showGates; try { localStorage.setItem("roads:gates", showGates ? "1" : "0"); } catch (e) {} if (sf) sf.showGates(showGates); b.classList.toggle("on", showGates); drawDetail(); return; }
     if (b.dataset.sf === "charted") { showCharted = !showCharted; try { localStorage.setItem("roads:charted", showCharted ? "1" : "0"); } catch (e) {} if (!showCharted) { picked = null; if (sf) sf.mark(null); } drawStars(); drawDetail(); return; }
     if (b.dataset.sf === "poi") { openPoiBox(!poiBox); return; }
+    if (b.dataset.sf === "me" && sf && LOC && LOC.me) { const id = locOf(LOC.me.s); if (id) { const name = [...M.ids].find(([, v]) => v.id === id); selected = name ? name[0] : null; picked = name ? null : id; sf.look(id, 300); if (!name) sf.mark(null); drawStars(); drawDetail(); } return; }
     if (b.dataset.poiclose) { openPoiBox(false); return; }
     if (b.dataset.sf && sf) { if (b.dataset.sf === "fit") sf.fit(); else if (b.dataset.sf === "all") sf.fitAll(); else if (b.dataset.sf === "in") sf.zoom(1 / 1.35); else if (b.dataset.sf === "out") sf.zoom(1.35); else sf.view(b.dataset.sf === "top" ? 88 : 4); return; }
     if (b.id === "roads-paste-save") {
@@ -982,6 +1014,7 @@
   let rz = 0, lastW = 0; const redraw = () => { clearTimeout(rz); rz = setTimeout(() => { const w = $("roads-map").clientWidth; if (M && !root.hidden && Math.abs(w - lastW) > 1) { lastW = w; drawMap(); } }, 120); };
   if (window.ResizeObserver) new ResizeObserver(redraw).observe($("roads-map")); else window.addEventListener("resize", redraw);
   new MutationObserver(seen).observe(root, { attributes: true, attributeFilter: ["hidden"] }); seen();
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && M) locPoll(); });
   // On the local test server the clipboard watcher (tools/road_clipboard.py) adds system numbers behind the page's
   // back: look every few seconds and redraw when the numbers changed. Not on the live site: there the list only
   // changes through this page.
@@ -999,5 +1032,6 @@
   window.__roadsCheckClick = id => checkClick(id);   /* tests: what a map click on any star does while Check a jump is open */
   window.__roadsMapClick = id => checkClick(id) || planClick(id);   // tests: what a map click on a star does first (the same path as onPick / onPickStar)
   window.__roadsPoi = () => ({ on: poiOn ? [...poiOn] : null, n: POI ? POI.categories.length : 0 });   /* tests */
+  window.__roadsLoc = d => { LOC = d; drawStars(); drawLoc(); return locOf(d && d.me && d.me.s); };   /* tests */
   window.__roadsPick = id => { selected = null; picked = id; drawDetail(); return $("roads-detail").hidden ? null : $("roads-detail").innerText; };   // tests: what a click on any star says
 })();
