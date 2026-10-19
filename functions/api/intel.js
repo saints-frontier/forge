@@ -1,17 +1,16 @@
 /* /api/intel: what the Saints Frontier Companion asks and reports beyond the roads (user 2026-10-19: "military
    intelligence ... not only shooting me but also me shooting them or their structure", kills in the system with how
-   long ago, my nodes, rifts, the System Map's infestation, system numbers from copied links, visited systems).
+   long ago, my nodes, the System Map's infestation, system numbers from copied links, visited systems).
    Every call needs the companion key or a tribe session; nothing here is public.
    GET  ?q=who&names=A|B          -> the tribe of each pilot, from the alerts Worker's roster (KV "alerts:roster":
                                     every character's name, tribe and address; tribe short names from the World API)
    GET  ?q=kills&sys=ID&hours=24  -> killmails in that system (chain, read-only), killer / victim named from the roster
    GET  ?q=nodes&char=ITEM_ID     -> that pilot's Network Nodes with their fuel (chain, read-only)
-   GET  ?q=field                  -> the tribe's field records: system surveys, visited systems, rifts seen
+   GET  ?q=field                  -> the tribe's field records: system surveys, visited systems
    POST {type: "survey", sys, at, infest, word, transient, umbra, star, planets, belts, state}
         -> the System Map's readings for a system (one write per system per day, or when a reading changes)
    POST {type: "sysids", links: [{name, id}]}  -> system numbers copied in game (showinfo:5//ID), added to the Roads
         list's numbers when the name is new there; a different number for a known name is reported, never written
-   POST {type: "rift", sys, at, kind}           -> a rift a Saint mined in (crude in the game log)
    The field records live in KV "field" (not in the Roads list "network" a Paladin edits, so the two never overwrite
    each other); the system numbers go into "network" list.systems, as the Roads page's own paste box does. */
 import { json } from "./_lib.js";
@@ -123,13 +122,6 @@ export function addSurvey(field, r) {
   f.survey = Object.assign({}, f.survey, { [r.sys]: Object.assign({}, r, { hist: ((old && old.hist) || []).concat([[r.at, r.infest]]).slice(-10) }) });
   return f;
 }
-export function addRift(field, r) {
-  const f = Object.assign({ survey: {}, visited: {}, rifts: [] }, field || {}), day = r.at.slice(0, 13);
-  const list = (f.rifts || []).filter(x => Date.now() - Date.parse(x.at) < 3 * 86400000);
-  if (list.some(x => x.sys === r.sys && x.at.slice(0, 13) === day)) return null;   // the same rift reported within the hour
-  f.rifts = list.concat([r]).slice(-200);
-  return f;
-}
 export function addVisit(field, sys, at, by) {
   const f = Object.assign({ survey: {}, visited: {}, rifts: [] }, field || {}), old = (f.visited || {})[sys];
   if (old && String(old.last || "").slice(0, 10) === at.slice(0, 10)) return null;
@@ -173,11 +165,9 @@ export async function onRequestPost({ request, env }) {
                 belts: Number.isInteger(d.belts) && d.belts >= 0 && d.belts < 40 ? d.belts : null, state: /^[A-Z ]{3,14}$/.test(up(d.state)) ? up(d.state) : null };
     if (r.infest == null && !r.transient && !r.umbra) return json({ ok: false, error: "nothing was read" }, 400, cookies);
     next = addSurvey(field, r);
-  } else if (d.type === "rift") {
-    next = addRift(field, { sys, at, by, kind: clip(d.kind || "", 40) });
-  } else return json({ ok: false, error: "type is survey, sysids or rift" }, 400, cookies);
+  } else return json({ ok: false, error: "type is survey or sysids" }, 400, cookies);
   if (next) await env.DOCTRINE.put("field", JSON.stringify(next));
   return json({ ok: true, recorded: !!next, why: next ? "" : "already known" }, 200, cookies);
 }
 
-export const __test = { person, byName, addSurvey, addRift, addVisit, reset: () => { ROSTER = null; KILLS = null; BY_NAME = null; } };
+export const __test = { person, byName, addSurvey, addVisit, reset: () => { ROSTER = null; KILLS = null; BY_NAME = null; } };

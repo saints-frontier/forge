@@ -822,17 +822,16 @@
   }
 
   /* The companions' field records (2026-10-19): the System Map's readings per system (infestation 1-6, transient
-     mass, crude umbra, star), the systems Saints have been in, and the rifts they mined in. Keyed by system name. */
+     mass, crude umbra, star) and the systems Saints have been in. Keyed by system name. */
   let FIELD = { survey: {}, visited: {}, rifts: [] }, surveyOn = (() => { try { return localStorage.getItem("roads:survey") !== "0"; } catch (e) { return true; } })();
   const INF_COL = ["#7d8894", "#5bb36a", "#9bc45a", "#d9b24c", "#e0a83a", "#e0702e", "#e3222c"];
   const fieldName = id => { const n = nameOfId(id); return /\(C6\)$|^#/.test(n) ? null : up(n); };
   function fieldLines(id, nameHint) {
     const nm = up(nameHint || "") || fieldName(id); if (!nm) return "";
-    const sv = (FIELD.survey || {})[nm], vi = (FIELD.visited || {})[nm], rifts = (FIELD.rifts || []).filter(r => up(r.sys) === nm);
+    const sv = (FIELD.survey || {})[nm], vi = (FIELD.visited || {})[nm];
     const out = [];
     if (sv) out.push(`<div class="roads-field">${sv.infest ? `<span class="inf" style="--c:${INF_COL[sv.infest]}">Infestation ${sv.infest}/6${sv.word ? " " + esc(sv.word.toLowerCase()) : ""}</span>` : ""}${sv.transient ? ` · transient mass <b>${esc(sv.transient.toLowerCase())}</b>` : ""}${sv.umbra ? ` · crude umbra <b>${esc(sv.umbra.toLowerCase())}</b>` : ""}${sv.star ? ` · star ${esc(sv.star)}` : ""}${sv.planets != null ? ` · ${sv.planets} planets` : ""}${sv.belts != null ? ` · ${sv.belts} belts` : ""} <span class="roads-hint">(System Map, ${esc(String(sv.at).slice(0, 10))}${sv.by ? ", " + esc(sv.by) : ""})</span></div>`);
     if (vi) out.push(`<div class="roads-hint">Visited by Saints on ${vi.days} day${vi.days === 1 ? "" : "s"}, last ${esc(String(vi.last).slice(0, 10))}${vi.by ? " (" + esc(vi.by) + ")" : ""}.</div>`);
-    if (rifts.length) { const r = rifts[rifts.length - 1]; out.push(`<div class="roads-hint">A rift was mined here ${ago(r.at)}${r.by ? " by " + esc(r.by) : ""}${r.kind ? " (" + esc(r.kind) + ")" : ""}.</div>`); }
     return out.join("");
   }
   function drawSurveyBtn() { const b = $("roads-stars") && $("roads-stars").querySelector('[data-sf="survey"]'), n = Object.keys(FIELD.survey || {}).length; if (!b) return; b.hidden = !n; b.textContent = "Survey · " + n; b.classList.toggle("on", surveyOn); }
