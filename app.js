@@ -899,6 +899,51 @@
   // keeps every table ever used (link_tables), so a link made before a patch added a module still reads right.
   const NAMES = D.modules.map(m => m.name), LINK_FP = D.link_fp || null, LINK_TABLES = D.link_tables || {};
   function linkTable(f) { if (f == null) return LINK_TABLES.legacy || NAMES; if (f === LINK_FP) return NAMES; return LINK_TABLES[f] || null; }
+  // The compact link (2026-10-19, "is there a way to make the links shorter?"): "F" + base64url of bytes. Version 1:
+  // version, flags (1 LAI, 2 changed, 4 preset, 8 data fingerprint), the fingerprint (4 bytes), the preset (u16), the
+  // four priorities (3 bits each), the Capacitor minimum (u16), the kept totals (hold u16, fuel u16, Braces u8), the
+  // name and the outside-the-hull list ("Name:count|...") as length-prefixed UTF-8, the module count (u16), then three
+  // bytes a module: index 6 bits, section 4, turn/90 2, x + 32 6, y + 32 6. A 74-module LAI: about 330 characters.
+  const b64u = a => btoa(String.fromCharCode(...a)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  function encodeBin(rows) {
+    if (!rows.every(r => r[0] < 64 && r[1] < 16 && r[2] % 90 === 0 && r[3] >= -32 && r[3] < 32 && r[4] >= -32 && r[4] < 32) || rows.length > 600) return null;
+    const B = [], u8 = v => B.push(v & 255), u16 = v => { u8(v >> 8); u8(v); }, te = new TextEncoder();
+    const str = s => { const b = te.encode(s); if (b.length > 255) throw new Error("long"); u8(b.length); b.forEach(u8); };
+    const fp = LINK_FP && /^[0-9a-f]{8}$/.test(LINK_FP) ? LINK_FP : null, pr = state.prio || {}, mins = state.mins || {};
+    const flags = (state.hull === "LAI" ? 1 : 0) | (state.dirty ? 2 : 0) | (Number.isInteger(state.preset) && state.preset >= 0 && state.preset < 65536 ? 4 : 0) | (fp ? 8 : 0);
+    try {
+      u8(1); u8(flags);
+      if (fp) for (let i = 0; i < 8; i += 2) u8(parseInt(fp.slice(i, i + 2), 16));
+      if (flags & 4) u16(state.preset);
+      const pv = ["hold", "cap", "fuel", "hp"].map(k => Math.max(0, Math.min(4, Math.round(+pr[k] || 0))));
+      u16(pv[0] | pv[1] << 3 | pv[2] << 6 | pv[3] << 9);
+      u16(Math.max(0, Math.min(65535, state.minCaps || 0)));
+      u16(Math.max(0, Math.min(65535, Math.round(+mins.hold || 0)))); u16(Math.max(0, Math.min(65535, Math.round(+mins.fuel || 0)))); u8(Math.max(0, Math.min(255, +mins["Structural Brace"] || 0)));
+      str(String(state.name).slice(0, 60));
+      str(Object.keys(state.exterior).filter(n => state.exterior[n]).map(n => n + ":" + state.exterior[n]).join("|"));
+      u16(rows.length);
+      rows.forEach(r => { const v = r[0] << 18 | r[1] << 14 | (r[2] / 90) << 12 | (r[3] + 32) << 6 | (r[4] + 32); u8(v >> 16); u8(v >> 8); u8(v); });
+    } catch (e) { return null; }
+    return "F" + b64u(B);
+  }
+  function unbin(h) {                                       // the compact link -> the same object the JSON form gives
+    let b; try { b = Uint8Array.from(atob(h.slice(1).replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0)); } catch (e) { return null; }
+    let i = 0; const need = n => { if (i + n > b.length) throw new Error("short"); }, u8 = () => { need(1); return b[i++]; }, u16 = () => (u8() << 8) | u8();
+    const str = () => { const n = u8(); need(n); const s = new TextDecoder("utf-8", { fatal: true }).decode(b.slice(i, i + n)); i += n; return s; };
+    try {
+      if (u8() !== 1) return null;
+      const fl = u8(), o = { h: fl & 1 ? "LAI" : "Reiver", d: fl & 2 ? 1 : 0 };
+      if (fl & 8) { let f = ""; for (let k = 0; k < 4; k++) f += u8().toString(16).padStart(2, "0"); o.f = f; }
+      if (fl & 4) o.b = u16();
+      const pv = u16(); o.r = { hold: pv & 7, cap: pv >> 3 & 7, fuel: pv >> 6 & 7, hp: pv >> 9 & 7 };
+      o.c = u16(); o.k = { hold: u16(), fuel: u16(), "Structural Brace": u8() };
+      o.n = str(); const ex = str(); o.e = {};
+      if (ex) for (const x of ex.split("|")) { const m = x.match(/^(.{1,60}):(\d{1,3})$/); if (!m) return null; o.e[m[1]] = +m[2]; }
+      const n = u16(); if (n > 600) return null; o.p = [];
+      for (let k = 0; k < n; k++) { const v = u8() << 16 | u8() << 8 | u8(); o.p.push([v >> 18 & 63, v >> 14 & 15, (v >> 12 & 3) * 90, (v >> 6 & 63) - 32, (v & 63) - 32]); }
+      return i === b.length ? o : null;
+    } catch (e) { return null; }
+  }
   function encode() {
     const idx = {}; NAMES.forEach((n, i) => idx[n] = i);
     const rows = state.placements.map(p => [idx[p[0]], p[1], rotOf(p[0], p[3], p[2]) || 0, Math.min(...p[3].map(c => c[0])), Math.min(...p[3].map(c => c[1]))]);
@@ -907,6 +952,7 @@
     // URL-safe base64 alphabet) instead of p's number lists, about half the link; p stays for anything q cannot hold
     const q = rows.every(r => r[0] < 64 && r[1] < 64 && r[3] > -32 && r[3] < 32 && r[4] > -32 && r[4] < 32) ? rows.map(r => Q64[r[0]] + Q64[r[1]] + Q64[r[2] / 90] + Q64[r[3] + 32] + Q64[r[4] + 32]).join("") : null;
     if (q) obj.q = q; else obj.p = rows;
+    const bin = encodeBin(rows); if (bin) return bin;
     if (LINK_FP) obj.f = LINK_FP;
     const s = JSON.stringify(obj);
     return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -918,11 +964,11 @@
     for (let i = 0; i < s.length; i += 5) { const v = [...s.slice(i, i + 5)].map(ch => Q64.indexOf(ch)); if (v.some(n => n < 0) || v[2] > 3) return null; rows.push([v[0], v[1], v[2] * 90, v[3] - 32, v[4] - 32]); }
     return rows;
   }
-  const looksLikeFit = h => /^eyJ[A-Za-z0-9_-]{20,}$/.test(h);          // base64 of a JSON object: the only kind of hash that is a fit
+  const looksLikeFit = h => /^eyJ[A-Za-z0-9_-]{20,}$/.test(h) || /^F[A-Za-z0-9_-]{16,}$/.test(h);   // base64 of a JSON object, or the compact form
   // A link is somebody else's text (audit 2026-10-11: a crafted one ran script, froze the tab or loaded modules on top of
   // each other). Read into a fresh object, every field checked; one fault rejects the whole link and nothing is touched.
   function readLink(h) {
-    let o; try { o = JSON.parse(decodeURIComponent(escape(atob(String(h).replace(/-/g, "+").replace(/_/g, "/"))))); } catch (e) { return null; }
+    let o; if (/^F/.test(String(h))) o = unbin(String(h)); else try { o = JSON.parse(decodeURIComponent(escape(atob(String(h).replace(/-/g, "+").replace(/_/g, "/"))))); } catch (e) { return null; }
     if (o && typeof o === "object" && o.q != null) { o.p = unq(o.q); if (!o.p) return null; }
     if (!o || typeof o !== "object" || typeof o.h !== "string" || !D.hulls[o.h] || !Array.isArray(o.p) || o.p.length > 600) return null;
     const table = linkTable(o.f); if (!table) return null;
@@ -951,9 +997,24 @@
     if (!state.minCaps) { state.minCaps = counts(state.placements)["Capacitor"] || 1; syncKeepInputs(); }
     return true;
   }
+  // short links (2026-10-19): thesaintsforge.com/f/<id>, the fit kept in the site's store; anywhere else, or when the
+  // store does not answer, the full link is used
+  const SHORT_OK = () => /(^|\.)thesaintsforge\.com$/.test(location.hostname) || window.__forgeShortTest;
+  function shortLink(hash) {
+    if (!SHORT_OK()) return Promise.resolve(null);
+    return fetch("/api/short", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ h: hash }) })
+      .then(r => r.ok ? r.json() : null).then(d => d && d.ok && /^[A-Za-z0-9]{6,14}$/.test(d.id) ? location.origin + "/f/" + d.id : null).catch(() => null);
+  }
+  function linkNow() { const hash = encode(), long = location.href.split("#")[0] + "#" + hash; return shortLink(hash).then(s => s || long); }
+  function copyLater(textP, msg) {
+    // the clipboard call is made in the click itself with the text still to come, so the click still counts when it arrives
+    if (navigator.clipboard && window.ClipboardItem) {
+      navigator.clipboard.write([new ClipboardItem({ "text/plain": textP.then(t => new Blob([t], { type: "text/plain" })) })])
+        .then(() => textP.then(t => setStatus(msg(t), "ok")), () => textP.then(t => copy(t, msg(t))));
+    } else textP.then(t => copy(t, msg(t)));
+  }
   function shareLink() {
-    const url = location.href.split("#")[0] + "#" + encode();
-    copy(url, "Proposal link copied. Paste it in Discord.");
+    copyLater(linkNow(), t => /\/f\//.test(t) ? "Short link copied: " + t.replace(/^https?:\/\//, "") : "Proposal link copied. Paste it in Discord.");
   }
   function diffVsBase(base) {
     if (!base) return [];
@@ -961,7 +1022,8 @@
     names.forEach(n => { const d = (c[n] || 0) - (bc[n] || 0); if (d) diff.push(`${d > 0 ? "+" : ""}${d} ${n}`); });
     return diff;
   }
-  function discordText() {
+  function discordText() { let msg = ""; copyLater(linkNow().then(link => { const r = discordBody(link); msg = r.msg; return r.t; }), () => msg); }
+  function discordBody(link) {
     // a Discord message holds 2,000 characters without Nitro (tribe feedback 2026-10-19): the parts go in by rank and
     // a part that would pass the limit stays out (name and numbers, the changes, the link, then the module list)
     const LIMIT = 2000, st = stats(), c = counts(state.placements);
@@ -972,14 +1034,13 @@
     const mods = lines.join(", ") + (ext.length ? " · exterior: " + ext.join(", ") : "");
     const diff = base ? diffVsBase(base) : null;
     const changes = base && state.dirty ? (diff.length ? "Changes: " + diff.join(", ") : "Same modules as the doctrine fit, re-packed.") : "";
-    const link = location.href.split("#")[0] + "#" + encode();
     const len = a => a.join("\n").length, parts = [head, nums], out = [];
     if (changes && len([...parts, changes]) <= LIMIT) parts.push(changes); else if (changes) out.push("the changes");
     const linkFits = len([...parts, link]) <= LIMIT;
     if (len([...parts, mods].concat(linkFits ? [link] : [])) <= LIMIT) parts.push(mods); else out.push("the module list");
     if (linkFits) parts.push(link); else out.push("the link (too long for one message: Copy proposal link, and send it on its own)");
     const t = parts.join("\n");
-    copy(t, `Discord text copied (${t.length.toLocaleString("en-US")} of 2,000 characters)` + (out.length ? `. Left out to fit: ${out.join(", ")}. Copy layout image shows the whole fit.` : "."));
+    return { t, msg: `Discord text copied (${t.length.toLocaleString("en-US")} of 2,000 characters)` + (out.length ? `. Left out to fit: ${out.join(", ")}. Copy layout image shows the whole fit.` : ".") };
   }
   // ---------- the layout as a picture (tribe feedback 2026-10-19: "copy/paste the layout page instead of a wall of text") ----------
   function layoutSvg() {
@@ -1119,6 +1180,12 @@
   function cellMap(placements) { const m = new Map(); placements.forEach(p => p[3].forEach(c => m.set(`${p[1]}:${c[0]}:${c[1]}`, p[0]))); return m; }
   function otherFit() {
     const link = $("cmp-link").value.trim();
+    const sm = link.match(/\/f\/([A-Za-z0-9]{6,14})\b/);
+    if (sm && !link.includes("#")) {
+      $("cmp-body").innerHTML = `<div class="note">Opening the short link...</div>`;
+      fetch("/api/short?id=" + sm[1]).then(r => r.ok ? r.json() : null).then(d => { if ($("cmp-link").value.trim() !== link) return; if (d && d.ok && d.h) { $("cmp-link").value = location.origin + "/forge#" + d.h; renderCompare(); } else $("cmp-body").innerHTML = `<div class="note">That short link is not known to the site.</div>`; }).catch(() => { $("cmp-body").innerHTML = `<div class="note">The site did not answer.</div>`; });
+      return null;
+    }
     if (link) { const h = link.includes("#") ? link.split("#")[1] : link; const f = decodeFit(h); if (!f) { $("cmp-body").innerHTML = `<div class="note">That is not a proposal link from this page.</div>`; return null; } return f; }
     const n = +$("cmp-sel").value; const p = D.presets.find(x => x.n === n); if (!p) return null;
     return { hull: p.hull, name: docName(p), placements: p.placements, exterior: soundExterior(p.exterior) };
@@ -1420,7 +1487,7 @@
     wire();
     const h = location.hash.replace(/^#/, "");
     if (h && decode(h)) { $("min-caps").value = state.minCaps || (counts(state.placements)["Capacitor"] || 1); state.minCaps = +$("min-caps").value; startSolver(); render(); setStatus(`Shared fit "${state.name}" loaded.`, "ok"); }
-    else { loadPreset(D.presets.some(p => p.n === 8) ? 8 : D.presets[0].n); if (looksLikeFit(h)) setStatus(BAD_LINK, "bad"); }
+    else { loadPreset(D.presets.some(p => p.n === 8) ? 8 : D.presets[0].n); if (looksLikeFit(h)) setStatus(BAD_LINK, "bad"); else if (h === "nofit") setStatus("That short link is not known to the site.", "bad"); }
     window.addEventListener("hashchange", () => {            // a proposal link pasted into the address bar of an open Forge
       const x = location.hash.replace(/^#/, ""); if (!looksLikeFit(x)) return;
       if (busy()) return;
