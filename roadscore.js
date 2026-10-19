@@ -188,6 +188,13 @@
      trip, and the hop says so: either can be a one-way jump. Cost per jump: our road 1, a public gate 1.25 (50 crude),
      unfueled 3, dormant 6. Returns { hops: [{ from, to, kind, how: "ours" | "public", state, name, inferred }], crude }
      or { hops: null, closest: { id, ly, jumps } } when the target cannot be reached. */
+  /* how long a gate's fuel lasts at the rate its readings show (hours), or null: the first and the last reading of the
+     last eight, at least half an hour apart, with jumps used between them */
+  function hoursLeft(f) {
+    const h = (f && f.hist) || []; if (h.length < 2 || f.jumps == null) return null;
+    const a = h[0], z = h[h.length - 1], hrs = (Date.parse(z[0]) - Date.parse(a[0])) / 3600000, used = a[1] - z[1];
+    return hrs >= 0.5 && used > 0 ? f.jumps / (used / hrs) : null;
+  }
   function navigate(o) {
     const M = o.model, adj = new Map(), push = (a, b, e) => { let l = adj.get(a); if (!l) adj.set(a, l = []); l.push(Object.assign({ to: b }, e)); };
     const idOf = n => idOfName(M, n);
@@ -204,7 +211,7 @@
     for (let i = 0; i + 1 < G.length; i += 2) for (const [x, y] of [[G[i], G[i + 1]], [G[i + 1], G[i]]]) {
       const s = st.get(x + ">" + y) || "", f = fuel.get(x + ">" + y) || null;
       /* the gate's own tank, read from its window: none left = it cannot send anyone (as bad as dormant) */
-      push(x, y, { kind: "Public Gate", how: "public", state: s, fuel: f ? { jumps: f.jumps, cap: f.cap, at: f.at } : null, cost: s === "dormant" || (f && f.jumps < 1) ? 6 : s === "unfueled" ? 3 : 1.25 });
+      push(x, y, { kind: "Public Gate", how: "public", state: s, fuel: f ? { jumps: f.jumps, cap: f.cap, at: f.at, left: hoursLeft(f) } : null, cost: s === "dormant" || (f && f.jumps < 1) ? 6 : s === "unfueled" ? 3 : 1.25 });
     }
     const from = o.from, to = o.to, best = new Map([[from, 0]]), prev = new Map(), jumps = new Map([[from, 0]]);
     const heap = [[0, from]], pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; for (let i = 0;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[i], heap[m]] = [heap[m], heap[i]]; i = m; } } return top; };
@@ -233,5 +240,5 @@
     return { i: null, off: true };
   }
 
-  G.RoadsCore = { up, RANGE, readName, mentions, build, parseStars, parseGates, namer, idOfName, navigate, routeStep };
+  G.RoadsCore = { up, RANGE, readName, mentions, build, parseStars, parseGates, namer, idOfName, navigate, routeStep, hoursLeft };
 })(typeof window !== "undefined" ? window : self);

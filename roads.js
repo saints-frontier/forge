@@ -191,7 +191,9 @@
     if (!sf || !sf.gateCount()) return "";
     const g = sf.gatesOf(id); if (!g.length) return `<div class="roads-hint">No public stargate here, says the game client.</div>`;
     const me = nameOfId(id), rows = g.map(o => ({ o, d: dist ? dist(id, o) : null })).sort((a, b) => (a.d || 0) - (b.d || 0));
-    const fuelHtml = (rec, side) => { const f = rec && rec.fuel && rec.fuel[side]; return f && f.jumps != null ? ` · <span class="${f.jumps < 10 ? "warn" : "roads-hint"}">fuel here ${Number(f.jumps).toLocaleString("en-US")}/${Number(f.cap || 0).toLocaleString("en-US")} jumps (${esc(String(f.at || "").slice(0, 10))}${f.by ? ", " + esc(f.by) : ""})</span>` : ""; };
+    const eta = f => { const h = (f && f.hist) || []; if (h.length < 2 || f.jumps == null) return ""; const a = h[0], z = h[h.length - 1], hrs = (Date.parse(z[0]) - Date.parse(a[0])) / 3600000, used = a[1] - z[1];
+      if (hrs < 0.5 || used <= 0) return ""; const left = f.jumps / (used / hrs); return ` · <span class="${left < 24 ? "warn" : "roads-hint"}">about ${left < 48 ? Math.round(left) + " h" : Math.round(left / 24) + " days"} left at the recent rate (${used} jumps in ${hrs < 48 ? Math.round(hrs) + " h" : Math.round(hrs / 24) + " days"})</span>`; };
+    const fuelHtml = (rec, side) => { const f = rec && rec.fuel && rec.fuel[side]; return f && f.jumps != null ? ` · <span class="${f.jumps < 10 ? "warn" : "roads-hint"}">fuel here ${Number(f.jumps).toLocaleString("en-US")}/${Number(f.cap || 0).toLocaleString("en-US")} jumps (${esc(String(f.at || "").slice(0, 10))}${f.by ? ", " + esc(f.by) : ""})</span>${eta(f)}` : ""; };
     return `<h4>Public gates · ${g.length}</h4><ul>${rows.map(r => { const n = nameOfId(r.o), rec = gateRec(me, n); return `<li><b>${esc(n)}</b>${r.d != null ? ` · ${Math.round(r.d).toLocaleString("en-US")} LY` : ""}${rec ? stateHtml(rec) + fuelHtml(rec, me) : (r.d > 365 ? ' · <span class="roads-hint">longer than any gate jumped so far: check it on the game map</span>' : "")}</li>`; }).join("")}</ul><div class="roads-hint">From the game client. Working, unfueled or dormant: only a jump tells. The Saints Frontier Companion records it as you jump; or record it under Manage.</div>`;
   }
   function drawMap() {
@@ -248,14 +250,14 @@
         : e && e.status === "conflict" ? `Not confirmed: players disagree on its name (most reported: ${esc(e.name)}).`
         : e ? `Not confirmed: one player has reported the name ${esc(e.name)}. A second matching report on EF-Map charts it.`
         : `Nobody has reported a name for it yet${old ? ` (its Cycle 6 name was ${esc(old)})` : ""}.`;
-      el.hidden = false; el.innerHTML = `<div class="roads-dh">${ok ? esc(e.name) : "Uncharted"} <button type="button" class="roads-quiet" data-checkfrom="${picked}" title="every catapult or gate jump from this star">Check jumps from here</button> <button type="button" class="roads-quiet" data-planto="${picked}" title="plan a road from the planner's From to this star">Plan a road here</button> <button type="button" class="roads-quiet" data-navto="${picked}" title="the companion tells you every jump on the way">Navigate here</button></div><div class="roads-hint">${what}${where}</div>${poiLines(picked)}` + (showGates ? `<div class="roads-dcols"><div>${gateList(picked)}</div></div>` : ""); return; }
+      el.hidden = false; el.innerHTML = `<div class="roads-dh">${ok ? esc(e.name) : "Uncharted"} <button type="button" class="roads-quiet" data-checkfrom="${picked}" title="every catapult or gate jump from this star">Check jumps from here</button> <button type="button" class="roads-quiet" data-planto="${picked}" title="plan a road from the planner's From to this star">Plan a road here</button> <button type="button" class="roads-quiet" data-navto="${picked}" title="the companion tells you every jump on the way">Navigate here</button></div><div class="roads-hint">${what}${where}</div>${poiLines(picked)}${fieldLines(picked)}` + (showGates ? `<div class="roads-dcols"><div>${gateList(picked)}</div></div>` : ""); return; }
     if (!selected || !M.systems.has(selected)) { el.hidden = true; el.innerHTML = ""; return; }
     el.hidden = false;
     const s = M.systems.get(selected), out = M.roads.filter(r => r.from === selected || (r.twoWay && r.to === selected)), inn = M.roads.filter(r => r.to === selected && !r.twoWay);
     const row = (r, other) => `<li><b>${esc(other)}</b> · ${esc(r.kind)}${r.twoWay ? " · both ways" : ""}${r.online === false ? ' · <span class="bad">offline</span>' : ""}${r.ly != null ? ` · ${r.ly.toFixed(0)} LY` : ""}${r.tooFar ? ` · <span class="bad">beyond its ${RANGE[r.kind]} LY reach: check the name</span>` : ""}${r.name ? ` · <i>${esc(r.name)}</i>` : ""}${r.inferred ? ` · <span class="roads-hint">worked out: ${esc(r.why)}</span>` : ""}${r.seen ? ` · <span class="roads-hint">${r.source === "seen" ? "seen only: " : r.confirmed ? "confirmed: " : ""}jumped on ${r.seen.days || 1} day${(r.seen.days || 1) === 1 ? "" : "s"}, last ${esc(String(r.seen.last || "").slice(0, 10))}${r.seen.by ? " by " + esc(r.seen.by) : ""}</span>` : ""}</li>`;
     const kSel = M.ids.get(selected);
     el.innerHTML = `<div class="roads-dh">${esc(selected)}${kSel ? ` <button type="button" class="roads-quiet" data-checkfrom="${kSel.id}" title="every catapult or gate jump from this system">Check jumps from here</button> <button type="button" class="roads-quiet" data-planto="${kSel.id}" title="plan a road from the planner's From to this system">Plan a road here</button> <button type="button" class="roads-quiet" data-navto="${kSel.id}" title="the companion tells you every jump on the way">Navigate here</button>` : ""}${kSel && kSel.ef ? ` <span class="roads-hint">· its place on the star map comes from EF-Map (${esc(kSel.ef)})</span>` : ""}</div>` +
-      `${kSel ? poiLines(kSel.id) : ""}<div class="roads-dcols"><div><h4>Roads out</h4><ul>${out.map(r => row(r, r.from === selected ? r.to : r.from)).join("") || "<li>None: a dead end.</li>"}</ul></div>` +
+      `${kSel ? poiLines(kSel.id) : ""}${fieldLines(kSel ? kSel.id : 0, selected)}<div class="roads-dcols"><div><h4>Roads out</h4><ul>${out.map(r => row(r, r.from === selected ? r.to : r.from)).join("") || "<li>None: a dead end.</li>"}</ul></div>` +
       `<div><h4>Roads in</h4><ul>${inn.map(r => row(r, r.from)).join("") || "<li>None.</li>"}</ul></div>` +
       `<div><h4>Our nodes here</h4><ul>${s.nodes.map(n => `<li><b>${esc(n.name || short(n.id))}</b>${M.nodeGuess(n.id) ? " · worked out" : ""} · ${n.fuel.quantity.toLocaleString("en-US")} ${esc(fuelName(n))}${M.daysOf(n) == null ? " · " + noDays(n, "not burning") : ` · <span class="${fuelClass(M.daysOf(n))}">${fmtDays(M.daysOf(n))}</span>${fullDays(n) ? ` <span class="roads-hint">(full: ${fmtDays(fullDays(n))})</span>` : ""}`}</li>`).join("") || "<li>None known.</li>"}</ul></div>` +
       (showGates && kSel ? `<div>${gateList(kSel.id)}</div>` : "") + `</div>`;
@@ -309,7 +311,7 @@
       if (!sf) return Promise.resolve(null);
       window.__roadsStars = sf;                                      // tests
       box.insertAdjacentHTML("beforeend", '<div class="sf-hint">drag: turn · shift-drag: move · ctrl + wheel: zoom · click any star</div><div class="sf-missing" id="sf-missing"></div>' +
-        '<div class="sf-poi" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-tools"><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="me" title="Fly to where you are (from the Saints Frontier Companion)" hidden>Find me</button><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="fit" title="Our network">Our roads</button><button type="button" data-sf="all" title="The whole galaxy">Galaxy</button><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button></div>');
+        '<div class="sf-poi" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-tools"><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="survey" title="Systems Saints have surveyed with the companion: infestation 1 (green) to 6 (red)" hidden>Survey</button><button type="button" data-sf="me" title="Fly to where you are (from the Saints Frontier Companion)" hidden>Find me</button><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="fit" title="Our network">Our roads</button><button type="button" data-sf="all" title="The whole galaxy">Galaxy</button><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button></div>');
       sfLoading = sf.load("stars.bin?v=2").then(() => { dist = (a, b) => { const p = sf.position(a), q = sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; }; if (lastData && !draft) { M = build(lastData); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); stamp(lastData); }
         // the public gates come after the stars, never in their way: the button appears once they are in
         sf.showGates(showGates); poiLoad(); locPoll();
@@ -339,6 +341,9 @@
         if (showCharted && !chartOn) systems.push(ok ? { id, name: e.name, cls: "charted", sub: "" } : { id, name: "uncharted", cls: "uncharted", sub: "" }); }
       if (LOC) { const mk = (r, cls, label) => { const id = locOf(r.s); if (!id || !s.has(id)) return; const i = systems.findIndex(x => x.id === id); const o = { id, name: label, cls, sub: r.s + " · " + ago(r.at), subColor: cls === "me" ? "#5fe3ff" : "#8fe0b0" }; if (i >= 0) systems.splice(i, 1, o); else systems.push(o); placed.add(id); };
         for (const m of LOC.mates) mk(m, "mate", m.n || m.c || "a Saint"); if (LOC.me) mk(LOC.me, "me", "\u25B2 You"); }
+      if (surveyOn) for (const [nm, r] of Object.entries(FIELD.survey || {})) { const id = window.RoadsCore.idOfName(M, nm); if (!id || !s.has(id) || !r.infest) continue;
+        const i = systems.findIndex(x => x.id === id); if (i >= 0) { systems[i].sub = (systems[i].sub ? systems[i].sub + " · " : "") + "inf " + r.infest; continue; }
+        placed.add(id); systems.push({ id, name: `${nm} · inf ${r.infest}`, cls: "poi", color: INF_COL[r.infest], sub: r.transient ? r.transient.toLowerCase() : "" }); }
       if (POI && poiOn) for (const c of POI.categories) { if (!poiOn.has(c.key)) continue;
         for (const [id] of c.items) { if (!s.has(id) || placed.has(id)) continue; placed.add(id); systems.push({ id, name: `${c.label} · ${nameOfId(id).replace(/ \(C6\)$/, "")}`, cls: "poi", color: c.color, sub: "" }); } }
       const cb = $("roads-stars").querySelector('[data-sf="charted"]'); if (cb) { cb.hidden = !(chartedN + waitingN); cb.textContent = `Charted · ${chartedN.toLocaleString("en-US")}`; cb.classList.toggle("on", showCharted); }
@@ -629,6 +634,7 @@
   const CHART_WORD = { unknown: "nobody has reported it", reported: "one report on EF-Map", disputed: "disputed name on EF-Map" };
   function chartState(id, own) {
     if (own.has(id)) return "ours";
+    { const nm = fieldName(id); if (nm && (FIELD.visited || {})[nm]) return "visited"; }
     const e = M.ef.byId.get(id);
     return !e ? "unknown" : e.status === "confirmed" ? "charted" : e.status === "conflict" ? "disputed" : "reported";
   }
@@ -660,7 +666,7 @@
     let pool;
     if (reach === "gates") { const { dist } = chartBfs(from, next); pool = [...dist.keys()].filter(id => id !== from).map(id => ({ id, hops: dist.get(id) })); }
     else pool = sf.near(from, R).map(([id, ly]) => ({ id, ly }));
-    const cand = pool.filter(c => { const st = chartState(c.id, own); return st !== "ours" && st !== "charted"; });
+    const cand = pool.filter(c => { const st = chartState(c.id, own); return st !== "ours" && st !== "charted" && st !== "visited"; });   /* a system a Saint has been in is known now */
     const tour = [], left = new Set(cand.map(c => c.id));
     let cur = from;
     while (tour.length < N && left.size) {
@@ -779,13 +785,28 @@
     $("roads-stamp").textContent = (d.error ? "The chain did not answer: " + d.error + " · " : "") + `${M.systems.size} systems · ${built.length} roads${guess ? ` (${guess} worked out)` : ""} · read ${mins ? mins + " min ago" : "just now"}` + (M.ef.count ? ` · EF-Map: ${M.ef.confirmed.toLocaleString("en-US")} systems charted, ${(M.ef.count - M.ef.confirmed).toLocaleString("en-US")} reported once` : M.ef.error ? ` · EF-Map names: ${M.ef.error}` : "");
   }
 
+  /* The companions' field records (2026-10-19): the System Map's readings per system (infestation 1-6, transient
+     mass, crude umbra, star), the systems Saints have been in, and the rifts they mined in. Keyed by system name. */
+  let FIELD = { survey: {}, visited: {}, rifts: [] }, surveyOn = (() => { try { return localStorage.getItem("roads:survey") !== "0"; } catch (e) { return true; } })();
+  const INF_COL = ["#7d8894", "#5bb36a", "#9bc45a", "#d9b24c", "#e0a83a", "#e0702e", "#e3222c"];
+  const fieldName = id => { const n = nameOfId(id); return /\(C6\)$|^#/.test(n) ? null : up(n); };
+  function fieldLines(id, nameHint) {
+    const nm = up(nameHint || "") || fieldName(id); if (!nm) return "";
+    const sv = (FIELD.survey || {})[nm], vi = (FIELD.visited || {})[nm], rifts = (FIELD.rifts || []).filter(r => up(r.sys) === nm);
+    const out = [];
+    if (sv) out.push(`<div class="roads-field">${sv.infest ? `<span class="inf" style="--c:${INF_COL[sv.infest]}">Infestation ${sv.infest}/6${sv.word ? " " + esc(sv.word.toLowerCase()) : ""}</span>` : ""}${sv.transient ? ` · transient mass <b>${esc(sv.transient.toLowerCase())}</b>` : ""}${sv.umbra ? ` · crude umbra <b>${esc(sv.umbra.toLowerCase())}</b>` : ""}${sv.star ? ` · star ${esc(sv.star)}` : ""}${sv.planets != null ? ` · ${sv.planets} planets` : ""}${sv.belts != null ? ` · ${sv.belts} belts` : ""} <span class="roads-hint">(System Map, ${esc(String(sv.at).slice(0, 10))}${sv.by ? ", " + esc(sv.by) : ""})</span></div>`);
+    if (vi) out.push(`<div class="roads-hint">Visited by Saints on ${vi.days} day${vi.days === 1 ? "" : "s"}, last ${esc(String(vi.last).slice(0, 10))}${vi.by ? " (" + esc(vi.by) + ")" : ""}.</div>`);
+    if (rifts.length) { const r = rifts[rifts.length - 1]; out.push(`<div class="roads-hint">A rift was mined here ${ago(r.at)}${r.by ? " by " + esc(r.by) : ""}${r.kind ? " (" + esc(r.kind) + ")" : ""}.</div>`); }
+    return out.join("");
+  }
+  function drawSurveyBtn() { const b = $("roads-stars") && $("roads-stars").querySelector('[data-sf="survey"]'), n = Object.keys(FIELD.survey || {}).length; if (!b) return; b.hidden = !n; b.textContent = "Survey · " + n; b.classList.toggle("on", surveyOn); }
   function render(d) {
-    lastData = d; draft = null;
+    lastData = d; draft = null; FIELD = Object.assign({ survey: {}, visited: {}, rifts: [] }, d.field || {});
     M = build(withMine(d));
     $("roads-gate").hidden = true; $("roads-app").hidden = false;
     stamp(d);
     $("roads-manage-btn").hidden = !M.canEdit; if (!M.canEdit) $("roads-p-manage").hidden = true;
-    setView(view); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); drawPlans(); fillPlanner(); if (openPlan != null && M.plans[openPlan]) drawPlan(openPlan);
+    drawSurveyBtn(); setView(view); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); drawPlans(); fillPlanner(); if (openPlan != null && M.plans[openPlan]) drawPlan(openPlan);
     if (chartOn) { $("chart-save").hidden = !M.canEdit; starsReady().then(s => { if (s && chartOn) runChart(); }); }
     const ed = $("roads-editor"); ed.hidden = !M.canEdit; $("roads-gate-form").hidden = !M.canEdit;
     if (M.canEdit) $("roads-json").value = JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, gates: M.list.gates || [], plans: (M.list.plans || []).filter(p => !p.draft && !p.mine) }, null, 1);
@@ -873,6 +894,7 @@
     if (b.dataset.sf === "gates") { showGates = !showGates; try { localStorage.setItem("roads:gates", showGates ? "1" : "0"); } catch (e) {} if (sf) sf.showGates(showGates); b.classList.toggle("on", showGates); drawDetail(); return; }
     if (b.dataset.sf === "charted") { showCharted = !showCharted; try { localStorage.setItem("roads:charted", showCharted ? "1" : "0"); } catch (e) {} if (!showCharted) { picked = null; if (sf) sf.mark(null); } drawStars(); drawDetail(); return; }
     if (b.dataset.sf === "poi") { openPoiBox(!poiBox); return; }
+    if (b.dataset.sf === "survey") { surveyOn = !surveyOn; try { localStorage.setItem("roads:survey", surveyOn ? "1" : "0"); } catch (e) {} drawStars(); drawSurveyBtn(); return; }
     if (b.dataset.sf === "me" && sf && LOC && LOC.me) { const id = locOf(LOC.me.s); if (id) { const name = [...M.ids].find(([, v]) => v.id === id); selected = name ? name[0] : null; picked = name ? null : id; sf.look(id, 300); if (!name) sf.mark(null); drawStars(); drawDetail(); } return; }
     if (b.dataset.poiclose) { openPoiBox(false); return; }
     if (b.dataset.sf && sf) { if (b.dataset.sf === "fit") sf.fit(); else if (b.dataset.sf === "all") sf.fitAll(); else if (b.dataset.sf === "in") sf.zoom(1 / 1.35); else if (b.dataset.sf === "out") sf.zoom(1.35); else sf.view(b.dataset.sf === "top" ? 88 : 4); return; }
@@ -935,6 +957,7 @@
   window.__roadsMapClick = id => checkClick(id) || planClick(id);   // tests: what a map click on a star does first (the same path as onPick / onPickStar)
   window.__roadsPoi = () => ({ on: poiOn ? [...poiOn] : null, n: POI ? POI.categories.length : 0 });   /* tests */
   window.__roadsNav = (nav, pairs) => { NAV = nav; if (pairs) gatePairs = pairs; drawLoc(); return $("roads-me").innerText; };   /* tests */
+  window.__roadsField = f => { FIELD = Object.assign({ survey: {}, visited: {}, rifts: [] }, f || {}); drawSurveyBtn(); drawStars(); drawDetail(); return Object.keys(FIELD.survey).length; };   /* tests */
   window.__roadsLoc = d => { LOC = d; drawStars(); drawLoc(); return locOf(d && d.me && d.me.s); };   /* tests */
   window.__roadsPick = id => { selected = null; picked = id; drawDetail(); return $("roads-detail").hidden ? null : $("roads-detail").innerText; };   // tests: what a click on any star says
 })();

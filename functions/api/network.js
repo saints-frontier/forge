@@ -26,7 +26,7 @@ async function gql(query, variables) {
   return b.data;                                        // partial data is fine: unreadable objects come back null
 }
 /* the ids of everything a character owns (through its OwnerCaps) */
-async function ownedIds(character) {
+export async function ownedIds(character) {     // also used by /api/intel
   const ids = []; let after = null;
   for (let page = 0; page < MAX_PAGES; page++) {
     const d = await gql("query($a:SuiAddress!,$c:String){ address(address:$a) { objects(first:50, after:$c) { pageInfo { hasNextPage endCursor } nodes { contents { type { repr } json } } } } }", { a: character, c: after });
@@ -38,7 +38,7 @@ async function ownedIds(character) {
 }
 /* The public endpoint sometimes drops a few objects from a batch ("Failed to fetch object contents"), so whatever is
    missing is asked for again, twice at most. Ids that never answer are objects that no longer exist. */
-async function getObjects(ids) {
+export async function getObjects(ids) {
   const out = new Map();
   let want = [...new Set(ids)];
   for (let round = 0; round < 3 && want.length; round++) {
@@ -50,15 +50,15 @@ async function getObjects(ids) {
   }
   return out;
 }
-const variant = j => (((j.status || {}).status || {})["@variant"]) || "?";
-const label = j => String(((j.metadata || {}).name) || "").trim().slice(0, 80);
+export const variant = j => (((j.status || {}).status || {})["@variant"]) || "?";
+export const label = j => String(((j.metadata || {}).name) || "").trim().slice(0, 80);
 
 /* How long a node's fuel lasts. The chain's fuel module burns one unit every burn_rate_in_ms x efficiency / 100:
    a node says 3,000,000 ms (50 minutes), EU-40 Fuel has efficiency 40, so one unit lasts 20 minutes (3 an hour, as
    the game shows) and D1 Fuel (10) 5 minutes. The efficiencies live in the world's FuelConfig table; they are read
    with the nodes, and the values of 2026-10-13 stand in when that read fails. */
 const FUEL_EFF = { "78515": 80, "78516": 40, "88319": 15, "78437": 90, "84868": 40, "88335": 10 };
-async function fuelEfficiency(pkg) {
+export async function fuelEfficiency(pkg) {
   const eff = Object.assign({}, FUEL_EFF);
   if (!/^0x[0-9a-f]{64}$/.test(pkg || "")) return eff;
   try {
@@ -152,7 +152,7 @@ export async function onRequestGet({ request, env }) {
       } catch (e) { error = String(e && e.message || e).slice(0, 200); }
     }
   }
-  return json({ ok: true, at, cached, error, canEdit: !key && canUpload(env, s), list, assemblies: chain.assemblies, nodes: chain.nodes, names: Object.assign({ source: "EF-Map" }, await namesP) }, 200, cookies);
+  return json({ ok: true, at, cached, error, canEdit: !key && canUpload(env, s), list, assemblies: chain.assemblies, nodes: chain.nodes, names: Object.assign({ source: "EF-Map" }, await namesP), field: await (async () => { try { return (await env.DOCTRINE.get("field", "json")) || {}; } catch (e) { return {}; } })() }, 200, cookies);   // field = the companions' surveys, visited systems, rifts (/api/intel)
 }
 
 const SYS = v => typeof v === "string" && v.length >= 1 && v.length <= 24;

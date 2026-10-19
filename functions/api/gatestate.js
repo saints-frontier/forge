@@ -23,6 +23,7 @@
 import { json } from "./_lib.js";
 import { who } from "./quarry.js";
 import { readNames } from "./network.js";
+import { addVisit } from "./intel.js";
 
 const STATES = ["working", "unfueled", "dormant", "unknown"];
 const NAME = /^[A-Za-z0-9|.\- ]{2,40}$/;
@@ -120,7 +121,9 @@ export function merge(gates, a, b, obs) {
   if (obs.window && (obs.window.jumps != null || obs.window.status)) {
     const f = Object.assign({}, old && old.fuel), prev = f[a];
     const loses = obs.window.jumps == null && prev && prev.jumps != null;      // a reading without the count never replaces one with it
-    if (!loses && (!prev || !prev.at || obs.window.at >= prev.at)) { f[a] = { jumps: obs.window.jumps, cap: obs.window.cap, status: obs.window.status, dest: obs.window.dest, at: obs.window.at, by: obs.by }; rec.fuel = f; }
+    if (!loses && (!prev || !prev.at || obs.window.at >= prev.at)) {
+      const hist = ((prev && prev.hist) || []).slice(); if (obs.window.jumps != null && (!hist.length || hist[hist.length - 1][1] !== obs.window.jumps)) hist.push([obs.window.at, obs.window.jumps]);
+      f[a] = { jumps: obs.window.jumps, cap: obs.window.cap, status: obs.window.status, dest: obs.window.dest, at: obs.window.at, by: obs.by, hist: hist.slice(-8) }; rec.fuel = f; }
   }
   if (old && JSON.stringify(old) === JSON.stringify(rec)) return null;   // the same news: no write
   if (!old && !rec.state && !rec.fuel) return null;
@@ -142,6 +145,7 @@ export async function onRequestPost({ request, env }) {
   const win = cleanWindow(d.window);
   if (win === false) return json({ ok: false, error: "The window reading is not in the right shape." }, 400, cookies);
   if (win) { let wa = String(d.window.at || at); if (!ISO.test(wa)) wa = at; if (!wa.endsWith("Z")) wa += "Z"; win.at = Date.parse(wa) > Date.now() + 5 * 60000 ? at : wa; }
+  if (d.to != null && /^[0-9]{6,14}$/.test(String(d.char || ""))) { try { const fld = await env.DOCTRINE.get("field", "json"); const nf = addVisit(fld || {}, up(d.to), at, String(s.n || "a Saint").replace(/[<>]/g, "").slice(0, 40)); if (nf) await env.DOCTRINE.put("field", JSON.stringify(nf)); } catch (e) {} }
   if (d.state === "unknown" && !(win && (win.jumps != null || win.status))) return json({ ok: true, recorded: false, why: "the game could not tell the far side's state" }, 200, cookies);
 
   let raw = null; try { raw = await env.DOCTRINE.get("network"); } catch (e) {}
