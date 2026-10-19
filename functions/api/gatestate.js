@@ -170,6 +170,9 @@ export async function onRequestPost({ request, env }) {
 /* a move that is no public gate: a player gate (on chain) or a catapult (within its reach), else a respawn */
 async function otherMove(env, request, stored, d, from, to, fromId, toId, at, by, cookies) {
   const char = /^[0-9]{6,14}$/.test(String(d.char || "")) ? String(d.char) : "";
+  /* no character id = a companion from before 2026-10-19 05:06Z: it cannot tell a player gate from a catapult (its gate
+     jumps were filed as catapults on the first day), so its moves are not recorded */
+  if (!char) return json({ ok: true, recorded: false, why: "update the companion (restart it) to record catapult and gate roads" }, 200, cookies);
   let jump = null; try { if (char) jump = await findJump(char, Date.parse(at)); } catch (e) { /* the chain did not answer: judged by distance alone */ }
   let kind = null;
   if (jump) kind = "gate";
