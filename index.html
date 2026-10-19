@@ -402,24 +402,6 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #tab-quarry .quarry details.fold > summary { cursor: pointer; font: 600 10px var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--gold); }
 #tab-quarry .quarry .lodge { margin-top: 18px; font: 700 12px var(--display); letter-spacing: 2px; text-transform: uppercase; padding: 9px 14px; background: var(--crimson); color: var(--title); border: 1px solid var(--red); cursor: pointer; }
 @media (max-width: 560px) { #tab-quarry .quarry .answer { padding: 14px; } #tab-quarry .quarry .row { grid-template-columns: minmax(0, 1fr) 70px 40px; gap: 10px; } #tab-quarry .quarry .rline { grid-template-columns: 1fr; } }
-#tab-quarry .quarry .getapp { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 16px 20px; align-items: center; margin-top: 14px; padding: 14px; border: 1px solid var(--gold-soft); background: linear-gradient(rgba(21,19,26,.94), rgba(10,9,12,.94)); position: relative; }
-#tab-quarry .quarry .getapp::before { content: ""; position: absolute; left: 8px; right: 0; top: 0; height: 3px; background: var(--red); }
-#tab-quarry .quarry .getapp img { width: 100%; height: auto; display: block; border: 1px solid var(--line-strong); }
-#tab-quarry .quarry .getapp .gatitle { font: 900 clamp(20px, 2.4vw, 26px)/1.15 var(--deco); color: var(--gold); margin-bottom: 6px; }
-#tab-quarry .quarry .getapp p { margin: 0 0 12px; font: 14px/1.55 var(--body); color: var(--fg); max-width: 62ch; text-transform: none; letter-spacing: 0; }
-#tab-quarry .quarry .getapp .gabtn { display: inline-block; padding: 10px 16px; background: var(--crimson); color: #fff; border: 1px solid var(--gold); text-decoration: none; font: 700 13px var(--mono); letter-spacing: 2px; text-transform: uppercase; }
-#tab-quarry .quarry .getapp .gabtn:hover, #tab-quarry .quarry .getapp .gabtn:focus-visible { background: var(--red); }
-#tab-quarry .quarry .getapp .gameta { margin-top: 8px; font: 11px var(--mono); color: var(--dim); letter-spacing: .5px; }
-#tab-quarry .quarry .getapp .gameta a { color: var(--silver); }
-#tab-quarry .quarry .getapp .gakey { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-strong); }
-#tab-quarry .quarry .getapp .gakeyt { font: 700 12px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
-#tab-quarry .quarry .getapp .gakeyt span { display: block; font: 12px var(--body); letter-spacing: 0; text-transform: none; color: var(--dim); margin-top: 2px; }
-#tab-quarry .quarry .getapp .gabtn2 { display: inline-block; padding: 8px 14px; background: none; color: var(--gold); border: 1px solid var(--gold); text-decoration: none; font: 700 12px var(--mono); letter-spacing: 1px; cursor: pointer; }
-#tab-quarry .quarry .getapp .gabtn2:hover, #tab-quarry .quarry .getapp .gabtn2:focus-visible { background: rgba(217,178,76,.12); }
-#tab-quarry .quarry .getapp .keyrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-#tab-quarry .quarry .getapp .keyrow input { flex: 1 1 260px; min-width: 0; background: #0b0a0e; color: var(--title); border: 1px solid var(--gold-soft); padding: 7px 9px; font: 12px var(--mono); }
-#tab-quarry .quarry .getapp .keynote { font: 12px/1.5 var(--body); color: var(--silver); margin-top: 6px; }
-@media (max-width: 640px) { #tab-quarry .quarry .getapp { grid-template-columns: 1fr; } }
 #tab-quarry .quarry .review { border: 1px solid var(--red); background: rgba(227,34,44,.06); padding: 14px 16px; display: grid; gap: 10px; }
 #tab-quarry .quarry .review .revtitle { font: 800 18px var(--display); color: var(--gold); letter-spacing: 1px; }
 #tab-quarry .quarry .review .rev { border: 1px solid var(--line-strong); background: var(--panel); padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
@@ -474,6 +456,32 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .s-list .s-id { font: 11px var(--mono); color: var(--dim); }
 .s-ok { color: #6fc27c; } .s-warn { color: #e0a83a; } .s-bad { color: #ff8a8f; }
 .s-msg { font: 12px var(--mono); margin-top: 4px; }
+
+/* THE COMPANION (/companion): the Saints Frontier Companion's own page (user 2026-10-19: "not just a quarry anymore") */
+.companion-on .topctl, .companion-on .tier { display: none; }
+.companion-page { padding: 8px 0 20px; }
+.companion-page .gtitle { font: 900 clamp(28px, 3.6vw, 40px)/1.15 var(--deco); color: var(--gold); margin: 14px 0 6px; }
+.companion-page .gintro { max-width: 78ch; font: 17px/1.6 var(--body); color: var(--silver); margin: 0 0 14px; }
+.companion-page .lfoot { font: 11px var(--mono); color: var(--dim); letter-spacing: 1px; margin-top: 14px; }
+.companion-page a { color: var(--gold); }
+.c-get { max-width: 980px; display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 16px 22px; align-items: start; margin: 0 0 16px; padding: 14px; border: 1px solid #4a4238; border-top: 3px solid var(--red); background: #0e0c0b; }
+.c-get img { width: 100%; height: auto; display: block; border: 1px solid #3a342c; }
+.c-dl { display: inline-block; padding: 11px 18px; background: #5c0d12; color: #fff !important; border: 1px solid var(--gold); text-decoration: none; font: 700 14px var(--mono); letter-spacing: 2px; text-transform: uppercase; }
+.c-dl:hover, .c-dl:focus-visible { background: var(--red); }
+.c-steps { margin: 12px 0 8px; padding-left: 22px; font: 15px/1.6 var(--body); color: var(--fg); }
+.c-steps li { margin-bottom: 3px; }
+.c-meta { font: 11px var(--mono); color: var(--dim); letter-spacing: .5px; }
+.c-pane { max-width: 980px; margin: 0 0 16px; border: 1px solid #4a4238; border-top: 3px solid var(--red); background: #0e0c0b; padding: 12px 16px 14px; min-width: 0; }
+.c-pane h3 { font: 700 12px var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(217,178,76,.3); }
+.c-dim { color: var(--silver); font: 14px/1.5 var(--body); margin: 0 0 10px; }
+.c-btn { display: inline-block; padding: 8px 14px; background: none; color: var(--gold); border: 1px solid var(--gold); text-decoration: none; font: 700 12px var(--mono); letter-spacing: 1px; cursor: pointer; }
+.c-btn:hover, .c-btn:focus-visible { background: rgba(217,178,76,.12); }
+.c-keyrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.c-keyrow input { flex: 1 1 260px; min-width: 0; background: #0b0a0e; color: #f4e9c8; border: 1px solid #6b5a2e; padding: 7px 9px; font: 12px var(--mono); }
+.c-keynote { font: 12px/1.5 var(--body); color: var(--silver); margin-top: 6px; }
+.c-feats { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px 22px; font: 14px/1.5 var(--body); color: var(--fg); }
+.c-feats b { display: block; font: 700 12px var(--mono); letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); margin-bottom: 2px; }
+@media (max-width: 700px) { .c-get { grid-template-columns: 1fr; } }
 
 /* The Pilgrim Roads (the tribe's road map), in the Forge's look */
 .roads-on .topctl, .roads-on .tier { display: none; }
@@ -878,7 +886,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 <div class="band" aria-hidden="true"></div>
 <div class="wrap">
   <span class="corner tl" aria-hidden="true">✠</span><span class="corner tr" aria-hidden="true">✠</span><span class="corner bl" aria-hidden="true">✠</span><span class="corner br" aria-hidden="true">✠</span>
-  <nav class="sidenav" aria-label="Pages"><button type="button" class="gobtn" id="nav-about">✠ About us</button><button type="button" class="gobtn" id="nav-guide">✠ Beginner's guide</button><button type="button" class="gobtn on" id="nav-forge">✠ The Forge</button><button type="button" class="gobtn" id="nav-doctrine" title="The doctrine ships of The Saints: tribe login (Squire and above)">✠ The Doctrine</button><button type="button" class="gobtn" id="nav-lodge">✠ The Mason's Lodge</button><button type="button" class="gobtn" id="nav-quarry">✠ The Quarry</button><button type="button" class="gobtn" id="nav-roads">✠ The Pilgrim Roads</button><button type="button" class="gobtn" id="nav-machines" title="Our own turret code, free for any pilot">✠ Thinking Machines</button><a class="gobtn" id="nav-join" href="https://discord.gg/wcveHb9zgA" target="_blank" rel="noopener">✠ Join the tribe</a><a class="navout" id="nav-logout" href="/api/logout" hidden>✠ Log out</a></nav>
+  <nav class="sidenav" aria-label="Pages"><button type="button" class="gobtn" id="nav-about">✠ About us</button><button type="button" class="gobtn" id="nav-guide">✠ Beginner's guide</button><button type="button" class="gobtn on" id="nav-forge">✠ The Forge</button><button type="button" class="gobtn" id="nav-doctrine" title="The doctrine ships of The Saints: tribe login (Squire and above)">✠ The Doctrine</button><button type="button" class="gobtn" id="nav-lodge">✠ The Mason's Lodge</button><button type="button" class="gobtn" id="nav-quarry">✠ The Quarry</button><button type="button" class="gobtn" id="nav-roads">✠ The Pilgrim Roads</button><button type="button" class="gobtn" id="nav-machines" title="Our own turret code, free for any pilot">✠ Thinking Machines</button><button type="button" class="gobtn" id="nav-companion" title="The Saints Frontier Companion: a small Windows app beside the game">✠ The Companion</button><a class="gobtn" id="nav-join" href="https://discord.gg/wcveHb9zgA" target="_blank" rel="noopener">✠ Join the tribe</a><a class="navout" id="nav-logout" href="/api/logout" hidden>✠ Log out</a></nav>
   <header class="top">
     <img class="crest" id="crest" alt="The Saints" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
     <div class="brand"><span class="house">THE SAINTS</span><span class="eyebrow">EVE Frontier · Ship Fitting Tool</span><h1>SAINTS FORGE</h1></div>
@@ -913,7 +921,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 <circle cx="700" cy="560" r="230" fill="none" stroke="#9c7424" stroke-width="3"/>
 <image href="saints-crest.png" x="478" y="338" width="444" height="444" clip-path="url(#abclip)" preserveAspectRatio="xMidYMid slice"/>
 <text x="700.0" y="831.0" text-anchor="middle" font-family="Cinzel, Georgia, serif" font-size="32" font-weight="900" fill="#f0cf6a" stroke="#07070a" stroke-width="5" paint-order="stroke">✠</text><text x="473.1" y="438.0" text-anchor="middle" font-family="Cinzel, Georgia, serif" font-size="32" font-weight="900" fill="#f0cf6a" stroke="#07070a" stroke-width="5" paint-order="stroke">✠</text><text x="926.9" y="438.0" text-anchor="middle" font-family="Cinzel, Georgia, serif" font-size="32" font-weight="900" fill="#f0cf6a" stroke="#07070a" stroke-width="5" paint-order="stroke">✠</text>
-</svg><figcaption class="about-name"><span class="tag">[SAINT]</span> Veritas</figcaption></figure><div class="about-right"><h2 id="about-h" class="about-h">About us</h2><div class="about-text"><p>The Saints began in March 2025 as a tribe built to be a force for good in EVE Frontier.</p><p>The game has changed quite a bit since then but The Saints has remained a steadfast entity since its inception.</p><div class="about-div" aria-hidden="true">✠</div><p>Our tribe's ethos is based on Christian chivalric traditions but with a science fiction twist:</p><p class="about-quote">space knights who protect the innocent and stand against those who prey on them.</p><div class="about-div" aria-hidden="true">✠</div><p>We are <em>fighters, builders, and explorers</em> who form real bonds through cooperation, shared work, and the stories that come from fellowship in a hostile galaxy.</p></div><a class="about-join" href="https://discord.gg/wcveHb9zgA" target="_blank" rel="noopener">✠ Join us on Discord ✠</a></div></section><script>(function () { var seg = (/thesaintsforge\.com$/.test(location.hostname) || location.hostname === "localhost" || location.hostname === "127.0.0.1") ? (location.pathname.split("/").filter(Boolean).pop() || "").toLowerCase() : "", h = location.hash.slice(1); if (seg === "forge" || seg === "doctrine" || seg === "guide" || seg === "lodge" || seg === "quarry" || seg === "roads" || seg === "machines" || (seg !== "aboutus" && h && h !== "about")) return; document.getElementById("tab-about").hidden = false; document.documentElement.classList.add("boot-about"); document.body.classList.add("about-on"); document.getElementById("nav-forge").classList.remove("on"); document.getElementById("nav-about").classList.add("on"); })();</script>
+</svg><figcaption class="about-name"><span class="tag">[SAINT]</span> Veritas</figcaption></figure><div class="about-right"><h2 id="about-h" class="about-h">About us</h2><div class="about-text"><p>The Saints began in March 2025 as a tribe built to be a force for good in EVE Frontier.</p><p>The game has changed quite a bit since then but The Saints has remained a steadfast entity since its inception.</p><div class="about-div" aria-hidden="true">✠</div><p>Our tribe's ethos is based on Christian chivalric traditions but with a science fiction twist:</p><p class="about-quote">space knights who protect the innocent and stand against those who prey on them.</p><div class="about-div" aria-hidden="true">✠</div><p>We are <em>fighters, builders, and explorers</em> who form real bonds through cooperation, shared work, and the stories that come from fellowship in a hostile galaxy.</p></div><a class="about-join" href="https://discord.gg/wcveHb9zgA" target="_blank" rel="noopener">✠ Join us on Discord ✠</a></div></section><script>(function () { var seg = (/thesaintsforge\.com$/.test(location.hostname) || location.hostname === "localhost" || location.hostname === "127.0.0.1") ? (location.pathname.split("/").filter(Boolean).pop() || "").toLowerCase() : "", h = location.hash.slice(1); if (seg === "forge" || seg === "doctrine" || seg === "guide" || seg === "lodge" || seg === "quarry" || seg === "roads" || seg === "machines" || seg === "companion" || (seg !== "aboutus" && h && h !== "about")) return; document.getElementById("tab-about").hidden = false; document.documentElement.classList.add("boot-about"); document.body.classList.add("about-on"); document.getElementById("nav-forge").classList.remove("on"); document.getElementById("nav-about").classList.add("on"); })();</script>
 <section id="tab-lodge" class="lodge-page" hidden><h2 class="gtitle">The Mason's Lodge</h2><p class="gintro">Say what you want to build. The Lodge breaks it down into what to gather, refine and print, in the order you'd do it, using the facilities you have and the least ore it can. Tick each step off as you go; your progress stays in this browser.</p><main class="lodge">
     <section class="pane" aria-labelledby="h-build">
       <h2 id="h-build">What are we building?</h2>
@@ -977,19 +985,6 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
         <div><span class="blabel">Ores</span><span id="q-ores" class="links"></span></div>
         <div id="q-riftrow" hidden><span class="blabel">Rifts</span><span id="q-rifts" class="links"></span></div>
         <div id="q-salvrow" hidden><span class="blabel">Salvage</span><span id="q-salv" class="links"></span></div>
-        <div class="getapp">
-          <img src="companion-thumb.jpg" alt="The Saints Frontier Companion" width="800" height="450" loading="lazy">
-          <div class="gabody">
-            <div class="gatitle">The Saints Frontier Companion</div>
-            <p>Where you are and what you mine, read from the game's logs, on one page in your browser. Your system shows live on the Pilgrim Roads (only you see it unless you share it with the tribe). Every rock, rift and wreck you cut is logged; send your sessions here with your key, a keeper reviews them, then they join the Quarry under your name.</p>
-            <a class="gabtn" href="https://github.com/saints-frontier/forge/releases/latest/download/Saints-Frontier-Companion.zip">&#11015; Download for Windows</a>
-            <div class="gameta">Windows 10 or 11 · free · before unzipping: right-click the zip › Properties › tick <b>Unblock</b> › OK. Then unzip and double-click Install · <a href="https://github.com/saints-frontier/forge/releases/latest" target="_blank" rel="noopener">release notes</a></div>
-            <div class="gakey" id="q-keybox">
-              <div class="gakeyt">Your quarry key <span>pasted once into the companion's page: it sends your sessions and puts you on the Pilgrim Roads</span></div>
-              <div id="q-keyout"><a class="gabtn2" href="/api/login?next=quarry">✠ Log in with Discord to get your key</a></div>
-            </div>
-          </div>
-        </div>
       </div>
     </section>
     <section class="answer" id="q-answer" aria-live="polite" hidden>
@@ -998,7 +993,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     </section>
     <section class="review" id="q-review" aria-label="Waiting for review" hidden>
       <div class="revtitle">Waiting for review <span class="dim small" id="q-revn"></span></div>
-      <p class="note">Sent from the Quarry companion by members of the tribe. Approve a sample and it joins the Quarry's averages under the sender's name; reject it and it is deleted. Only Paladins, Knights and the site keepers see this.</p>
+      <p class="note">Sent from the Saints Frontier Companion by members of the tribe. Approve a sample and it joins the Quarry's averages under the sender's name; reject it and it is deleted. Only Paladins, Knights and the site keepers see this.</p>
       <div id="q-revlist"></div>
     </section>
   </main><p class="lfoot"><span id="q-foot"></span> · ores from the game's own descriptions and our own mining</p></section>
@@ -1042,6 +1037,44 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     </div>
   </div>
   <p class="lfoot" id="s-foot">reads the public Sui testnet · signs only in EVE Vault · no key ever touches this page</p>
+</section>
+<section id="tab-companion" class="companion-page" hidden>
+  <h2 class="gtitle">The Saints Frontier Companion</h2>
+  <p class="gintro">A small Windows app that runs beside the game. It reads the game's own logs and what is on your screen, and shows it all on one page in your browser. It never touches the game: no keys, no clicks, no game files changed.</p>
+  <div class="c-get">
+    <img src="companion-thumb.jpg" alt="The Saints Frontier Companion" width="800" height="450" loading="lazy">
+    <div class="c-getbody">
+      <a class="c-dl" href="https://github.com/saints-frontier/forge/releases/latest/download/Saints-Frontier-Companion.zip">&#11015; Download for Windows</a>
+      <ol class="c-steps">
+        <li>Right-click the zip › Properties › tick <b>Unblock</b> › OK.</li>
+        <li>Unzip it and double-click <b>Install</b>. A <b>Saints Frontier Companion</b> shortcut lands on your Desktop and in the Start menu.</li>
+        <li>Start it. A small window shows each step until your page opens in the browser.</li>
+        <li>Paste your companion key (below) into the page once.</li>
+      </ol>
+      <div class="c-meta">Windows 10 or 11 · free · updates itself at every start · <a href="https://github.com/saints-frontier/forge/releases/latest" target="_blank" rel="noopener">release notes</a></div>
+    </div>
+  </div>
+  <div class="c-pane" id="c-keybox">
+    <h3>Your companion key</h3>
+    <p class="c-dim">Pasted once into the companion's page. It sends your mining to the Quarry and puts you on the Pilgrim Roads.</p>
+    <div id="c-keyout"><a class="c-btn" href="/api/login?next=companion">✠ Log in with Discord to get your key</a></div>
+  </div>
+  <div class="c-pane">
+    <h3>What it does</h3>
+    <div class="c-feats">
+      <div><b>Mining</b>Every rock, rift and wreck you cut: ores, units, minutes. Name a rock with a screenshot or on the page; send your sessions to <a href="/quarry">the Quarry</a>, where a keeper reviews them.</div>
+      <div><b>Where you are</b>Your system on <a href="/roads">the Pilgrim Roads</a>. Only you see it unless you tick "Show me to the tribe".</div>
+      <div><b>Navigation</b>Pick a destination on the page or on the Roads: it tells you the next jump, by public gate or our catapults and gates, with a card over the game.</div>
+      <div><b>Military intelligence</b>Who shoots you, who you shoot (pilots and their structures), who tackles whom, with their tribe from the chain.</div>
+      <div><b>Kills here</b>Every kill in your system over the last day, and how long ago. A card for a fresh one.</div>
+      <div><b>My Network Nodes</b>Fuel left in each of your nodes. A card under 24 hours and under 6.</div>
+      <div><b>Gates</b>Public gate states (working, no fuel, dormant) and fuel left, read as you jump and from the Stargate window, with how long it will last.</div>
+      <div><b>System Map</b>Infestation 1-6, transient mass, crude umbra and star, read when you open the System Map, for the Roads' survey layer.</div>
+      <div><b>System numbers</b>Copy a system link with formatting in game: its number goes to the Roads. Nothing else on the clipboard is read.</div>
+      <div><b>Rifts</b>A rift is reported when you start cutting crude in it, so the tribe sees where rifts were.</div>
+    </div>
+  </div>
+  <p class="lfoot">The companion is open: its scripts sit in the zip as plain text. Your sessions stay in Documents\Frontier\quarry-companion.</p>
 </section>
 <section id="tab-roads" class="roads-page" hidden>
   <h2 class="gtitle">The Pilgrim Roads <span class="roads-wip">alpha test · under construction</span></h2>
@@ -1265,9 +1298,9 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 (function () {
   // pages and their own addresses: thesaintsforge.com/aboutus, /forge, /guide (Cloudflare serves the page at each,
   // see _redirects). The GitHub Pages mirror can't, so there the page is in the hash (#about, #forge, #guide).
-  var pages = { about: "tab-about", guide: "tab-guide", forge: "tab-forge", doctrine: "tab-doctrine", lodge: "tab-lodge", quarry: "tab-quarry", roads: "tab-roads", machines: "tab-machines" };
-  var PATH = { about: "aboutus", guide: "guide", forge: "forge", doctrine: "doctrine", lodge: "lodge", quarry: "quarry", roads: "roads", machines: "machines" };
-  var TITLE = { doctrine: "The Doctrine · Saints Forge", about: "About us · Saints Forge", guide: "Beginner's guide · Saints Forge", forge: "Saints Forge · EVE Frontier ship fitting", lodge: "The Mason's Lodge · Saints Forge", quarry: "The Quarry · Saints Forge", roads: "The Pilgrim Roads · Saints Forge", machines: "Thinking Machines · Saints Forge" };
+  var pages = { about: "tab-about", guide: "tab-guide", forge: "tab-forge", doctrine: "tab-doctrine", lodge: "tab-lodge", quarry: "tab-quarry", roads: "tab-roads", machines: "tab-machines", companion: "tab-companion" };
+  var PATH = { about: "aboutus", guide: "guide", forge: "forge", doctrine: "doctrine", lodge: "lodge", quarry: "quarry", roads: "roads", machines: "machines", companion: "companion" };
+  var TITLE = { doctrine: "The Doctrine · Saints Forge", about: "About us · Saints Forge", guide: "Beginner's guide · Saints Forge", forge: "Saints Forge · EVE Frontier ship fitting", lodge: "The Mason's Lodge · Saints Forge", quarry: "The Quarry · Saints Forge", roads: "The Pilgrim Roads · Saints Forge", machines: "Thinking Machines · Saints Forge", companion: "The Saints Frontier Companion · Saints Forge" };
   var usePaths = /thesaintsforge\.com$/.test(location.hostname) || location.hostname === "localhost" || location.hostname === "127.0.0.1";   // elsewhere (GitHub mirror, previews) pages live in the hash
   function el(id) { return document.getElementById(id); }
 
@@ -1298,7 +1331,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
   function show(name) {
     document.documentElement.classList.remove("boot-about");
     for (var k in pages) { var p = el(pages[k]); if (p) p.hidden = k !== name; var b = el("nav-" + k); if (b) b.classList.toggle("on", k === name); }
-    document.body.classList.toggle("guide-on", name === "guide"); document.body.classList.toggle("about-on", name === "about"); document.body.classList.toggle("lodge-on", name === "lodge"); document.body.classList.toggle("quarry-on", name === "quarry"); document.body.classList.toggle("doctrine-on", name === "doctrine"); document.body.classList.toggle("roads-on", name === "roads"); document.body.classList.toggle("machines-on", name === "machines");
+    document.body.classList.toggle("guide-on", name === "guide"); document.body.classList.toggle("about-on", name === "about"); document.body.classList.toggle("lodge-on", name === "lodge"); document.body.classList.toggle("quarry-on", name === "quarry"); document.body.classList.toggle("doctrine-on", name === "doctrine"); document.body.classList.toggle("roads-on", name === "roads"); document.body.classList.toggle("machines-on", name === "machines"); document.body.classList.toggle("companion-on", name === "companion");
     // Brave/Chromium can leave a stale tile of a hidden page (a guide slab's noise texture) painted over the new page
     // (seen after Guide -> Forge, user 2026-10-09): give body a compositing layer for one frame so everything repaints
     document.body.style.willChange = "transform";
@@ -1327,5 +1360,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=3f355545"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=df71176f"></script><script src="quarry-data.js?v=bdb296ac"></script><script src="quarry-app.js?v=6df2b6e1"></script><script src="doctrine.js?v=6d8bc11d"></script><script src="tribe.js?v=87ca0b1d"></script><script src="starfield.js?v=912ddd63"></script><script src="roadscore.js?v=97a4d868"></script><script src="roads.js?v=36137022"></script><script type="module" src="machines.js?v=c085ca6e"></script>
+<script src="lodge-data.js?v=3f355545"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=df71176f"></script><script src="quarry-data.js?v=bdb296ac"></script><script src="quarry-app.js?v=89a2fae8"></script><script src="companion.js?v=2bf92864"></script><script src="doctrine.js?v=6d8bc11d"></script><script src="tribe.js?v=0edf329e"></script><script src="starfield.js?v=912ddd63"></script><script src="roadscore.js?v=97a4d868"></script><script src="roads.js?v=36137022"></script><script type="module" src="machines.js?v=c085ca6e"></script>
 </body></html>

@@ -2,7 +2,7 @@
    page is not one of the site's own). */
 import { clearSession, redirect } from "./_lib.js";
 
-const PAGES = ["forge", "doctrine", "lodge", "quarry", "roads", "machines", "guide"];
+const PAGES = ["forge", "doctrine", "lodge", "quarry", "roads", "machines", "companion", "guide"];
 
 export async function onRequestGet({ request }) {
   const next = String(new URL(request.url).searchParams.get("next") || "").toLowerCase();

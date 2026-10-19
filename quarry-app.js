@@ -216,11 +216,11 @@
     return `<h3>From salvage</h3><div class="meta">${bits.join(" \u00b7 ")} ${info(more)}</div>`;
   }
   function salvageView() {
-    let h = head("Salvage", "Wrecks", info("Salvage is cut with a laser from wrecks, debris fields and ruins. Numbers are from our own game logs and from the Quarry companion's sessions."));
+    let h = head("Salvage", "Wrecks", info("Salvage is cut with a laser from wrecks, debris fields and ruins. Numbers are from our own game logs and from the Saints Frontier Companion's sessions."));
     h += `<div class="meta">what we cut, how fast, and where it came from</div>`;
     h += `<div class="rows">` + SV.materials.map(m => `<div class="row"><span class="nm">${go(m.name)}<span class="dim small"> ${m.n}\u00d7</span></span><span class="pc">${n0(m.units)} units</span><span class="pc dim">${m.per_min ? "~" + n0(m.per_min) + "/min" : ""}</span></div>`).join("") + `</div>`;
     if (SV.sources.length) h += `<h3>By source</h3><div class="rows">` + SV.sources.map(s => `<div class="row"><span class="nm">${go(s.name)}<span class="dim small"> gave ${s.materials.map(esc).join(", ")}</span></span><span class="pc">${n0(s.units)} units</span><span class="pc dim">${s.n}\u00d7</span></div>`).join("") + `</div>`;
-    else h += `<p class="note">No source has a name yet: name the wreck or ruin on the Quarry companion page when you cut it.</p>`;
+    else h += `<p class="note">No source has a name yet: name the wreck or ruin on the companion's page when you cut it.</p>`;
     h += `<h3>Good to know</h3><ul class="facts">` + SV.facts.map(f => `<li>${esc(f)}</li>`).join("") + `</ul>`;
     return h;
   }
@@ -504,28 +504,6 @@
   window.addEventListener("tribe:data", () => { if (keeper() && !reviewRuns.length) loadReview(); });
   if (keeper()) loadReview();
   window.__quarryReview = runs => { reviewRuns = runs || []; drawReview(); };   // test hook
-
-  // ---------- the quarry key, right on the Quarry (it used to live only in the Forge's tribe box) ----------
-  function drawKeyBox() {
-    const out = $("q-keyout"); if (!out) return;
-    const t = window.__tribeData;
-    if (!(t && t.state === "in")) return;                          // logged out: the login link stays (it comes back here)
-    out.innerHTML = `<button type="button" class="gabtn2" id="q-getkey">\u2720 Get my quarry key</button><div class="keynote">Logged in as ${esc(t.me && t.me.name || "")}. A new key replaces your old one.</div>`;
-  }
-  document.addEventListener("click", async e => {
-    if (!e.target.closest("#q-getkey,#q-copykey")) return;
-    const out = $("q-keyout");
-    if (e.target.closest("#q-copykey")) { const i = $("q-keyin"); i.select(); try { await navigator.clipboard.writeText(i.value); $("q-copykey").textContent = "copied"; } catch (x) { $("q-copykey").textContent = "press Ctrl+C"; } return; }
-    try {
-      const r = await fetch("/api/appkey", { credentials: "same-origin", cache: "no-store" }); const d = r.ok ? await r.json() : null;
-      if (!d || !d.ok) throw new Error(r.status === 401 ? "log in again" : "the site did not answer");
-      out.innerHTML = `<div class="keyrow"><input id="q-keyin" readonly value="${esc(d.key)}" aria-label="Your quarry key"><button type="button" class="gabtn2" id="q-copykey">copy</button></div>`
-        + `<div class="keynote">Valid until ${esc(d.expires)}. Paste it into the companion's page under <b>Send to the Quarry</b> \u2192 <b>Save key</b>. Keep it to yourself: it sends sessions as you.</div>`;
-      try { await navigator.clipboard.writeText(d.key); $("q-copykey").textContent = "copied"; } catch (x) {}
-    } catch (x) { out.insertAdjacentHTML("beforeend", `<div class="keynote">No key: ${esc(x.message)}.</div>`); }
-  });
-  window.addEventListener("tribe:data", drawKeyBox);
-  drawKeyBox();
 
   window.__quarryMerge = mergeRuns;        // the site's test hook (and tribe.js, should it ever hand runs in)
   if (/thesaintsforge\.com$|^localhost$|^127\.0\.0\.1$/.test(location.hostname) && window.fetch)

@@ -6,7 +6,7 @@ export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code"), state = url.searchParams.get("state");
   const clear = [setCookie("sf_state", "", 0)];
-  const back = "/" + (/^[0-9a-f-]{36}\.(forge|doctrine|lodge|quarry|roads|machines|guide|aboutus)$/.test(state || "") ? state.split(".")[1] : "forge");   // the page the login started from
+  const back = "/" + (/^[0-9a-f-]{36}\.(forge|doctrine|lodge|quarry|roads|machines|companion|guide|aboutus)$/.test(state || "") ? state.split(".")[1] : "forge");   // the page the login started from
   if (!code || !state || state !== getCookie(request, "sf_state")) return redirect("/forge?tribe=error", clear);
   const tok = await tokenExchange(env, { grant_type: "authorization_code", code, redirect_uri: redirectUri(request) });
   if (!tok) return redirect(back + "?tribe=error", clear);

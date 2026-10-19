@@ -2,7 +2,7 @@
    server (guilds.members.read). A random state in a short cookie guards the round trip. */
 import { CLIENT_ID, setCookie, redirect, redirectUri } from "./_lib.js";
 
-const PAGES = /^(forge|doctrine|lodge|quarry|roads|machines|guide|aboutus)$/;     // where the member comes back to (?next=)
+const PAGES = /^(forge|doctrine|lodge|quarry|roads|machines|companion|guide|aboutus)$/;     // where the member comes back to (?next=)
 
 export async function onRequestGet({ request }) {
   const next = new URL(request.url).searchParams.get("next") || "";
