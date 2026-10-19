@@ -103,12 +103,43 @@
       const before = JSON.stringify(LOC); LOC = d && d.ok ? d : null;
       if (JSON.stringify(LOC) !== before) { drawStars(); drawLoc(); } else drawLoc();
     }).catch(() => {});
-    navPoll();
+    navPoll(); placesPoll();
   }
   /* Where the pilot wants to go (user 2026-10-19): /api/nav holds one destination per pilot, set here ("Navigate here")
      or on the companion page; the route over what exists today is worked out here with roadscore.js's navigator
      (our roads + the public gates), the companion follows it jump by jump. */
   let NAV = null, gatePairs = null;
+  /* My places (user 2026-10-19: "let me set a home system. let me set multiple systems as bookmarks"): /api/places, one
+     home and up to 30 bookmarks per pilot, the same in the companion's navigator. Drawn on the star map and listed under
+     "You are in" with one-click navigation. */
+  let PLACES = { home: null, marks: [] };
+  const hasPlaces = () => !!(PLACES.home || PLACES.marks.length);
+  function placesPoll() {
+    fetch("/api/places", { credentials: "same-origin", cache: "no-store" }).then(r => r.ok ? r.json() : null).then(d => {
+      if (!d || !d.ok) return; const before = JSON.stringify(PLACES); PLACES = { home: d.home || null, marks: d.marks || [] };
+      if (JSON.stringify(PLACES) !== before) { drawStars(); drawLoc(); drawDetail(); }
+    }).catch(() => {});
+  }
+  function placesSet(body) {
+    return fetch("/api/places", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(r => r.json()).then(d => { if (d && d.ok) { PLACES = { home: d.home || null, marks: d.marks || [] }; drawStars(); drawLoc(); drawDetail(); } else alertNav((d && d.error) || "could not save it"); })
+      .catch(() => alertNav("the site did not answer"));
+  }
+  const placeOf = id => ({ to: id, name: String(nameOfId(id)).slice(0, 40) });
+  function placeBtns(id) {
+    if (!id) return "";
+    const home = PLACES.home && PLACES.home.to === id, mark = PLACES.marks.some(m => m.to === id);
+    return (home ? ` <span class="roads-place">\u2302 your home</span>` : ` <button type="button" class="roads-quiet" data-home="${id}" title="your home system: one click from anywhere">Set as home</button>`)
+      + (mark ? ` <button type="button" class="roads-quiet" data-unmark="${id}" title="drop this bookmark">\u2605 Bookmarked \u00d7</button>` : ` <button type="button" class="roads-quiet" data-mark="${id}" title="keep this system in your bookmarks">\u2605 Bookmark</button>`);
+  }
+  function placesLine() {
+    if (!hasPlaces()) return "";
+    const go = (p, label) => `<button type="button" class="roads-quiet" data-placego="${p.to}" title="navigate there">${label}</button>`;
+    const find = p => `<button type="button" class="roads-link" data-placelook="${p.to}" title="show it on the map">${esc(p.name)}</button>`;
+    const home = PLACES.home ? `<span class="roads-place">\u2302 Home: ${find(PLACES.home)} ${go(PLACES.home, "Go home")}</span>` : "";
+    const marks = PLACES.marks.map(m => `<span class="roads-place">\u2605 ${find(m)} ${go(m, "Go")}<button type="button" class="roads-x" data-unmark="${m.to}" title="drop this bookmark" aria-label="drop this bookmark">\u00d7</button></span>`).join("");
+    return `<div class="roads-places">${home}${marks}</div>`;
+  }
   function navPoll() {
     fetch("/api/nav", { credentials: "same-origin", cache: "no-store" }).then(r => r.ok ? r.json() : null).then(d => {
       const before = JSON.stringify(NAV); NAV = d && d.ok ? d.nav : null;
@@ -143,10 +174,10 @@
     const me = LOC && LOC.me, id = me && locOf(me.s), n = LOC ? LOC.mates.length : 0;
     if (b) { b.hidden = !id; }
     if (!el) return;
-    if (!me) { el.hidden = !n && !NAV; el.innerHTML = (n ? `<span class="roads-hint">${n} tribe mate${n === 1 ? "" : "s"} on the map (they share their place from the Saints Frontier Companion).</span>` : "") + navLine(null); return; }
+    if (!me) { el.hidden = !n && !NAV && !hasPlaces(); el.innerHTML = (n ? `<span class="roads-hint">${n} tribe mate${n === 1 ? "" : "s"} on the map (they share their place from the Saints Frontier Companion).</span>` : "") + navLine(null) + placesLine(); return; }
     el.hidden = false;
     el.innerHTML = `<i class="melive"></i>You are in <b>${esc(me.s)}</b> <span class="roads-hint">· ${ago(me.at)} · ${me.share ? "the tribe sees you" : "only you see this"}${n ? ` · ${n} tribe mate${n === 1 ? "" : "s"} shown` : ""}</span>` +
-      (id ? ` <button type="button" class="roads-quiet" data-sf="me">Find me</button>` : ` <span class="roads-hint">· not on the star map yet: copy its link in game (Manage) to chart it</span>`) + navLine(id);
+      (id ? ` <button type="button" class="roads-quiet" data-sf="me">Find me</button>` : ` <span class="roads-hint">· not on the star map yet: copy its link in game (Manage) to chart it</span>`) + navLine(id) + placesLine();
   }
   function poiLoad() {
     if (POI) return; POI = { categories: [] };
@@ -250,13 +281,13 @@
         : e && e.status === "conflict" ? `Not confirmed: players disagree on its name (most reported: ${esc(e.name)}).`
         : e ? `Not confirmed: one player has reported the name ${esc(e.name)}. A second matching report on EF-Map charts it.`
         : `Nobody has reported a name for it yet${old ? ` (its Cycle 6 name was ${esc(old)})` : ""}.`;
-      el.hidden = false; el.innerHTML = `<div class="roads-dh">${ok ? esc(e.name) : "Uncharted"} <button type="button" class="roads-quiet" data-checkfrom="${picked}" title="every catapult or gate jump from this star">Check jumps from here</button> <button type="button" class="roads-quiet" data-planto="${picked}" title="plan a road from the planner's From to this star">Plan a road here</button> <button type="button" class="roads-quiet" data-navto="${picked}" title="the companion tells you every jump on the way">Navigate here</button></div><div class="roads-hint">${what}${where}</div>${poiLines(picked)}${fieldLines(picked)}` + (showGates ? `<div class="roads-dcols"><div>${gateList(picked)}</div></div>` : ""); return; }
+      el.hidden = false; el.innerHTML = `<div class="roads-dh">${ok ? esc(e.name) : "Uncharted"} <button type="button" class="roads-quiet" data-checkfrom="${picked}" title="every catapult or gate jump from this star">Check jumps from here</button> <button type="button" class="roads-quiet" data-planto="${picked}" title="plan a road from the planner's From to this star">Plan a road here</button> <button type="button" class="roads-quiet" data-navto="${picked}" title="the companion tells you every jump on the way">Navigate here</button>${placeBtns(picked)}</div><div class="roads-hint">${what}${where}</div>${poiLines(picked)}${fieldLines(picked)}` + (showGates ? `<div class="roads-dcols"><div>${gateList(picked)}</div></div>` : ""); return; }
     if (!selected || !M.systems.has(selected)) { el.hidden = true; el.innerHTML = ""; return; }
     el.hidden = false;
     const s = M.systems.get(selected), out = M.roads.filter(r => r.from === selected || (r.twoWay && r.to === selected)), inn = M.roads.filter(r => r.to === selected && !r.twoWay);
     const row = (r, other) => `<li><b>${esc(other)}</b> · ${esc(r.kind)}${r.twoWay ? " · both ways" : ""}${r.online === false ? ' · <span class="bad">offline</span>' : ""}${r.ly != null ? ` · ${r.ly.toFixed(0)} LY` : ""}${r.tooFar ? ` · <span class="bad">beyond its ${RANGE[r.kind]} LY reach: check the name</span>` : ""}${r.name ? ` · <i>${esc(r.name)}</i>` : ""}${r.inferred ? ` · <span class="roads-hint">worked out: ${esc(r.why)}</span>` : ""}${r.seen ? ` · <span class="roads-hint">${r.source === "seen" ? "seen only: " : r.confirmed ? "confirmed: " : ""}jumped on ${r.seen.days || 1} day${(r.seen.days || 1) === 1 ? "" : "s"}, last ${esc(String(r.seen.last || "").slice(0, 10))}${r.seen.by ? " by " + esc(r.seen.by) : ""}</span>` : ""}</li>`;
     const kSel = M.ids.get(selected);
-    el.innerHTML = `<div class="roads-dh">${esc(selected)}${kSel ? ` <button type="button" class="roads-quiet" data-checkfrom="${kSel.id}" title="every catapult or gate jump from this system">Check jumps from here</button> <button type="button" class="roads-quiet" data-planto="${kSel.id}" title="plan a road from the planner's From to this system">Plan a road here</button> <button type="button" class="roads-quiet" data-navto="${kSel.id}" title="the companion tells you every jump on the way">Navigate here</button>` : ""}${kSel && kSel.ef ? ` <span class="roads-hint">· its place on the star map comes from EF-Map (${esc(kSel.ef)})</span>` : ""}</div>` +
+    el.innerHTML = `<div class="roads-dh">${esc(selected)}${kSel ? ` <button type="button" class="roads-quiet" data-checkfrom="${kSel.id}" title="every catapult or gate jump from this system">Check jumps from here</button> <button type="button" class="roads-quiet" data-planto="${kSel.id}" title="plan a road from the planner's From to this system">Plan a road here</button> <button type="button" class="roads-quiet" data-navto="${kSel.id}" title="the companion tells you every jump on the way">Navigate here</button>${placeBtns(kSel.id)}` : ""}${kSel && kSel.ef ? ` <span class="roads-hint">· its place on the star map comes from EF-Map (${esc(kSel.ef)})</span>` : ""}</div>` +
       `${kSel ? poiLines(kSel.id) : ""}${fieldLines(kSel ? kSel.id : 0, selected)}<div class="roads-dcols"><div><h4>Roads out</h4><ul>${out.map(r => row(r, r.from === selected ? r.to : r.from)).join("") || "<li>None: a dead end.</li>"}</ul></div>` +
       `<div><h4>Roads in</h4><ul>${inn.map(r => row(r, r.from)).join("") || "<li>None.</li>"}</ul></div>` +
       `<div><h4>Our nodes here</h4><ul>${s.nodes.map(n => `<li><b>${esc(n.name || short(n.id))}</b>${M.nodeGuess(n.id) ? " · worked out" : ""} · ${n.fuel.quantity.toLocaleString("en-US")} ${esc(fuelName(n))}${M.daysOf(n) == null ? " · " + noDays(n, "not burning") : ` · <span class="${fuelClass(M.daysOf(n))}">${fmtDays(M.daysOf(n))}</span>${fullDays(n) ? ` <span class="roads-hint">(full: ${fmtDays(fullDays(n))})</span>` : ""}`}</li>`).join("") || "<li>None known.</li>"}</ul></div>` +
@@ -341,6 +372,11 @@
         if (showCharted && !chartOn) systems.push(ok ? { id, name: e.name, cls: "charted", sub: "" } : { id, name: "uncharted", cls: "uncharted", sub: "" }); }
       if (LOC) { const mk = (r, cls, label) => { const id = locOf(r.s); if (!id || !s.has(id)) return; const i = systems.findIndex(x => x.id === id); const o = { id, name: label, cls, sub: r.s + " · " + ago(r.at), subColor: cls === "me" ? "#5fe3ff" : "#8fe0b0" }; if (i >= 0) systems.splice(i, 1, o); else systems.push(o); placed.add(id); };
         for (const m of LOC.mates) mk(m, "mate", m.n || m.c || "a Saint"); if (LOC.me) mk(LOC.me, "me", "\u25B2 You"); }
+      for (const [pl, isHome] of (PLACES.home ? [[PLACES.home, true]] : []).concat(PLACES.marks.map(m => [m, false]))) {
+        const id = pl.to; if (!s.has(id)) continue; const note = isHome ? "your home" : "bookmark", i = systems.findIndex(x => x.id === id);
+        if (i >= 0) { systems[i].sub = (systems[i].sub ? systems[i].sub + " · " : "") + note; continue; }
+        placed.add(id); systems.push({ id, name: (isHome ? "Home: " : "\u2605 ") + pl.name, cls: "far", color: isHome ? "#ffd27a" : "#c9ced8", sub: note });
+      }
       if (surveyOn) for (const [nm, r] of Object.entries(FIELD.survey || {})) { const id = window.RoadsCore.idOfName(M, nm); if (!id || !s.has(id) || !r.infest) continue;
         const i = systems.findIndex(x => x.id === id); if (i >= 0) { systems[i].sub = (systems[i].sub ? systems[i].sub + " · " : "") + "inf " + r.infest; continue; }
         placed.add(id); systems.push({ id, name: `${nm} · inf ${r.infest}`, cls: "poi", color: INF_COL[r.infest], sub: r.transient ? r.transient.toLowerCase() : "" }); }
@@ -868,6 +904,11 @@
     if (b.dataset.planto) { planTo(+b.dataset.planto); return; }
     if (b.dataset.navto) { navSet(+b.dataset.navto); return; }
     if (b.dataset.navstop) { navSet(null); return; }
+    if (b.dataset.home) { placesSet({ home: placeOf(+b.dataset.home) }); return; }
+    if (b.dataset.mark) { placesSet({ add: placeOf(+b.dataset.mark) }); return; }
+    if (b.dataset.unmark) { placesSet({ remove: +b.dataset.unmark }); return; }
+    if (b.dataset.placego) { navSet(+b.dataset.placego); return; }
+    if (b.dataset.placelook && sf) { const id = +b.dataset.placelook, name = [...M.ids].find(([, v]) => v.id === id); selected = name ? name[0] : null; picked = name ? null : id; sf.look(id, 400); if (!name) sf.mark(null); drawStars(); drawDetail(); return; }
     if (b.dataset.poiall != null && POI) { poiOn = new Set(b.dataset.poiall === "1" ? POI.categories.map(c => c.key) : []); poiSave(); drawStars(); drawPoi(); return; }
     if (b.dataset.poigo && sf) { const id = +b.dataset.poigo; selected = null; picked = id; sf.look(id, 400); sf.mark(null); drawDetail(); return; }
     if (b.dataset.planremove) { const l = listCopy(); l.plans.splice(+b.dataset.planremove, 1); openPlan = null; save(l, "Plan"); return; }
@@ -958,6 +999,7 @@
   window.__roadsPoi = () => ({ on: poiOn ? [...poiOn] : null, n: POI ? POI.categories.length : 0 });   /* tests */
   window.__roadsNav = (nav, pairs) => { NAV = nav; if (pairs) gatePairs = pairs; drawLoc(); return $("roads-me").innerText; };   /* tests */
   window.__roadsField = f => { FIELD = Object.assign({ survey: {}, visited: {}, rifts: [] }, f || {}); drawSurveyBtn(); drawStars(); drawDetail(); return Object.keys(FIELD.survey).length; };   /* tests */
+  window.__roadsPlaces = d => { PLACES = { home: d.home || null, marks: d.marks || [] }; drawStars(); drawLoc(); drawDetail(); return PLACES; };   /* tests */
   window.__roadsLoc = d => { LOC = d; drawStars(); drawLoc(); return locOf(d && d.me && d.me.s); };   /* tests */
   window.__roadsPick = id => { selected = null; picked = id; drawDetail(); return $("roads-detail").hidden ? null : $("roads-detail").innerText; };   // tests: what a click on any star says
 })();
