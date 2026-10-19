@@ -72,6 +72,8 @@
       if (free.length && free.length === blank.length) blank.forEach((l, k) => { l.to = free[k]; l.viaNode = true; }); }
     const place = (nid, sys, basis, why) => { if (!nid || !sys) return false; const i = ni(nid); if (i.sys) return false; i.sys = sys; i.basis = basis; i.why = why || ""; return true; };
     for (const l of L) if (l.from && !l.both) place(l.a.node, l.from, "name");
+    // placed by a jump: a Saint's companion saw them jump through this player gate (the chain's JumpEvent + the Local log)
+    for (const a of d.assemblies || []) { const p = (list.placed || {})[a.id]; if (p && p.sys && a.node) place(a.node, up(p.sys), "jump", `${p.by || "a Saint"} jumped through it (${String(p.at || "").slice(0, 10)})`); }
     // a gate is named for where it leads, so the gate linked to it stands there
     for (const l of L) if (l.gate && l.a.linked && l.to && !l.from) { const h = byId.get(l.a.linked); if (h) place(h.a.node, l.to, "gate"); }
     for (const l of L) if (l.gate && l.both && l.a.linked) { const h = byId.get(l.a.linked), sy = ni(l.a.node).sys; if (h && (sy === l.from || sy === l.to)) place(h.a.node, sy === l.from ? l.to : l.from, "gate"); }
@@ -129,6 +131,13 @@
     for (const g of list.gates || []) { const a = up(g.a || ""), b = up(g.b || ""); if (!a || !b || a === b) continue; fromEf(a); fromEf(b);
       // the state a Saint found it in: working = a solid road; no fuel on the far side = dashed (bring fuel); dormant = red and skipped by Find a road (one-way without materials)
       add({ id: null, kind: "Public Gate", name: g.note || "", node: null, days: null, source: "public", from: a, to: b, twoWay: true, online: g.state !== "dormant", status: g.state === "unfueled" ? "progress" : "built", state: g.state || "" }); }
+    // roads a Saint has jumped (the Saints Frontier Companion): a chain road between the two systems gets the record (a
+    // "worked out" road is then confirmed); a jump no launcher name explains is drawn as a road of its own, "seen"
+    for (const x of list.seen || []) { const a = up(x.a), b = up(x.b); if (!a || !b || a === b) continue;
+      const hit = roads.find(r => r.source === "chain" && ((r.from === a && r.to === b) || (r.twoWay && r.from === b && r.to === a)));
+      if (hit) { hit.seen = x; if (hit.inferred) { hit.inferred = false; hit.confirmed = true; hit.why = ""; } continue; }
+      fromEf(a); fromEf(b);
+      add({ id: null, kind: x.kind === "gate" ? "Player Gate" : "Catapult", name: "", node: null, days: null, source: "seen", from: a, to: b, twoWay: x.kind === "gate", online: true, status: "built", seen: x, why: "jumped by a Saint; no launcher name says so yet" }); }
     const systems = new Map(), sys = n => { if (!systems.has(n)) systems.set(n, { name: n, nodes: [], days: null, guess: false }); return systems.get(n); };
     for (const r of roads) { sys(r.from); sys(r.to); }
     for (const n of d.nodes || []) { const i = info.get(n.id); if (i && i.sys) sys(i.sys).nodes.push(n); }
@@ -183,7 +192,7 @@
     const M = o.model, adj = new Map(), push = (a, b, e) => { let l = adj.get(a); if (!l) adj.set(a, l = []); l.push(Object.assign({ to: b }, e)); };
     const idOf = n => idOfName(M, n);
     for (const r of M.roads) {
-      if (r.source !== "chain" || r.online === false || r.tooFar) continue;
+      if ((r.source !== "chain" && r.source !== "seen") || r.online === false || r.tooFar) continue;   /* "seen" = a road a Saint jumped */
       const a = idOf(r.from), b = idOf(r.to); if (!a || !b || a === b) continue;
       const e = { kind: r.kind, how: "ours", name: r.name || "", inferred: !!r.inferred, cost: 1 };
       push(a, b, e); if (r.twoWay) push(b, a, e);

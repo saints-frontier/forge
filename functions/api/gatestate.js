@@ -11,7 +11,15 @@
      -> the two names are resolved to system numbers (our list, then EF-Map's names) and must be a pair of the client's
         public gates (gates.bin, the site's own file); then the pair's record in the Pilgrim Roads list (KV "network",
         list.gates) gets { state, seen, at, by } unless a newer observation is already there. "unknown" and anything
-        that is not a public gate pair are answered and dropped. Every tribe member may report; the name goes with it. */
+        that is not a public gate pair are answered and dropped. Every tribe member may report; the name goes with it.
+   Any OTHER move (2026-10-19, user: "collect the information on catapults ... cross-reference everything"): the chain
+   logs every PLAYER gate jump (gate::JumpEvent: source and destination gate objects + the character), catapults leave
+   nothing. So a move with the pilot's character id (`char`, from the log's file name) is looked up among the chain's
+   jump events: found = a player gate jump, and both gate objects are placed in their systems (list.placed[object id]
+   = {sys, at, by}); not found and within a Heavy Catapult's 250 LY = a catapult throw. Either way the road goes into
+   list.seen [{a, b, kind: gate | catapult, days, first, last, by}] (a day counted once): the Roads mark chain roads as
+   jumped (a "worked out" road becomes confirmed) and draw seen roads the launcher names do not explain. Farther than
+   250 LY with no gate event = a death and respawn, dropped. */
 import { json } from "./_lib.js";
 import { who } from "./quarry.js";
 import { readNames } from "./network.js";
@@ -38,6 +46,47 @@ function cleanWindow(w) {
   const int = (v, lo) => v == null || (Number.isInteger(v) && v >= lo && v <= 1000000);
   if (!int(w.jumps, 0) || !int(w.cap, 1) || !WORD.test(String(w.status || "")) || !WORD.test(String(w.dest || "")) || !TOTEXT.test(String(w.toText || ""))) return false;
   return { jumps: w.jumps == null ? null : w.jumps, cap: w.cap == null ? null : w.cap, status: String(w.status || ""), dest: String(w.dest || ""), toText: String(w.toText || "") };
+}
+
+const WORLD = "0x7be18d6294e533bedd9a5d70a96ce8d9d4b87a7c74188ba65d3fe966bbed9d92";   // the Stillness world package (Cycle 7)
+const SUI = "https://graphql.testnet.sui.io/graphql", CATAPULT_LY = 250 * 1.02, MAX_SEEN = 500, MAX_PLACED = 500;
+let STARS = null;      // system number -> [x, y, z] in light-years (the site's stars.bin)
+async function stars(env, request) {
+  if (STARS) return STARS;
+  const r = await env.ASSETS.fetch(new URL("/stars.bin", request.url));
+  if (!r.ok) throw new Error("stars.bin " + r.status);
+  const dv = new DataView(await r.arrayBuffer()), cnt = dv.getUint32(4, true), m = new Map();
+  for (let i = 0, o = 8; i < cnt; i++, o += 20) m.set(dv.getUint32(o, true), [dv.getFloat32(o + 4, true), dv.getFloat32(o + 8, true), dv.getFloat32(o + 12, true)]);
+  STARS = m; return m;
+}
+const lyBetween = (S, a, b) => { const p = S.get(a), q = S.get(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; };
+/* the chain's player gate jump of this character near this time, or null (two pages of the newest events at most) */
+export async function findJump(char, atMs, fetcher) {
+  const F = fetcher || fetch;
+  let before = null;
+  for (let page = 0; page < 3; page++) {
+    const r = await F(SUI, { method: "POST", headers: { "content-type": "application/json", "user-agent": "saints-forge (read-only)" },
+      body: JSON.stringify({ query: "query($t:String!,$b:String){ events(filter:{type:$t}, last:50, before:$b) { pageInfo { hasPreviousPage startCursor } nodes { timestamp contents { json } } } }", variables: { t: WORLD + "::gate::JumpEvent", b: before } }) });
+    if (!r.ok) throw new Error("chain answered " + r.status);
+    const e = ((await r.json()).data || {}).events; if (!e) return null;
+    for (const x of e.nodes || []) {
+      const j = (x.contents || {}).json || {}, t = Date.parse(x.timestamp);
+      if (String(((j.character_key || {}).item_id) || "") === char && t >= atMs - 90000 && t <= atMs + 30000) return { src: j.source_gate_id, dst: j.destination_gate_id, at: x.timestamp };
+    }
+    const oldest = e.nodes && e.nodes.length ? Date.parse(e.nodes[0].timestamp) : 0;
+    if (!e.pageInfo.hasPreviousPage || oldest < atMs - 90000) return null;
+    before = e.pageInfo.startCursor;
+  }
+  return null;
+}
+/* a road a Saint jumped: returns the new seen list, or null when nothing changes (the same road the same day) */
+export function mergeSeen(seen, a, b, kind, at, by) {
+  const out = (seen || []).map(x => Object.assign({}, x)), day = at.slice(0, 10);
+  const i = out.findIndex(x => x.a === a && x.b === b && x.kind === kind);
+  if (i >= 0) { const x = out[i]; if (String(x.last || "").slice(0, 10) === day) return null; x.days = (x.days || 1) + 1; x.last = at; x.by = by; return out; }
+  if (out.length >= MAX_SEEN) out.splice(0, out.length - MAX_SEEN + 1);
+  out.push({ a, b, kind, days: 1, first: at, last: at, by });
+  return out;
 }
 
 let PAIRS = null;      // "a|b" (a < b) -> true, and system -> [partners]: the client's public stargates
@@ -70,7 +119,8 @@ export function merge(gates, a, b, obs) {
   if (obs.state && obs.state !== "unknown" && !(old && oldAt && obs.at < oldAt)) Object.assign(rec, { state: obs.state, seen: obs.at.slice(0, 10), at: obs.at, by: obs.by });
   if (obs.window && (obs.window.jumps != null || obs.window.status)) {
     const f = Object.assign({}, old && old.fuel), prev = f[a];
-    if (!prev || !prev.at || obs.window.at >= prev.at) { f[a] = { jumps: obs.window.jumps, cap: obs.window.cap, status: obs.window.status, dest: obs.window.dest, at: obs.window.at, by: obs.by }; rec.fuel = f; }
+    const loses = obs.window.jumps == null && prev && prev.jumps != null;      // a reading without the count never replaces one with it
+    if (!loses && (!prev || !prev.at || obs.window.at >= prev.at)) { f[a] = { jumps: obs.window.jumps, cap: obs.window.cap, status: obs.window.status, dest: obs.window.dest, at: obs.window.at, by: obs.by }; rec.fuel = f; }
   }
   if (old && JSON.stringify(old) === JSON.stringify(rec)) return null;   // the same news: no write
   if (!old && !rec.state && !rec.fuel) return null;
@@ -109,7 +159,7 @@ export async function onRequestPost({ request, env }) {
     if (!toName) return json({ ok: true, recorded: false, why: "the far system has no name on the map yet" }, 200, cookies);
   }
   if (!toId) return json({ ok: true, recorded: false, why: `${toName} has no system number on the map yet` }, 200, cookies);
-  if (!P.set.has(Math.min(fromId, toId) + "|" + Math.max(fromId, toId))) return json({ ok: true, recorded: false, why: "not a public gate (a catapult, a player gate, or a respawn)" }, 200, cookies);
+  if (!P.set.has(Math.min(fromId, toId) + "|" + Math.max(fromId, toId))) return otherMove(env, request, stored, d, up(d.from), toName, fromId, toId, at, String(s.n || "a Saint").replace(/[<>]/g, "").slice(0, 40), cookies);
 
   const by = String(s.n || "a Saint").replace(/[<>]/g, "").slice(0, 40);
   const gates = merge(stored.gates, up(d.from), toName, { state: d.state, at, by, window: win });
@@ -117,4 +167,31 @@ export async function onRequestPost({ request, env }) {
   return json({ ok: true, recorded: !!gates, gate: [up(d.from), toName], state: d.state, fuel: win && win.jumps != null ? [win.jumps, win.cap] : null, why: gates ? "" : "already known" }, 200, cookies);
 }
 
-export const __test = { resolver, merge, gatePairs, pickByText, ocrKey, cleanWindow, reset: () => { PAIRS = null; } };
+/* a move that is no public gate: a player gate (on chain) or a catapult (within its reach), else a respawn */
+async function otherMove(env, request, stored, d, from, to, fromId, toId, at, by, cookies) {
+  const char = /^[0-9]{6,14}$/.test(String(d.char || "")) ? String(d.char) : "";
+  let jump = null; try { if (char) jump = await findJump(char, Date.parse(at)); } catch (e) { /* the chain did not answer: judged by distance alone */ }
+  let kind = null;
+  if (jump) kind = "gate";
+  else {
+    let ly = null; try { ly = lyBetween(await stars(env, request), fromId, toId); } catch (e) {}
+    if (ly == null) return json({ ok: true, recorded: false, why: "the distance is unknown: not recorded" }, 200, cookies);
+    if (ly > CATAPULT_LY) return json({ ok: true, recorded: false, why: `${Math.round(ly)} LY with no gate on chain: a respawn, not a road` }, 200, cookies);
+    kind = "catapult";
+  }
+  let changed = false;
+  const seen = mergeSeen(stored.seen, from, to, kind, at, by); if (seen) { stored.seen = seen; changed = true; }
+  if (jump) {
+    const placed = Object.assign({}, stored.placed || {});
+    for (const [id, sys] of [[jump.src, from], [jump.dst, to]]) {
+      if (!/^0x[0-9a-f]{64}$/.test(String(id || ""))) continue;
+      if (!placed[id] || placed[id].sys !== sys) { placed[id] = { sys, at, by }; changed = true; }
+    }
+    const keys = Object.keys(placed); if (keys.length > MAX_PLACED) for (const k of keys.slice(0, keys.length - MAX_PLACED)) delete placed[k];
+    stored.placed = placed;
+  }
+  if (changed) { stored.updated = new Date().toISOString(); await env.DOCTRINE.put("network", JSON.stringify(stored)); }
+  return json({ ok: true, recorded: changed, seen: kind, gate: [from, to], why: changed ? "" : "already known today" }, 200, cookies);
+}
+
+export const __test = { findJump, mergeSeen, resolver, merge, gatePairs, pickByText, ocrKey, cleanWindow, reset: () => { PAIRS = null; } };

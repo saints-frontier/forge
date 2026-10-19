@@ -15,7 +15,8 @@ const FIELDS = "address asMoveObject { contents { type { repr } json } }";
 const CACHE_SECONDS = 300, MAX_BUILDERS = 12, MAX_PAGES = 8;
 const EMPTY = { builders: [], home: "", systems: {}, plans: [] };
 /* settings only: a list stored before 2026-10-11 may still carry hand-placed nodes, launchers, links and notes; they are dropped */
-const settings = l => ({ builders: Array.isArray(l.builders) ? l.builders : [], home: l.home || "", systems: l.systems || {}, gates: Array.isArray(l.gates) ? l.gates : [], plans: Array.isArray(l.plans) ? l.plans : [], updated: l.updated, updated_by: l.updated_by });
+const settings = l => ({ builders: Array.isArray(l.builders) ? l.builders : [], home: l.home || "", systems: l.systems || {}, gates: Array.isArray(l.gates) ? l.gates : [], plans: Array.isArray(l.plans) ? l.plans : [],
+  seen: Array.isArray(l.seen) ? l.seen : [], placed: l.placed && typeof l.placed === "object" && !Array.isArray(l.placed) ? l.placed : {}, updated: l.updated, updated_by: l.updated_by });   // seen / placed: written by the companions (/api/gatestate), never by the page
 
 async function gql(query, variables) {
   const r = await fetch(SUI, { method: "POST", headers: { "content-type": "application/json", "user-agent": "saints-forge (read-only)" }, body: JSON.stringify({ query, variables: variables || {} }) });
@@ -200,7 +201,8 @@ export async function onRequestPost({ request, env }) {
   let d; try { d = JSON.parse(text); } catch (e) { return json({ ok: false, error: "Not JSON." }, 400, cookies); }
   const bad = checkList(d);
   if (bad) return json({ ok: false, error: bad }, 400, cookies);
-  const clean = { builders: d.builders.map(b => ({ name: b.name, address: b.address })), home: d.home || "", systems: d.systems || {}, gates: d.gates || [],
+  const kept = await loadList(env);                     // the companions' jump records stay as stored, whatever the page sends
+  const clean = { builders: d.builders.map(b => ({ name: b.name, address: b.address })), home: d.home || "", systems: d.systems || {}, gates: d.gates || [], seen: kept.seen || [], placed: kept.placed || {},
                   plans: (d.plans || []).map(p => ({ name: p.name, note: p.note || "", mode: p.mode, priorities: p.priorities,
                     hops: p.hops.map(h => Object.fromEntries(["from", "to", "kind", "gap", "ly", "fromName", "toName", "status", "who", "by", "leg", "step", "free", "state"].filter(k => h[k] != null).map(k => [k, h[k]]))) })),
                   updated: new Date().toISOString(), updated_by: s.n };
