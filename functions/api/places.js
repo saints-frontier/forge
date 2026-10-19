@@ -4,17 +4,23 @@
    GET  (tribe session or companion key): { ok, home, marks }
    POST (tribe session or companion key), one change at a time:
         { home: {to, name} }  set the home      { home: null }  forget it
-        { add: {to, name} }   add a bookmark    { remove: <system number> }  drop one
+        { add: {to, name, label?} }  add a bookmark    { remove: <system number> }  drop one
+        { label: {to, label} }  name the home and/or the bookmark of that system ("" takes the name off)
+   A label is the pilot's own name for the place (up to 30 characters: letters, digits, spaces, simple punctuation).
    Only the pilot's own record is read or written; a change that changes nothing writes nothing. */
 import { json } from "./_lib.js";
 import { who } from "./quarry.js";
 
 const PREFIX = "places:u:", MAX_MARKS = 30;
 const NAME = /^[A-Za-z0-9|.\-#() ]{1,40}$/;
+const LABEL = /^[\p{L}\p{N} .,'()&#\-_/!?:+]{1,30}$/u;
+const labelOf = v => { const s = String(v == null ? "" : v).replace(/\s+/g, " ").trim(); return s && LABEL.test(s) ? s : ""; };
 const place = p => {
   if (!p || typeof p !== "object") return null;
   const to = Number(p.to), name = String(p.name == null ? "" : p.name).trim();
-  return Number.isInteger(to) && to >= 30000000 && to <= 39999999 && NAME.test(name) ? { to, name } : null;
+  if (!(Number.isInteger(to) && to >= 30000000 && to <= 39999999 && NAME.test(name))) return null;
+  const label = labelOf(p.label);
+  return label ? { to, name, label } : { to, name };
 };
 const clean = r => ({ home: place(r && r.home), marks: (Array.isArray(r && r.marks) ? r.marks : []).map(place).filter(Boolean).slice(0, MAX_MARKS) });
 
@@ -50,6 +56,12 @@ export async function onRequestPost({ request, env }) {
       if (r.marks.length >= MAX_MARKS) return json({ ok: false, error: `${MAX_MARKS} bookmarks at most: drop one first.` }, 400, cookies);
       r.marks.push(p);
     }
+  } else if ("label" in d) {
+    const x = d.label || {}, to = Number(x.to), raw = String(x.label == null ? "" : x.label).replace(/\s+/g, " ").trim(), label = labelOf(raw);
+    if (raw && !label) return json({ ok: false, error: "A name of up to 30 letters, digits, spaces and simple punctuation." }, 400, cookies);
+    let hit = false;
+    for (const p of [r.home].concat(r.marks)) if (p && p.to === to) { hit = true; if (label) p.label = label; else delete p.label; }
+    if (!hit) return json({ ok: false, error: "That system is not one of your places." }, 400, cookies);
   } else if ("remove" in d) {
     const to = Number(d.remove); r.marks = r.marks.filter(m => m.to !== to);
   } else return json({ ok: false, error: "Nothing to change." }, 400, cookies);
@@ -59,4 +71,4 @@ export async function onRequestPost({ request, env }) {
   return answer(Object.assign({ ok: true }, r), 200, cookies);
 }
 
-export const __test = { clean, place };
+export const __test = { clean, place, labelOf };

@@ -126,6 +126,8 @@
       .catch(() => alertNav("the site did not answer"));
   }
   const placeOf = id => ({ to: id, name: String(nameOfId(id)).slice(0, 40) });
+  const placeName = p => p.label ? `${esc(p.label)} <span class="roads-hint">(${esc(p.name)})</span>` : esc(p.name);
+  function askLabel(cur, sys) { const v = window.prompt(`A name for ${sys} (leave empty for none):`, cur || ""); return v == null ? null : v.replace(/\s+/g, " ").trim().slice(0, 30); }
   function placeBtns(id) {
     if (!id) return "";
     const home = PLACES.home && PLACES.home.to === id, mark = PLACES.marks.some(m => m.to === id);
@@ -135,7 +137,7 @@
   function placesLine() {
     if (!hasPlaces()) return "";
     const go = (p, label) => `<button type="button" class="roads-quiet" data-placego="${p.to}" title="navigate there">${label}</button>`;
-    const find = p => `<button type="button" class="roads-link" data-placelook="${p.to}" title="show it on the map">${esc(p.name)}</button>`;
+    const find = p => `<button type="button" class="roads-link" data-placelook="${p.to}" title="show it on the map">${placeName(p)}</button><button type="button" class="roads-x" data-placelabel="${p.to}" title="give it a name of your own" aria-label="rename">\u270E</button>`;
     const home = PLACES.home ? `<span class="roads-place">\u2302 Home: ${find(PLACES.home)} ${go(PLACES.home, "Go home")}</span>` : "";
     const marks = PLACES.marks.map(m => `<span class="roads-place">\u2605 ${find(m)} ${go(m, "Go")}<button type="button" class="roads-x" data-unmark="${m.to}" title="drop this bookmark" aria-label="drop this bookmark">\u00d7</button></span>`).join("");
     return `<div class="roads-places">${home}${marks}</div>`;
@@ -373,9 +375,9 @@
       if (LOC) { const mk = (r, cls, label) => { const id = locOf(r.s); if (!id || !s.has(id)) return; const i = systems.findIndex(x => x.id === id); const o = { id, name: label, cls, sub: r.s + " · " + ago(r.at), subColor: cls === "me" ? "#5fe3ff" : "#8fe0b0" }; if (i >= 0) systems.splice(i, 1, o); else systems.push(o); placed.add(id); };
         for (const m of LOC.mates) mk(m, "mate", m.n || m.c || "a Saint"); if (LOC.me) mk(LOC.me, "me", "\u25B2 You"); }
       for (const [pl, isHome] of (PLACES.home ? [[PLACES.home, true]] : []).concat(PLACES.marks.map(m => [m, false]))) {
-        const id = pl.to; if (!s.has(id)) continue; const note = isHome ? "your home" : "bookmark", i = systems.findIndex(x => x.id === id);
+        const id = pl.to; if (!s.has(id)) continue; const note = (isHome ? "your home" : "bookmark") + (pl.label ? ": " + pl.label : ""), i = systems.findIndex(x => x.id === id);
         if (i >= 0) { systems[i].sub = (systems[i].sub ? systems[i].sub + " · " : "") + note; continue; }
-        placed.add(id); systems.push({ id, name: (isHome ? "Home: " : "\u2605 ") + pl.name, cls: "far", color: isHome ? "#ffd27a" : "#c9ced8", sub: note });
+        placed.add(id); systems.push({ id, name: (isHome ? "Home: " : "\u2605 ") + (pl.label || pl.name), cls: "far", color: isHome ? "#ffd27a" : "#c9ced8", sub: pl.label ? pl.name + " \u00b7 " + note : note });
       }
       if (surveyOn) for (const [nm, r] of Object.entries(FIELD.survey || {})) { const id = window.RoadsCore.idOfName(M, nm); if (!id || !s.has(id) || !r.infest) continue;
         const i = systems.findIndex(x => x.id === id); if (i >= 0) { systems[i].sub = (systems[i].sub ? systems[i].sub + " · " : "") + "inf " + r.infest; continue; }
@@ -904,7 +906,8 @@
     if (b.dataset.navto) { navSet(+b.dataset.navto); return; }
     if (b.dataset.navstop) { navSet(null); return; }
     if (b.dataset.home) { placesSet({ home: placeOf(+b.dataset.home) }); return; }
-    if (b.dataset.mark) { placesSet({ add: placeOf(+b.dataset.mark) }); return; }
+    if (b.dataset.mark) { const pl = placeOf(+b.dataset.mark), lab = askLabel("", pl.name); if (lab === null) return; if (lab) pl.label = lab; placesSet({ add: pl }); return; }
+    if (b.dataset.placelabel) { const to = +b.dataset.placelabel, pl = (PLACES.home && PLACES.home.to === to ? PLACES.home : null) || PLACES.marks.find(m => m.to === to); if (!pl) return; const lab = askLabel(pl.label, pl.name); if (lab === null) return; placesSet({ label: { to, label: lab } }); return; }
     if (b.dataset.unmark) { placesSet({ remove: +b.dataset.unmark }); return; }
     if (b.dataset.placego) { navSet(+b.dataset.placego); return; }
     if (b.dataset.placelook && sf) { const id = +b.dataset.placelook, name = [...M.ids].find(([, v]) => v.id === id); selected = name ? name[0] : null; picked = name ? null : id; sf.look(id, 400); if (!name) sf.mark(null); drawStars(); drawDetail(); return; }
