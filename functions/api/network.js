@@ -7,6 +7,7 @@
    POST -> replace the settings (Paladins, Knights, site keepers), validated first; hand-placed roads are refused.
    Nothing about the network lives in this repository: the builders' addresses and every system name are in KV only. */
 import { session, json, canUpload } from "./_lib.js";
+import { who } from "./quarry.js";      // GET also takes the companion key (the Saints Frontier Companion's navigator reads the network)
 
 const SUI = "https://graphql.testnet.sui.io/graphql";
 const CATAPULT = { "95627": "Mini Catapult", "95628": "Mini Catapult", "95677": "Heavy Catapult", "95717": "Heavy Catapult" };
@@ -108,7 +109,7 @@ function cleanNames(body) {
   }
   return out;
 }
-async function readNames(env, fresh) {
+export async function readNames(env, fresh) {     // also used by /api/gatestate
   if (!env.EFMAP_API_KEY) return { at: 0, systems: [], error: "no EF-Map key is set" };
   const key = new Request("https://cache.saints-forge.internal/efmap/system-names");
   let old = null; try { const hit = await caches.default.match(key); if (hit) old = await hit.json(); } catch (e) {}
@@ -126,13 +127,13 @@ async function readNames(env, fresh) {
   }
 }
 
-async function loadList(env) {
+export async function loadList(env) {
   let raw = null; try { raw = env.DOCTRINE ? await env.DOCTRINE.get("network") : null; } catch (e) {}
   try { return settings(Object.assign({}, EMPTY, raw ? JSON.parse(raw) : {})); } catch (e) { return Object.assign({}, EMPTY); }
 }
 
 export async function onRequestGet({ request, env }) {
-  const { s, cookies } = await session(env, request);
+  const { s, key, cookies } = await who(env, request);
   if (!s) return json({ ok: false }, 401, cookies);
   const list = await loadList(env);
   const builders = (list.builders || []).slice(0, MAX_BUILDERS);
@@ -150,7 +151,7 @@ export async function onRequestGet({ request, env }) {
       } catch (e) { error = String(e && e.message || e).slice(0, 200); }
     }
   }
-  return json({ ok: true, at, cached, error, canEdit: canUpload(env, s), list, assemblies: chain.assemblies, nodes: chain.nodes, names: Object.assign({ source: "EF-Map" }, await namesP) }, 200, cookies);
+  return json({ ok: true, at, cached, error, canEdit: !key && canUpload(env, s), list, assemblies: chain.assemblies, nodes: chain.nodes, names: Object.assign({ source: "EF-Map" }, await namesP) }, 200, cookies);
 }
 
 const SYS = v => typeof v === "string" && v.length >= 1 && v.length <= 24;
@@ -172,7 +173,12 @@ function checkList(d) {
   const gates = d.gates == null ? [] : d.gates;
   const GATE_STATES = ["working", "unfueled", "dormant"], DAY = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
   if (!Array.isArray(gates) || gates.length > 500 || !gates.every(g => g && SYS(g.a) && SYS(g.b) && g.a !== g.b && (g.note == null || (typeof g.note === "string" && g.note.length <= 80))
-      && (g.state == null || GATE_STATES.includes(g.state)) && (g.seen == null || (typeof g.seen === "string" && DAY.test(g.seen))))) return "gates must be a list of {a, b, state?, seen?} (a gate someone has jumped; state working, unfueled or dormant; seen YYYY-MM-DD).";
+      && (g.state == null || GATE_STATES.includes(g.state)) && (g.seen == null || (typeof g.seen === "string" && DAY.test(g.seen)))
+      && (g.at == null || (typeof g.at === "string" && /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]{5,12}Z?$/.test(g.at))) && (g.by == null || (typeof g.by === "string" && g.by.length <= 40 && !/[<>]/.test(g.by)))
+      && (g.fuel == null || (typeof g.fuel === "object" && !Array.isArray(g.fuel) && Object.keys(g.fuel).length <= 2 && Object.entries(g.fuel).every(([k, f]) => SYS(k) && f && typeof f === "object"
+          && (f.jumps == null || (Number.isInteger(f.jumps) && f.jumps >= 0 && f.jumps <= 1000000)) && (f.cap == null || (Number.isInteger(f.cap) && f.cap >= 1 && f.cap <= 1000000))
+          && (f.status == null || (typeof f.status === "string" && /^[A-Z ]{0,12}$/.test(f.status))) && (f.dest == null || (typeof f.dest === "string" && /^[A-Z ]{0,12}$/.test(f.dest)))
+          && (f.at == null || (typeof f.at === "string" && f.at.length <= 30)) && (f.by == null || (typeof f.by === "string" && f.by.length <= 40 && !/[<>]/.test(f.by)))))))) return "gates must be a list of {a, b, state?, seen?, at?, by?, fuel?} (a gate someone has jumped; state working, unfueled or dormant; seen YYYY-MM-DD; at = the time, by = who reported it; fuel = {system: {jumps, cap, status, dest, at, by}}).";
   const plans = d.plans == null ? [] : d.plans;
   const HSTAT = ["planned", "progress", "built"], DAYS = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
   const HOP = h => h && SID(h.from) && SID(h.to) && (h.gap === true || KINDS.includes(h.kind)) && (h.ly == null || typeof h.ly === "number") && (h.fromName == null || SYS(h.fromName)) && (h.toName == null || SYS(h.toName))
