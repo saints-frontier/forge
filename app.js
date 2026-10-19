@@ -901,16 +901,29 @@
   function linkTable(f) { if (f == null) return LINK_TABLES.legacy || NAMES; if (f === LINK_FP) return NAMES; return LINK_TABLES[f] || null; }
   function encode() {
     const idx = {}; NAMES.forEach((n, i) => idx[n] = i);
-    const obj = { h: state.hull, n: String(state.name).slice(0, 60), p: state.placements.map(p => [idx[p[0]], p[1], rotOf(p[0], p[3], p[2]) || 0, Math.min(...p[3].map(c => c[0])), Math.min(...p[3].map(c => c[1]))]), e: state.exterior, r: state.prio, c: state.minCaps, k: state.mins, b: state.preset, d: state.dirty ? 1 : 0 };
+    const rows = state.placements.map(p => [idx[p[0]], p[1], rotOf(p[0], p[3], p[2]) || 0, Math.min(...p[3].map(c => c[0])), Math.min(...p[3].map(c => c[1]))]);
+    const obj = { h: state.hull, n: String(state.name).slice(0, 60), e: state.exterior, r: state.prio, c: state.minCaps, k: state.mins, b: state.preset, d: state.dirty ? 1 : 0 };
+    // q (2026-10-19, Discord's 2,000 characters): five characters a module (index, section, turn, x + 32, y + 32 in the
+    // URL-safe base64 alphabet) instead of p's number lists, about half the link; p stays for anything q cannot hold
+    const q = rows.every(r => r[0] < 64 && r[1] < 64 && r[3] > -32 && r[3] < 32 && r[4] > -32 && r[4] < 32) ? rows.map(r => Q64[r[0]] + Q64[r[1]] + Q64[r[2] / 90] + Q64[r[3] + 32] + Q64[r[4] + 32]).join("") : null;
+    if (q) obj.q = q; else obj.p = rows;
     if (LINK_FP) obj.f = LINK_FP;
     const s = JSON.stringify(obj);
     return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  const Q64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  function unq(s) {                                         // q -> p's rows; null on anything that is not five clean characters a module
+    if (typeof s !== "string" || s.length % 5 || s.length > 3000) return null;
+    const rows = [];
+    for (let i = 0; i < s.length; i += 5) { const v = [...s.slice(i, i + 5)].map(ch => Q64.indexOf(ch)); if (v.some(n => n < 0) || v[2] > 3) return null; rows.push([v[0], v[1], v[2] * 90, v[3] - 32, v[4] - 32]); }
+    return rows;
   }
   const looksLikeFit = h => /^eyJ[A-Za-z0-9_-]{20,}$/.test(h);          // base64 of a JSON object: the only kind of hash that is a fit
   // A link is somebody else's text (audit 2026-10-11: a crafted one ran script, froze the tab or loaded modules on top of
   // each other). Read into a fresh object, every field checked; one fault rejects the whole link and nothing is touched.
   function readLink(h) {
     let o; try { o = JSON.parse(decodeURIComponent(escape(atob(String(h).replace(/-/g, "+").replace(/_/g, "/"))))); } catch (e) { return null; }
+    if (o && typeof o === "object" && o.q != null) { o.p = unq(o.q); if (!o.p) return null; }
     if (!o || typeof o !== "object" || typeof o.h !== "string" || !D.hulls[o.h] || !Array.isArray(o.p) || o.p.length > 600) return null;
     const table = linkTable(o.f); if (!table) return null;
     const list = [];
@@ -949,19 +962,71 @@
     return diff;
   }
   function discordText() {
-    const st = stats(); const c = counts(state.placements);
+    // a Discord message holds 2,000 characters without Nitro (tribe feedback 2026-10-19): the parts go in by rank and
+    // a part that would pass the limit stays out (name and numbers, the changes, the link, then the module list)
+    const LIMIT = 2000, st = stats(), c = counts(state.placements);
     const base = state.preset ? D.presets.find(p => p.n === state.preset) : null;
-    let t = `**${state.name}** (${state.hull})` + (base && state.dirty ? ` — proposal vs ${docName(base)}` : "") + "\n";
-    t += `Hold ${st.hold} m³ · Fuel ${st.fuel} · Capacitor ${st.cap} GJ (${f1(st.rech)} GJ/s est, drain ${f1(st.drain)}) · Hull ~${st.hp} HP, ${st.repair} HP/s · ${st.draw.toFixed(1)} / ${st.power} MW\n`;
-    const lines = Object.keys(c).sort().map(n => `${c[n]}x ${n}`); const ext = Object.keys(state.exterior).filter(n => state.exterior[n]).map(n => `${state.exterior[n]}x ${n}`);
-    t += lines.join(", ") + (ext.length ? " · exterior: " + ext.join(", ") : "") + "\n";
-    if (base) { const diff = diffVsBase(base); t += diff.length ? "Changes: " + diff.join(", ") + "\n" : "Same modules as the doctrine fit, re-packed.\n"; }
+    const head = `**${state.name}** (${state.hull})` + (base && state.dirty ? ` — proposal vs ${docName(base)}` : "");
+    const nums = `Hold ${st.hold} m³ · Fuel ${st.fuel} · Capacitor ${st.cap} GJ (${f1(st.rech)} GJ/s est, drain ${f1(st.drain)}) · Hull ~${st.hp} HP, ${st.repair} HP/s · ${st.draw.toFixed(1)} / ${st.power} MW`;
+    const lines = Object.keys(c).sort((a, b) => c[b] - c[a] || a.localeCompare(b)).map(n => `${c[n]} ${n}`); const ext = Object.keys(state.exterior).filter(n => state.exterior[n]).map(n => `${state.exterior[n]} ${n}`);
+    const mods = lines.join(", ") + (ext.length ? " · exterior: " + ext.join(", ") : "");
+    const diff = base ? diffVsBase(base) : null;
+    const changes = base && state.dirty ? (diff.length ? "Changes: " + diff.join(", ") : "Same modules as the doctrine fit, re-packed.") : "";
     const link = location.href.split("#")[0] + "#" + encode();
-    if (t.length + link.length > 1950) {                    // a Discord message holds 2,000 characters: the module list goes first, the link carries it anyway
-      const head = t.split("\n"); t = head.slice(0, 2).join("\n") + "\n" + (head.length > 4 ? head[3] + "\n" : "") + "Full module list: open the link.\n";
-    }
-    t += link;
-    copy(t, t.length > 2000 ? "Discord text copied. It is over 2,000 characters: Discord will send it as a file." : "Discord text copied.");
+    const len = a => a.join("\n").length, parts = [head, nums], out = [];
+    if (changes && len([...parts, changes]) <= LIMIT) parts.push(changes); else if (changes) out.push("the changes");
+    const linkFits = len([...parts, link]) <= LIMIT;
+    if (len([...parts, mods].concat(linkFits ? [link] : [])) <= LIMIT) parts.push(mods); else out.push("the module list");
+    if (linkFits) parts.push(link); else out.push("the link (too long for one message: Copy proposal link, and send it on its own)");
+    const t = parts.join("\n");
+    copy(t, `Discord text copied (${t.length.toLocaleString("en-US")} of 2,000 characters)` + (out.length ? `. Left out to fit: ${out.join(", ")}. Copy layout image shows the whole fit.` : "."));
+  }
+  // ---------- the layout as a picture (tribe feedback 2026-10-19: "copy/paste the layout page instead of a wall of text") ----------
+  function layoutSvg() {
+    const st = stats(), c = counts(state.placements), xe = s => String(s).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    const H0 = hullSvg(state.hull, state.placements, {}), hs = H0.svg, hw = H0.vw, hh = H0.vh;
+    const keys = Object.keys(c).sort((a, b) => c[b] - c[a] || a.localeCompare(b));
+    const ext = Object.keys(state.exterior).filter(n => state.exterior[n]);
+    const W = 1600, LX = 1090, ROW = 34, legendH = 150 + keys.length * ROW + (ext.length ? 60 + ext.length * 28 : 0);
+    const H = Math.max(900, legendH + 60), boxW = LX - 80, boxH = H - 200, k = Math.min(boxW / hw, boxH / hh);
+    const hx = 40 + (boxW - hw * k) / 2, hy = 170 + (boxH - hh * k) / 2;
+    const GOLD = "#d9b24c", RED = "#e3222c", INK = "#07070a", FG = "#f4f1ea", DIM = "#9a9aa6";
+    const font = window.ForgeCard && window.ForgeCard.fontCss ? window.ForgeCard.fontCss() : "";
+    const tile = (x, label, v) => `<text x="${x}" y="128" class="m" font-size="13" fill="${GOLD}" letter-spacing="2">${label}</text><text x="${x}" y="156" class="c" font-size="24" font-weight="800" fill="${FG}">${xe(v)}</text>`;
+    let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><style>${font}`
+      + `.c{font-family:Cinzel,Georgia,serif}.d{font-family:'Cinzel Decorative',Cinzel,Georgia,serif}.m{font-family:Rajdhani,'IBM Plex Mono',Consolas,monospace;font-weight:700}`
+      + `.modnum{font-family:Rajdhani,'Arial Narrow',Consolas,monospace;font-weight:700;fill:#fff;text-anchor:middle;paint-order:stroke;stroke:${INK};stroke-width:2.6px;stroke-linejoin:round}</style>`
+      + `<rect width="${W}" height="${H}" fill="${INK}"/><rect x="0" y="0" width="14" height="${H}" fill="#8f1118"/><rect x="14" y="0" width="2" height="${H}" fill="${GOLD}"/>`
+      + `<rect x="28" y="16" width="${W - 44}" height="${H - 32}" fill="none" stroke="${GOLD}" stroke-opacity=".55" stroke-width="2"/>`
+      + `<text x="48" y="78" class="d" font-size="44" font-weight="900" fill="${GOLD}">${xe(state.name)}</text>`
+      + `<text x="${W - 48}" y="62" class="m" font-size="16" fill="${DIM}" text-anchor="end" letter-spacing="2">${xe(state.hull)} · THESAINTSFORGE.COM/FORGE</text>`
+      + tile(48, "HOLD", Number(st.hold).toLocaleString("en-US") + " m³") + tile(250, "FUEL", st.fuel.toLocaleString("en-US")) + tile(430, "CAPACITOR", st.cap + " GJ") + tile(640, "RECHARGE / DRAIN", f1(st.rech) + " / " + f1(st.drain))
+      + tile(900, "HULL", "~" + st.hp.toLocaleString("en-US") + " HP") + tile(1110, "POWER", st.draw.toFixed(1) + " / " + st.power + " MW") + tile(1340, "CELLS", st.cells + " / " + st.total)
+      + hs.replace(/^<svg viewBox="[^"]*"/, `<svg x="${hx.toFixed(1)}" y="${hy.toFixed(1)}" width="${(hw * k).toFixed(1)}" height="${(hh * k).toFixed(1)}" viewBox="0 0 ${hw} ${hh}"`)
+      + `<text x="${LX}" y="212" class="m" font-size="14" fill="${GOLD}" letter-spacing="3">MODULES · ${state.placements.length}</text>`;
+    keys.forEach((n, i) => { const y = 240 + i * ROW, col = (MOD[n] || { color: "#888" }).color;
+      s += `<rect x="${LX}" y="${y}" width="22" height="22" fill="${col}" stroke="${INK}" stroke-width="2"/><text x="${LX + 34}" y="${y + 17}" class="m" font-size="20" fill="${FG}">${c[n]} × ${xe(n)}</text>`; });
+    if (ext.length) { let y = 240 + keys.length * ROW + 30;
+      s += `<text x="${LX}" y="${y}" class="m" font-size="14" fill="${GOLD}" letter-spacing="3">OUTSIDE THE HULL</text>`;
+      ext.forEach((n, i) => { s += `<text x="${LX}" y="${y + 30 + i * 28}" class="m" font-size="19" fill="${DIM}">${state.exterior[n]} × ${xe(n)}</text>`; }); }
+    return { svg: s + `</svg>`, W, H };
+  }
+  function layoutBlob() {
+    const { svg, W, H } = layoutSvg();
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" })), img = new Image();
+      img.onload = () => { try { const cv = document.createElement("canvas"); cv.width = W; cv.height = H; cv.getContext("2d").drawImage(img, 0, 0); URL.revokeObjectURL(url); cv.toBlob(b => b ? resolve(b) : reject(new Error("export failed")), "image/png"); } catch (e) { URL.revokeObjectURL(url); reject(e); } };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("the layout could not be drawn")); };
+      img.src = url;
+    });
+  }
+  function layoutImage() {
+    const png = layoutBlob();
+    const save = () => png.then(b => { const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (state.name || "fit").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-") + ".png"; document.body.appendChild(a); a.click(); a.remove(); setStatus("Layout image saved: drag it into Discord.", "ok"); }, e => setStatus("No image: " + e.message, "bad"));
+    if (navigator.clipboard && window.ClipboardItem) {
+      // the promise goes straight into the clipboard call, so the click still counts as the user's when the PNG is ready
+      navigator.clipboard.write([new ClipboardItem({ "image/png": png })]).then(() => setStatus("Layout image copied: paste it into Discord (Ctrl+V).", "ok"), save);
+    } else save();
   }
   function copy(text, okMsg) {
     const done = () => setStatus(okMsg, "ok");
@@ -1297,6 +1362,7 @@
     $("btn-forge").addEventListener("click", forge);
     $("btn-share").addEventListener("click", shareLink);
     $("btn-discord").addEventListener("click", discordText);
+    $("btn-layoutimg").addEventListener("click", layoutImage);
     $("btn-save").addEventListener("click", saveFit); if ($("btn-unsave")) $("btn-unsave").addEventListener("click", unsaveFit);
     $("saved-sel").addEventListener("change", e => { if (busy()) { e.target.value = ""; return; } const x = savedFits()[+e.target.value]; if (x && decode(x.code)) { startSolver(); render(); setStatus(`Loaded "${x.name}".`, "ok"); } else if (x) setStatus(`"${x.name}" could not be read: it was saved by a different version of the Forge.`, "bad"); e.target.value = ""; });
     $("btn-clear").addEventListener("click", () => cleanSlate(false));
