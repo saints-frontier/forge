@@ -226,6 +226,9 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 #card-svg svg { width: 100%; height: auto; display: block; border: 1px solid rgba(217,178,76,.3); }
 #card-png { width: 100%; height: auto; display: block; border: 1px solid var(--gold); }
 .mprev .row { padding: 0; }
+  .saintsbuild { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 1px solid var(--gold, #c9a227); border-radius: 3px; }
+  .saintsbuild[hidden] { display: none; }
+  .saintsbuild .sbl { font-size: 12px; letter-spacing: .04em; color: var(--gold, #c9a227); white-space: nowrap; }
 #tab-lodge button { font: 600 11px var(--mono); letter-spacing: 2px; text-transform: uppercase; background: var(--panel); color: var(--silver); border: 1px solid var(--gold-soft); padding: 8px 12px; cursor: pointer; border-radius: 0;
   clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
 #tab-lodge button:hover { color: var(--gold); border-color: var(--gold); }
@@ -1024,6 +1027,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       <select id="hull-sel" aria-label="Hull"><option value="Reiver">Reiver hull · 294 cells</option><option value="LAI">LAI hull · 478 cells</option></select>
       <select id="preset-sel" aria-label="Doctrine fits"></select>
       <button type="button" id="btn-own">Forge your own</button>
+      <span class="saintsbuild" id="saints-build" hidden title="A new fit with the Saints Doctrine rules: Transponder, Docking Clamp, Hull Repairer, Fuel Blister and Leap kept; a Launch Bay brings an Autohelm"><span class="sbl">✠ Build a Saints Doctrine ship</span><button type="button" data-sb="Reiver">Reiver</button><button type="button" data-sb="LAI">LAI</button></span>
       <span class="sp"></span>
       <input type="text" id="fit-name" aria-label="Fit name" placeholder="Fit name" maxlength="60">
       <select id="saved-sel" aria-label="Saved fits"></select>
@@ -1491,7 +1495,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
 <script src="card.js?v=93fdc27d"></script>
 <script src="cardgen.js?v=73bdaf12"></script>
 <script src="fonts.js?v=b68a7c66"></script>
-<script src="app.js?v=271fc016"></script>
+<script src="app.js?v=218f29fc"></script>
 <script>
 (function () {
   // pages and their own addresses: thesaintsforge.com/aboutus, /forge, /guide (Cloudflare serves the page at each,
@@ -1567,5 +1571,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=4b72d8d5"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=6deb49f8"></script><script src="quarry-data.js?v=67cd529f"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=4ef52315"></script><script src="sites.js?v=209dd811"></script><script src="npcs-data.js?v=2066fd4d"></script><script src="npcs.js?v=856b8157"></script><script src="tribe.js?v=df9265fb"></script><script src="starfield.js?v=912ddd63"></script><script src="roadscore.js?v=55188bd0"></script><script src="roads.js?v=b25fec7b"></script><script type="module" src="machines.js?v=c085ca6e"></script>
+<script src="lodge-data.js?v=4b72d8d5"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=6deb49f8"></script><script src="quarry-data.js?v=67cd529f"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=4ef52315"></script><script src="sites.js?v=209dd811"></script><script src="npcs-data.js?v=2066fd4d"></script><script src="npcs.js?v=856b8157"></script><script src="tribe.js?v=faeb2aad"></script><script src="starfield.js?v=912ddd63"></script><script src="roadscore.js?v=55188bd0"></script><script src="roads.js?v=b25fec7b"></script><script type="module" src="machines.js?v=c085ca6e"></script>
 </body></html>

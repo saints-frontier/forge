@@ -54,6 +54,8 @@
     // seen, and the words of the doctrine cards come from the store (user 2026-10-15: the only Forge lives on the site)
     var cardBtn = document.getElementById("btn-card");
     if (cardBtn && DOCTRINE) cardBtn.hidden = false;
+    var sbBtn = document.getElementById("saints-build");      // Build a Saints Doctrine ship: for members (user 2026-10-20)
+    if (sbBtn) sbBtn.hidden = false;
     if (DOCTRINE) fetch("/api/cards", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) { share({ cards: d && d.cards ? d : null }); if (d && window.__forgeCardText) window.__forgeCardText(d); }).catch(function () {});
     function note(t) { var n = box.querySelector(".tribe-note"); if (!n) { n = document.createElement("span"); n.className = "tribe-note"; who.after(n); } n.textContent = t ? " · " + t : ""; }

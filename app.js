@@ -21,7 +21,7 @@
   const PRIO_OF = { "Cargo Container": "hold", "Emergency Container": "hold", "Capacitor": "cap", "Fuel Bay": "fuel", "Fuel Blister": "fuel", "Structural Brace": "hp" };
   const $ = id => document.getElementById(id);
 
-  const state = { hull: "Reiver", name: "Untitled fit", placements: [], exterior: {}, selected: -1, zoom: 1, prio: { hold: 4, cap: 3, fuel: 0, hp: 0 }, order: ["hold", "cap", "fuel", "hp"], minCaps: 0, mins: { hold: 0, fuel: 0, "Structural Brace": 0 }, fuelGrade: "Unstable", preset: null, dirty: false };
+  const state = { hull: "Reiver", name: "Untitled fit", placements: [], exterior: {}, selected: -1, zoom: 1, prio: { hold: 4, cap: 3, fuel: 0, hp: 0 }, order: ["hold", "cap", "fuel", "hp"], minCaps: 0, mins: { hold: 0, fuel: 0, "Structural Brace": 0 }, fuelGrade: "Unstable", preset: null, dirty: false, saints: false };
   let solver = null, solverReady = false, running = null, pendingResolve = null;
 
   // ---------- solver plumbing ----------
@@ -148,7 +148,13 @@
   const isEngine = n => (D.base_ship.engines || []).includes(n);
   const engineCount = c => (D.base_ship.engines || []).reduce((a, n) => a + (c[n] || 0), 0);
   const lastEngine = l => isEngine(l) && engineCount(counts(state.placements)) <= 1;
-  const keptMsg = l => isEngine(l) ? "A ship cannot fly without an engine: press + on another engine to switch." : `${l} cannot be removed (the game keeps it).`;
+  // Saints Doctrine rules (user 2026-10-20): every Saints ship carries these; "Build a Saints Doctrine ship" turns them on,
+  // and so does loading a doctrine fit. A Launch Bay brings an Autohelm with it while they are on.
+  const SAINTS = { must: { "Transponder": 1, "Docking Clamp": 1, "Hull Repairer": 1, "Fuel Blister": 1, "Leap": 1 },
+                   withMod: { "Launch Bay": "Autohelm" }, engine: { Reiver: "Propulsion Engine R25", LAI: "Propulsion Engine R25" } };
+  const saintsMin = n => state.saints ? (SAINTS.must[n] || 0) : 0;
+  const saintsKept = l => !!saintsMin(l) && (counts(state.placements)[l] || 0) <= saintsMin(l);
+  const keptMsg = l => isEngine(l) ? "A ship cannot fly without an engine: press + on another engine to switch." : saintsKept(l) && !(D.base_ship.never_removed[l] && counts(state.placements)[l] <= D.base_ship.never_removed[l]) ? `${l} is required on every Saints Doctrine ship.` : `${l} cannot be removed (the game keeps it).`;
   function swapEngine(name) {
     const i = state.placements.findIndex(p => isEngine(p[0])); if (i < 0) return false;
     const old = state.placements[i][0]; if (old === name) return true;
@@ -237,6 +243,8 @@
     if (!has("Gravity Sensor") && !has("Ion Sensor")) out.push({ text: "No sensor: you cannot find rocks, sites or ships.", add: ["Gravity Sensor"], label: "Add a Gravity Sensor" });
     else if (!scannerSlots(c)) out.push({ text: "No Gravity Sensor: the Directional Scanner mounts only on that one.", add: ["Gravity Sensor"], label: "Add a Gravity Sensor" });
     else if (!ext["Directional Scanner"]) out.push({ text: "No Directional Scanner on the sensor: no scanning for what is out there.", ext: "Directional Scanner", label: "Add one" });
+    if (state.saints) { for (const n in SAINTS.must) if ((c[n] || 0) < SAINTS.must[n] && !out.some(h => h.add && h.add[0] === n)) out.push({ text: `No ${n}: every Saints Doctrine ship carries one.`, add: [n], label: "Add one" });
+      for (const n in SAINTS.withMod) if (c[n] && !c[SAINTS.withMod[n]]) out.push({ text: `A ${n} needs an ${SAINTS.withMod[n]} on a Saints Doctrine ship.`, add: [SAINTS.withMod[n]], label: `Add an ${SAINTS.withMod[n]}` }); }
     if (!(c["Weapon Receiver"] || 0)) out.push({ text: "No Weapon Receiver: nothing to mine or shoot with.", add: ["Weapon Receiver"], label: "Add one" });
     else if (!Object.keys(ext).some(n => EXT[n] && EXT[n].hardpoint === "weapon" && ext[n])) out.push({ text: "Empty Weapon Receiver: mount a Cutting Laser to mine and defend.", ext: "Cutting Laser", label: "Add a Cutting Laser" });
     if (st.burn > 0 && isFinite(st.hours) && st.hours < 2) out.push({ text: `Fuel for ${st.hours.toFixed(1)} h at this burn on ${state.fuelGrade}: a long trip ends in the dark.`, add: ["Fuel Bay"], label: "Add a Fuel Bay" });
@@ -267,6 +275,11 @@
     if (combat) out.push([(c["Ion Sensor"] || 0) >= 1, "Ion Sensor on a combat fit"]);
     const scanners = scannerSlots(c);
     out.push([(ext["Directional Scanner"] || 0) <= scanners, "Directional Scanner on a sensor"]);
+    if (state.saints) {
+      for (const n in SAINTS.must) out.push([(c[n] || 0) >= SAINTS.must[n], `Saints: ${n}`]);
+      for (const n in SAINTS.withMod) if (c[n]) out.push([(c[SAINTS.withMod[n]] || 0) >= 1, `Saints: ${SAINTS.withMod[n]} with the ${n}`]);
+    }
+    if (scanners) out.push([(ext["Directional Scanner"] || 0) >= 1, "Directional Scanner on the Gravity Sensor"]);
     out.push([!overPower(st), `power ${st.draw.toFixed(1)} of ${st.power} MW`]);
     out.push([st.stable, st.stable ? `cap-stable (${f1(st.rech)} GJ/s ≥ ${f1(st.drain)} drain)` : `cap runs dry in ${isFinite(st.lastMin) ? Math.round(st.lastMin) + " s" : "—"} with everything on`]);
     return out;
@@ -472,7 +485,7 @@
     if (!cellUnder(ev)) { setStatus(`Drop ${d.name} on the hull to fit it.`, "info"); return; }
     if (!d.spot) { setStatus(`No room for ${d.name} there. Try another spot, or press + to let the forge rearrange.`, "bad"); return; }
     state.placements.push([d.name, d.spot.s, d.spot.rot, d.spot.cells]); state.selected = state.placements.length - 1; keepByHand(d.name);
-    markDirty(); render(); setStatus(`${d.name} fitted in the ${D.hulls[state.hull].sections[d.spot.s].name} section.`, "ok");
+    markDirty(); render(); setStatus(`${d.name} fitted in the ${D.hulls[state.hull].sections[d.spot.s].name} section.`, "ok"); afterAdd(d.name);
   }
   function cellUnder(ev) { const els = document.elementsFromPoint(ev.clientX, ev.clientY); return els.find(e => e.classList && e.classList.contains("cell")) || null; }
   function svgPoint(svg, ev) { const r = svg.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; }
@@ -510,7 +523,7 @@
     else setStatus(`${p[0]}: no room to turn ${label} here. Try another turn, or drag it somewhere roomier.`, "bad");
   }
   function rotateSelected() { turnSelected("cw"); }
-  function locked(l) { return (D.base_ship.never_removed[l] && counts(state.placements)[l] <= D.base_ship.never_removed[l]) || lastEngine(l); }
+  function locked(l) { return (D.base_ship.never_removed[l] && counts(state.placements)[l] <= D.base_ship.never_removed[l]) || lastEngine(l) || saintsKept(l); }
   function offWindow(ev) { const r = $("grid").getBoundingClientRect(); return ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom; }
   function removeAt(i) {
     const [l] = state.placements[i];
@@ -554,10 +567,10 @@
       html += `<div class="pgroup"><h3>${g}</h3>`;
       groups[g].forEach(m => { const k = c[m.name] || 0;
         const eng = isEngine(m.name), swap = eng && !k && engineCount(c) > 0, onlyEngine = eng && k > 0 && engineCount(c) <= 1;
-        const lockMin = D.base_ship.never_removed[m.name] || 0, locked = k <= lockMin || onlyEngine, full = !swap && (((D.base_ship.max_fit || {})[m.name] && k >= D.base_ship.max_fit[m.name]) || !!groupCap(m.name, c));
+        const lockMin = Math.max(D.base_ship.never_removed[m.name] || 0, saintsMin(m.name)), locked = k <= lockMin || onlyEngine, full = !swap && (((D.base_ship.max_fit || {})[m.name] && k >= D.base_ship.max_fit[m.name]) || !!groupCap(m.name, c));
         const mark = lockMin || onlyEngine;
-        html += `<div class="prow${k ? " has" : ""}${mark ? " core" : ""}" data-mod="${m.name}" title="${swap ? "press + to switch to this engine" : "drag onto the hull, or press +"}"><span class="sw" style="background:${m.color}"></span><span class="pname">${m.name}${mark ? ` <span class="lock" title="${onlyEngine ? "a ship cannot fly without an engine: press + on another to switch" : "the game never lets this be removed"}">✠</span>` : ""}</span><span class="psize">${m.size}</span>` +
-                `<span class="pcount">${k || ""}</span><button class="pbtn" data-add="${m.name}" title="${swap ? "switch to this engine" : full ? "the game allows no more of these" : "add one"}" aria-label="${swap ? "switch to" : "add"} ${m.name}"${full ? " disabled" : ""}>+</button><button class="pbtn" data-sub="${m.name}" title="${onlyEngine ? "a ship needs an engine: press + on another to switch" : lockMin ? "the game keeps " + lockMin : "remove one"}" aria-label="remove ${m.name}"${locked ? " disabled" : ""}>−</button></div>`; });
+        html += `<div class="prow${k ? " has" : ""}${mark ? " core" : ""}" data-mod="${m.name}" title="${swap ? "press + to switch to this engine" : "drag onto the hull, or press +"}"><span class="sw" style="background:${m.color}"></span><span class="pname">${m.name}${mark ? ` <span class="lock" title="${onlyEngine ? "a ship cannot fly without an engine: press + on another to switch" : D.base_ship.never_removed[m.name] ? "the game never lets this be removed" : "required on every Saints Doctrine ship"}">✠</span>` : ""}</span><span class="psize">${m.size}</span>` +
+                `<span class="pcount">${k || ""}</span><button class="pbtn" data-add="${m.name}" title="${swap ? "switch to this engine" : full ? "the game allows no more of these" : "add one"}" aria-label="${swap ? "switch to" : "add"} ${m.name}"${full ? " disabled" : ""}>+</button><button class="pbtn" data-sub="${m.name}" title="${onlyEngine ? "a ship needs an engine: press + on another to switch" : lockMin ? (D.base_ship.never_removed[m.name] ? "the game keeps " : "a Saints Doctrine ship keeps ") + lockMin : "remove one"}" aria-label="remove ${m.name}"${locked ? " disabled" : ""}>−</button></div>`; });
       html += `</div>`;
     }
     html += `<div class="pgroup"><h3>Exterior (hardpoints)</h3>`;
@@ -699,7 +712,16 @@
     const r = await solve({ type: "tryadd", placements: state.placements, add: [name], seconds: 6, seed: Date.now() & 0xffff }, "tryadd");
     $("btn-forge").disabled = false;
     if (r.missing && r.missing.length) { if (!quiet) setStatus(`No room for ${name}, even after rearranging.`, "bad"); return false; }
-    state.placements = r.placements; state.selected = -1; keepByHand(name); markDirty(); render(); setStatus(`${name} fitted.`, "ok"); return true;
+    state.placements = r.placements; state.selected = -1; keepByHand(name); markDirty(); render(); setStatus(`${name} fitted.`, "ok"); await afterAdd(name); return true;
+  }
+  // What comes with a module: a Gravity Sensor gets its Directional Scanner (everywhere); on a Saints Doctrine ship a
+  // Launch Bay brings an Autohelm (user 2026-10-20).
+  async function afterAdd(name) {
+    const c = counts(state.placements);
+    if (MOD[name] && MOD[name].hardpoint === "scanner" && EXT["Directional Scanner"] && (state.exterior["Directional Scanner"] || 0) < scannerSlots(c)) {
+      state.exterior["Directional Scanner"] = (state.exterior["Directional Scanner"] || 0) + 1; markDirty(); render(); setStatus(`${name} fitted, with its Directional Scanner.`, "ok"); }
+    const w = state.saints && SAINTS.withMod[name];
+    if (w && !(c[w] || 0)) { if (await addModule(w, true)) setStatus(`${name} fitted, with an ${w} (Saints Doctrine rule).`, "ok"); else setStatus(`${name} fitted, but there is no room for its ${w}. Make room: a Saints Doctrine ship needs one.`, "warn"); }
   }
   // Make me cap stable: fit the Capacitors the recharge model needs for the fitted drain, one at a time (rearranging
   // when the hull is tight), and keep that many as the minimum so a later Forge never trades them away.
@@ -743,7 +765,7 @@
   async function cleanSlate(keepExterior) {
     if (busy()) return;
     const engine = (state.placements.find(p => isEngine(p[0])) || [])[0] || (D.base_ship.engines || [])[0];
-    state.placements = []; if (!keepExterior) state.exterior = {}; state.preset = null; state.selected = -1; state.name = "Forge your own";
+    state.placements = []; if (!keepExterior) state.exterior = {}; state.preset = null; state.selected = -1; state.name = "Forge your own"; state.saints = false;
     holdHistory = true; render(); holdHistory = false;
     running = "tryadd";
     if (!solverReady) await new Promise(r => { const t = setInterval(() => { if (solverReady) { clearInterval(t); r(); } }, 50); });
@@ -753,6 +775,24 @@
     const r = await solve({ type: "tryadd", placements: [], add: core, seconds: 5, seed: 7 }, "tryadd");
     state.placements = r.placements; state.minCaps = D.base_ship.never_removed["Capacitor"] || 1; setMinsFromFit(); markDirty(); render();
     setStatus(`${state.hull}: clean slate with the ${kept} modules the game never removes (${[...new Set(core.slice(0, kept))].join(", ")})` + (engine ? ` and an engine (${engine}; + on another class switches it)` : "") + `. Add the rest from the palette, then forge for the role.`, "info");
+  }
+
+  // Build a Saints Doctrine ship: the game's never-removed modules, the hull's doctrine engine and every Saints module,
+  // with the rules on (they stay on until another fit is loaded or Forge your own is pressed).
+  async function saintsBuild(hull) {
+    if (busy()) return;
+    if (hull && hull !== state.hull) { state.hull = hull; startSolver(); }
+    state.placements = []; state.exterior = {}; state.preset = null; state.selected = -1; state.saints = true; state.name = `Saints Doctrine ${state.hull}`;
+    holdHistory = true; render(); holdHistory = false;
+    running = "tryadd";
+    if (!solverReady) await new Promise(r => { const t = setInterval(() => { if (solverReady) { clearInterval(t); r(); } }, 50); });
+    const core = []; for (const n in D.base_ship.never_removed) for (let i = 0; i < D.base_ship.never_removed[n]; i++) core.push(n);
+    const engine = SAINTS.engine[state.hull] || (D.base_ship.engines || [])[0]; if (engine && MOD[engine]) core.push(engine);
+    for (const n in SAINTS.must) for (let i = 0; i < SAINTS.must[n]; i++) if (MOD[n]) core.push(n);
+    progressStart(0, "Laying the keel of a Saints ship…");
+    const r = await solve({ type: "tryadd", placements: [], add: core, seconds: 6, seed: 7 }, "tryadd");
+    state.placements = r.placements; state.minCaps = D.base_ship.never_removed["Capacitor"] || 1; setMinsFromFit(); markDirty(); render();
+    setStatus(`Saints Doctrine ${state.hull}: ${engine ? engine + ", " : ""}${Object.keys(SAINTS.must).join(", ")} fitted and kept. A Launch Bay brings an Autohelm, a Gravity Sensor its Directional Scanner. Add the rest from the palette, then forge for the role.` + (r.missing && r.missing.length ? ` No room for: ${r.missing.join(", ")}.` : ""), r.missing && r.missing.length ? "warn" : "info");
   }
 
   // ---------- Forge for the role: parallel searches until nothing better turns up ----------
@@ -875,6 +915,7 @@
     for (const n in KEEP_IDS) if (fillers.includes(n)) keepMin[n] = Math.max(keepMin[n] || 0, state.mins[n] || 0);
     // the game's own never-removed modules among the fillers (one Cargo Container) stay whatever the totals say
     fillers.forEach(f => { const k = D.base_ship.never_removed[f] || 0; if (k && f !== "Capacitor") keepMin[f] = Math.max(keepMin[f] || 0, Math.min(c[f] || 0, k)); });
+    fillers.forEach(f => { const k = saintsMin(f); if (k) keepMin[f] = Math.max(keepMin[f] || 0, k); });     /* Saints Doctrine: one Fuel Blister at least */
     // hold and fuel: totals, any mix. A total the fit already holds with its priority unticked needs nothing: those modules are not touched.
     const keepSum = []; for (const k in SUM_IDS) { const min = clampSum(k, state.mins[k]); if (min > 0 && (Object.keys(SUM_PER[k]).some(n => fillers.includes(n)) || sumNow(k) < min)) keepSum.push({ key: k, per: SUM_PER[k], min }); }
     forgeBefore = { snap: snap(), hull: state.hull, name: state.name, placements: JSON.parse(JSON.stringify(state.placements)), exterior: Object.assign({}, state.exterior), after: null }; hideForgeDiff();
@@ -891,7 +932,7 @@
     const p = D.presets.find(x => x.n === +n); if (!p || busy()) return;
     if (!D.hulls[p.hull]) { setStatus(`${docName(p)}: unknown hull "${p.hull}".`, "bad"); return; }
     state.hull = p.hull; state.placements = p.placements.map(x => [x[0], x[1], rotOf(x[0], x[3], x[2]) || 0, x[3].map(c => [c[0], c[1]])]); state.exterior = soundExterior(p.exterior);
-    state.name = docName(p); state.preset = p.n; state.selected = -1; state.dirty = false;
+    state.name = docName(p); state.preset = p.n; state.selected = -1; state.dirty = false; state.saints = !!p.doctrine;
     state.minCaps = counts(state.placements)["Capacitor"] || 1; setMinsFromFit();
     startSolver(); render(); setStatus(`${p.name} loaded (${p.role}). Keeping its ${state.minCaps} Capacitors, ${state.mins.hold.toLocaleString("en-US")} m³ of hold, ${state.mins.fuel.toLocaleString("en-US")} fuel and ${state.mins["Structural Brace"]} Braces unless you lower the minimums.`, "ok");
   }
@@ -991,7 +1032,7 @@
     const L = readLink(h); if (!L) return false;
     state.hull = L.hull; state.name = L.name; state.exterior = L.exterior; state.placements = L.placements; state.selected = -1;
     if (L.prio) Object.assign(state.prio, L.prio);
-    orderFromPrio(); renderOrder(); state.minCaps = L.minCaps; state.preset = L.preset;
+    orderFromPrio(); renderOrder(); state.minCaps = L.minCaps; state.preset = L.preset; state.saints = !!(D.presets.find(p => p.n === L.preset) || {}).doctrine;
     if (L.mins) { state.mins = L.mins; syncKeepInputs(); } else setMinsFromFit();
     state.dirty = L.dirty != null ? L.dirty : (!!state.preset && !/^\+.+\+$/.test(state.name));   // old links: a named preset without the +marks+ was changed
     if (!state.minCaps) { state.minCaps = counts(state.placements)["Capacitor"] || 1; syncKeepInputs(); }
@@ -1097,7 +1138,7 @@
   function savedFits() { try { return JSON.parse(localStorage.getItem("forge:saved") || "[]"); } catch (e) { return []; } }
   function saveFit() {
     const had = savedFits().some(x => x.name === state.name);
-    const list = savedFits().filter(x => x.name !== state.name); list.unshift({ name: state.name, hull: state.hull, code: encode(), when: new Date().toISOString() });
+    const list = savedFits().filter(x => x.name !== state.name); list.unshift({ name: state.name, hull: state.hull, code: encode(), when: new Date().toISOString(), saints: !!state.saints });
     try { localStorage.setItem("forge:saved", JSON.stringify(list.slice(0, 30))); } catch (e) { setStatus("Could not save in this browser.", "bad"); return; }
     renderSaved(); setStatus(`Saved "${state.name}" in this browser${had ? " (it replaced the earlier fit of that name)" : ""}.`, "ok");
   }
@@ -1370,8 +1411,9 @@
       $("card-save").addEventListener("click", saveCard);
       $("card-copy").addEventListener("click", copyCard);
     }
-    $("hull-sel").addEventListener("change", e => { if (busy()) { e.target.value = state.hull; return; } state.hull = e.target.value; startSolver(); const stock = D.presets.find(p => p.starter && p.hull === state.hull); if (stock) loadPreset(stock.n); else cleanSlate(false); });   /* a hull's stock fit, as the game builds it, when the edition has one */
+    $("hull-sel").addEventListener("change", e => { if (busy()) { e.target.value = state.hull; return; } if (state.saints && !state.preset) { saintsBuild(e.target.value); return; } state.hull = e.target.value; startSolver(); const stock = D.presets.find(p => p.starter && p.hull === state.hull); if (stock) loadPreset(stock.n); else cleanSlate(false); });   /* a hull's stock fit, as the game builds it, when the edition has one */
     $("btn-own").addEventListener("click", () => cleanSlate(false));
+    if ($("saints-build")) $("saints-build").addEventListener("click", e => { const b = e.target.closest("button[data-sb]"); if (b) saintsBuild(b.dataset.sb); });
     $("preset-sel").addEventListener("change", e => { if (e.target.value) loadPreset(e.target.value); e.target.value = ""; });
     $("fit-name").addEventListener("input", e => { state.name = e.target.value; syncUnsave(); });
     $("hints").addEventListener("click", e => { const b = e.target.closest("button[data-hint]"); if (b && !running && !pool) applyHint(+b.dataset.hint); });
@@ -1431,7 +1473,7 @@
     $("btn-discord").addEventListener("click", discordText);
     $("btn-layoutimg").addEventListener("click", layoutImage);
     $("btn-save").addEventListener("click", saveFit); if ($("btn-unsave")) $("btn-unsave").addEventListener("click", unsaveFit);
-    $("saved-sel").addEventListener("change", e => { if (busy()) { e.target.value = ""; return; } const x = savedFits()[+e.target.value]; if (x && decode(x.code)) { startSolver(); render(); setStatus(`Loaded "${x.name}".`, "ok"); } else if (x) setStatus(`"${x.name}" could not be read: it was saved by a different version of the Fitting Tool.`, "bad"); e.target.value = ""; });
+    $("saved-sel").addEventListener("change", e => { if (busy()) { e.target.value = ""; return; } const x = savedFits()[+e.target.value]; if (x && decode(x.code)) { if (x.saints) state.saints = true; startSolver(); render(); setStatus(`Loaded "${x.name}".`, "ok"); } else if (x) setStatus(`"${x.name}" could not be read: it was saved by a different version of the Fitting Tool.`, "bad"); e.target.value = ""; });
     $("btn-clear").addEventListener("click", () => cleanSlate(false));
     const ZOOMS = [0.4, 0.5, 0.63, 0.8, 1, 1.25, 1.6, 2, 2.5, 3];
     $("zoom-in").addEventListener("click", () => { state.zoom = ZOOMS.find(z => z > state.zoom + 0.005) || 3; fitZoom(); });
