@@ -8,8 +8,11 @@
 /machines/ /structures 301
 /roads /map 301
 /roads/ /map 301
+/doctrine /doctrine-ships 301
+/doctrine/ /doctrine-ships 301
 /aboutus/ /aboutus 301
 /fitting/ /fitting 301
+/doctrine-ships/ /doctrine-ships 301
 /guide/ /guide 301
 /building/ /building 301
 /mining/ /mining 301
@@ -28,12 +31,9 @@
 /guide-staying-alive/ /guide-staying-alive 301
 /guide-scanning/ /guide-scanning 301
 /map/ /map 301
-/doctrine / 302
-/doctrine/ / 302
-/doctrine-ships / 302
-/doctrine-ships/ / 302
 /aboutus / 200
 /fitting / 200
+/doctrine-ships / 200
 /guide / 200
 /building / 200
 /mining / 200

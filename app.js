@@ -1049,7 +1049,7 @@
     return fetch("/api/short", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ h: hash }) })
       .then(r => r.ok ? r.json() : null).then(d => d && d.ok && /^[A-Za-z0-9]{6,14}$/.test(d.id) ? location.origin + "/f/" + d.id : null).catch(() => null);
   }
-  function linkNow() { const hash = encode(), long = location.href.split("#")[0] + "#" + hash; return shortLink(hash).then(s => s || long); }
+  function linkNow() { const hash = encode(), long = (/^\/doctrine/.test(location.pathname) ? location.origin + "/fitting" : location.href.split("#")[0]) + "#" + hash; return shortLink(hash).then(s => s || long); }
   function copyLater(textP, msg) {
     // the clipboard call is made in the click itself with the text still to come, so the click still counts when it arrives
     if (navigator.clipboard && window.ClipboardItem) {
@@ -1500,6 +1500,8 @@
   window.__forgeCurrentFit = () => ({ name: state.name, hull: state.hull, placements: state.placements.map(p => [p[0], p[1], rotOf(p[0], p[3], p[2]) || 0, p[3].map(c => [c[0], c[1]])]), exterior: Object.assign({}, state.exterior), preset: state.preset });
   // for the Doctrine page: a stored fit made sound (or null), and loading a stored doctrine fit by its name
   window.__forgeSoundFit = p => { if (!p || !D.hulls[p.hull] || !Array.isArray(p.placements)) return null; const pl = soundPlacements(p.hull, JSON.parse(JSON.stringify(p.placements))); return pl ? { placements: pl, exterior: soundExterior(p.exterior) } : null; };
+  window.__forgeBuildIt = () => { if (!(window.__lodgeImport && window.__siteGo)) return false; window.__lodgeImport(lodgePayload()); window.__siteGo("lodge"); return true; };   /* the Doctrine page's Build it */
+  window.__forgeLinkNow = () => linkNow();          /* the Doctrine page's fit link: the fit on the page as a short link (or the full one) */
   window.__forgeLoadByName = name => { const l = String(name).toLowerCase(); const p = D.presets.find(x => x.fromStore && String(x.name).toLowerCase() === l) || D.presets.find(x => String(x.name).toLowerCase() === l); if (!p || busy()) return false; loadPreset(p.n); return true; };
   window.__forgeAddPresets = list => {
     let next = D.presets.reduce((m, p) => Math.max(m, +p.n || 0), 100) + 1, added = 0; const skipped = [];
