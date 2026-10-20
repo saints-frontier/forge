@@ -64,7 +64,7 @@
     });
     // grouped in sections (user 2026-10-20: the Combat ships together, the flagship first and set apart, no numbers);
     // section, order and lead come with the card words from the store
-    var SECTIONS = ["Combat", "Mining", "Hauling", "Logistics", "Exploration"], sec = function (s) { var k = SECTIONS.indexOf(s); return k < 0 ? 99 : k; };
+    var SECTIONS = ["Combat", "Industry", "Logistics", "Hauling", "Mining", "Exploration"], sec = function (s) { var k = SECTIONS.indexOf(s); return k < 0 ? 99 : k; };
     cards.sort(function (a, b) { return sec(a.section) - sec(b.section) || a.section.localeCompare(b.section) || (b.lead ? 1 : 0) - (a.lead ? 1 : 0) || a.rank - b.rank || a.order - b.order || a.name.localeCompare(b.name); });
     var grid = $("d-grid");
     var lastSec = null;
