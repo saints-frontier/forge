@@ -10,9 +10,11 @@
   var day = function (iso) { var p = String(iso).split("-"); return p.length === 3 ? (+p[2]) + " " + MON[+p[1] - 1] : esc(iso); };
   var nf = function (n) { return Number(n).toLocaleString("en-US"); };
   var DOT = " · ";
-  var state = { group: "all", seen: false, q: "" };
-  try { var s = JSON.parse(localStorage.getItem("sites:view") || "{}"); if (s.group) state.group = s.group; state.seen = !!s.seen; } catch (e) {}
-  var keep = function () { try { localStorage.setItem("sites:view", JSON.stringify({ group: state.group, seen: state.seen })); } catch (e) {} };
+  var state = { group: "all", q: "" };
+  try { var s = JSON.parse(localStorage.getItem("sites:view") || "{}"); if (s.group) state.group = s.group; } catch (e) {}
+  var keep = function () { try { localStorage.setItem("sites:view", JSON.stringify({ group: state.group })); } catch (e) {} };
+  /* client info only since 2026-10-20: the export carries no sightings; these stay empty unless OUR_DATA comes back */
+  D.sites.forEach(function (s) { s.seen = s.seen || []; s.rocks = s.rocks || []; s.foes = s.foes || []; s.loot = s.loot || []; });
 
   function text(site) {                                   // everything a search can match on a card
     var t = [site.name, site.place, site.belt, site.game].concat(site.rocks, site.foes, site.fixed);
@@ -22,10 +24,10 @@
   }
   function tag(word, label, kind) { return '<span class="st-tag ' + kind + '">' + esc(label) + ": " + esc(word) + "</span>"; }
   function card(site) {
-    var visited = site.seen.length && !site.mapOnly;
+    var visited = site.seen.length && !site.mapOnly, ours = site.seen.length || site.rocks.length || site.loot.length;
     var where = [site.place, site.belt].filter(Boolean).join(DOT);
     var placeNote = site.place && D.places[site.place] ? D.places[site.place] : "";
-    var h = '<article class="st-card' + (visited ? "" : " unseen") + '"><h4>' + esc(site.name) + "</h4>";
+    var h = '<article class="st-card' + (visited || !ours ? "" : " unseen") + '"><h4>' + esc(site.name) + "</h4>";
     if (where) h += '<div class="st-where">' + esc(where) + (placeNote ? DOT + esc(placeNote) : "") + "</div>";
     var tags = [];
     if (!site.noLevels) {
@@ -49,14 +51,14 @@
       var items = Object.keys(l.items).map(function (k) { return "<li>" + nf(l.items[k]) + "x " + esc(k) + "</li>"; }).join("");
       h += '<div class="st-loot"><b>Looted from ' + esc(l.from) + "</b>" + DOT + day(l.date) + "<ul>" + items + "</ul></div>";
     });
-    if (!visited) h += '<p class="st-none">' + (site.mapOnly ? "Seen on a system map, not visited by the Saints yet." : "Not visited by the Saints yet.") + "</p>";
+    if (ours && !visited) h += '<p class="st-none">' + (site.mapOnly ? "Seen on a system map, not visited by the Saints yet." : "Not visited by the Saints yet.") + "</p>";
     return h + "</article>";
   }
   function draw() {
     var q = state.q.trim().toLowerCase(), out = "", shown = 0;
     D.groups.forEach(function (g) {
       if (state.group !== "all" && state.group !== g.key) return;
-      var list = D.sites.filter(function (s) { return s.group === g.key && (!state.seen || (s.seen.length && !s.mapOnly)) && (!q || text(s).indexOf(q) >= 0); });
+      var list = D.sites.filter(function (s) { return s.group === g.key && (!q || text(s).indexOf(q) >= 0); });
       if (!list.length) return;
       shown += list.length;
       out += '<section class="st-group"><h3>' + esc(g.title) + "</h3><p>" + esc(g.note) + '</p><div class="st-grid">' + list.map(card).join("") + "</div></section>";
@@ -70,16 +72,12 @@
     var chips = '<button type="button" data-g="all">All</button>' + D.groups.map(function (g) { return '<button type="button" data-g="' + esc(g.key) + '">' + esc(g.title) + "</button>"; }).join("");
     $("st-groups").innerHTML = chips;
     $("st-groups").addEventListener("click", function (e) { var b = e.target.closest("button[data-g]"); if (!b) return; state.group = b.getAttribute("data-g"); keep(); draw(); });
-    $("st-seen").checked = state.seen;
-    $("st-seen").addEventListener("change", function () { state.seen = this.checked; keep(); draw(); });
     $("st-find").addEventListener("input", function () { state.q = this.value; draw(); });
     $("st-list").addEventListener("click", function (e) {
       var b = e.target.closest("button[data-more]"); if (!b) return;
       var q = b.closest(".st-game"); q.textContent = q.getAttribute("data-full");
     });
-    $("st-facts").innerHTML = D.facts.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("");
-    var seen = D.sites.filter(function (s) { return s.seen.length && !s.mapOnly; }).length;
-    $("st-foot").textContent = D.sites.length + " kinds of site" + DOT + seen + " visited by the Saints" + DOT + "client build " + D.build + DOT + "data of " + day(D.generated) + " " + String(D.generated).slice(0, 4);
+    $("st-foot").textContent = D.sites.length + " kinds of site" + DOT + "client build " + D.build + DOT + "data of " + day(D.generated) + " " + String(D.generated).slice(0, 4);
     draw();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
