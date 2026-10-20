@@ -68,7 +68,7 @@
   }
   function gridSvg(hull, placements, ch) {
     const th = ch.theme, cell = ch.cell, slots = ch.slots, secs = hull.sections;
-    const num = numbering(placements); const out = [], tags = [];
+    const num = numbering(placements); const out = [], tags = [], want = [];
     secs.forEach((sec, s) => {
       const [sx, sy] = slots[s];
       sec.cells.forEach(([cx, cy]) => out.push(`<rect x="${(sx + cx * cell).toFixed(1)}" y="${(sy + cy * cell).toFixed(1)}" width="${cell}" height="${cell}" fill="${th.cellbg}" stroke="${th.cellline}"/>`));
@@ -84,11 +84,24 @@
             out.push(`<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}" stroke="${th.ink}" stroke-width="2.6"/>`);
             out.push(`<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${c.toFixed(1)}" y2="${d.toFixed(1)}" stroke="${colr}" stroke-opacity="${op}" stroke-width="1"/>`); }); });
         const mx = cs.reduce((a, c) => a + c[0], 0) / cs.length, my = cs.reduce((a, c) => a + c[1], 0) / cs.length;
-        let best = null, bk = null;
-        cs.forEach(c => { const k = [(c[0] - mx) ** 2 + (c[1] - my) ** 2, c[1], c[0]]; if (!bk || k[0] < bk[0] || (k[0] === bk[0] && (k[1] < bk[1] || (k[1] === bk[1] && k[2] < bk[2])))) { bk = k; best = c; } });
-        let [bx, by] = best; if (cs.length >= 4 && Math.abs(bx - mx) < 0.6 && Math.abs(by - my) < 0.6) { bx = mx; by = my; }
-        tags.push(`<text x="${(sx + (bx + 0.5) * cell).toFixed(1)}" y="${(sy + (by + 0.5) * cell + 4).toFixed(1)}" class="num">${num[i]}</text>`);
+        const spots = cs.map(c => [c[0], c[1]]).concat(cs.filter(c => set.has((c[0] + 1) + "," + c[1])).map(c => [c[0] + 0.5, c[1]]));
+        if (cs.length >= 4 && cs.some(c => Math.abs(c[0] - mx) < 0.6 && Math.abs(c[1] - my) < 0.6)) spots.push([mx, my]);
+        want.push({ i, n: num[i], sx, sy, mx, my, spots });
       });
+    });
+    // numbers go where they do not cover each other (as the Python card script, 2026-10-20): fewest spots choose first,
+    // each takes the spot nearest its centre whose label box stays clear of those placed; else the least overlap
+    const boxes = [];
+    want.sort((a, b) => a.spots.length - b.spots.length || a.i - b.i).forEach(w => {
+      const tw = String(w.n).length * cell * 0.5 + 2, tht = cell * 0.78;
+      let best = null, bk = null;
+      w.spots.forEach(sp => { const x = w.sx + (sp[0] + 0.5) * cell, y = w.sy + (sp[1] + 0.5) * cell;
+        const ov = boxes.reduce((a, b) => a + Math.max(0, Math.min(x + tw / 2, b[0] + b[2] / 2) - Math.max(x - tw / 2, b[0] - b[2] / 2)) * Math.max(0, Math.min(y + tht / 2, b[1] + b[3] / 2) - Math.max(y - tht / 2, b[1] - b[3] / 2)), 0);
+        const k = [ov, (sp[0] - w.mx) ** 2 + (sp[1] - w.my) ** 2, sp[1], sp[0]];
+        const d = bk ? k.findIndex((v, q) => v !== bk[q]) : -1;
+        if (!bk || (d >= 0 && k[d] < bk[d])) { bk = k; best = [x, y]; } });
+      boxes.push([best[0], best[1], tw, tht]);
+      tags.push(`<text x="${best[0].toFixed(1)}" y="${(best[1] + 4).toFixed(1)}" class="num">${w.n}</text>`);
     });
     return out.join("") + tags.join("");
   }
