@@ -348,9 +348,10 @@
         onPickStar: id => { if (checkClick(id) || planClick(id)) return; if (selected) return; picked = id || null; if (sf) sf.mark(id, "uncharted"); drawDetail(); }, onHover: () => {},
         onPlainWheel: () => { const h = box.querySelector(".sf-hint"); if (!h) return; h.classList.add("flash"); clearTimeout(h._t); h._t = setTimeout(() => h.classList.remove("flash"), 1800); } });   // a plain wheel scrolls the page: light up how to zoom
       if (!sf) return Promise.resolve(null);
-      window.__roadsStars = sf;                                      // tests
+      window.__roadsStars = sf;
+      setTimeout(findBox, 0);                                     /* the find box is in the toolbar HTML below */                                      // tests
       box.insertAdjacentHTML("beforeend", '<div class="sf-hint">drag: turn · shift-drag: move · ctrl + wheel: zoom · click any star</div><div class="sf-missing" id="sf-missing"></div>' +
-        '<div class="sf-poi" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-tools"><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="survey" title="Systems Saints have surveyed with the companion: infestation 1 (green) to 6 (red)" hidden>Survey</button><button type="button" data-sf="me" title="Fly to where you are (from the Saints Frontier Companion)" hidden>Find me</button><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="fit" title="Our network">Our roads</button><button type="button" data-sf="all" title="The whole galaxy">Galaxy</button><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button></div>');
+        '<div class="sf-find"><input type="search" id="sf-find" placeholder="Find a system: name or number" aria-label="Find a system by name or system number" autocomplete="off" spellcheck="false"></div><div class="sf-poi" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-tools"><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="survey" title="Systems Saints have surveyed with the companion: infestation 1 (green) to 6 (red)" hidden>Survey</button><button type="button" data-sf="me" title="Fly to where you are (from the Saints Frontier Companion)" hidden>Find me</button><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="fit" title="Our network">Our roads</button><button type="button" data-sf="all" title="The whole galaxy">Galaxy</button><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button></div>');
       sfLoading = sf.load("stars.bin?v=2").then(() => { dist = (a, b) => { const p = sf.position(a), q = sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; }; if (lastData && !draft) { M = build(lastData); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); stamp(lastData); }
         // the public gates come after the stars, never in their way: the button appears once they are in
         sf.showGates(showGates); poiLoad(); locPoll();
@@ -538,6 +539,18 @@
       else if (e.key === "Enter") { if (hi >= 0) pick(hi); e.preventDefault(); } else if (e.key === "Escape") close(); });
     el.addEventListener("blur", () => setTimeout(() => { if (!el.dataset.id && rows.length && rows[0].s === 0) pick(0); close(); }, 150));   // the full name typed and left: it counts
     menu.addEventListener("mousedown", e => { const li = e.target.closest("li[data-i]"); if (li) { e.preventDefault(); pick(+li.dataset.i); } });
+  }
+  // Find a system (user 2026-10-20: "can we search the map by system id?"): a name, a Cycle 6 name or the game's
+  // 8-digit system number; the pick flies the camera there and opens its detail line, as a click on it would
+  function findBox() {
+    const el = $("sf-find"); if (!el || el.dataset.boxed) return;
+    sysbox(el);
+    el.addEventListener("change", () => {
+      const id = +(el.dataset.id || 0); if (!id || !sf) return;
+      const name = [...M.ids].find(([, v]) => v.id === id);
+      selected = name ? name[0] : null; picked = name ? null : id;
+      sf.look(id, 300); sf.mark(name ? null : id, name ? null : "found"); drawStars(); drawDetail();
+    });
   }
   function fillPlanner() {
     for (const id of ["plan-from", "plan-to", "plan-stop", "plan-avoid", "check-from", "chart-from"]) { const el = $(id); if (el) sysbox(el); }
