@@ -150,13 +150,13 @@
     const text_w = ch.text_w, v = numbersOf(countsOf(o.placements));
     const rw = text_w - 120;
     const ribbon = t.latin ? `<g transform="translate(${96 + (text_w - rw) / 2},464)"><path d="M0,0 H${rw} L${rw - 12},12 L${rw},24 H0 L12,12 Z" fill="${C}" opacity="0.6"/><text x="${rw / 2}" y="17" text-anchor="middle" class="cin" style="font-weight:700;font-size:13px;fill:${G};letter-spacing:6px">✠ ${esc(t.latin)} ✠</text></g>` : "";
-    const sigil = `<text x="${ch.sx}" y="${ch.sy + 24}" class="cin" text-anchor="middle" style="font-weight:900;font-size:${o.sigil && o.sigil.length > 3 ? 40 : 58}px;fill:${lai ? A : C}" filter="url(#glowf)">${esc(o.sigil || "✠")}</text>`;
+    const sigil = `<text x="${ch.sx}" y="${ch.sy + 24}" class="cin" text-anchor="middle" style="font-family:'Segoe UI Symbol',serif;font-weight:400;font-size:60px;fill:${lai ? A : C}" filter="url(#glowf)">✠</text>`;   /* the cross, never a ship number (user 2026-10-20) */
     const [legSvg, legEnd] = legend(o.placements, t.weapon, o.exterior, ch.leg_x, 226, ch);
     const sealTop = legEnd - 29 + 36, sealBottom = H - 44, scale = Math.min(1, (sealBottom - sealTop) / 202), cx = ch.leg_x + ch.leg_w / 2;
     const sealXs = lai ? [cx - 62 * scale, cx + 62 * scale] : [cx];
     const seals = scale > 0.3 ? sealXs.map(sx => `<g transform="translate(${sx.toFixed(1)},${(sealTop + 34 * scale).toFixed(1)}) scale(${scale.toFixed(3)})">${ch.seal}</g>`).join("") : "";
-    const title = String(t.title || "").toUpperCase();
-    const fs = Math.min(74, Math.floor(text_w / (0.72 * Math.max(4, title.length))));        // long proposal names shrink to fit the column
+    const title = String(t.title || "");                    // as written, in New Rocker (user 2026-10-20)
+    const fs = Math.min(80, Math.floor(text_w / (0.62 * Math.max(4, title.length))));        // long proposal names shrink to fit the column
     const pf = `400 ${lai ? 18 : 20}px 'Segoe UI',Arial`, lh = (lai ? 18 : 20) * 1.4;
     const origin = lines(balance(t.origin, "italic " + pf, text_w), 96 + text_w / 2, 292 + lh * 0.72, lh, "p origin", "middle");
     let para = "", cy = 506;
@@ -166,7 +166,7 @@
     const crest = ch.crest.replace("__LOGO__", K.logo);
     const extraCss = `svg.card text.p{fill:${th.text}} svg.card text.p.origin{fill:${th.silver};font-style:italic}`;
     return `<svg class="card" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><style>${o.fonts || ""}${ch.css}${extraCss}</style><defs>${ch.defs}</defs>${ch.bg}${ch.band}${ch.frame}${ch.tier}${crest}${ch.header.replace("__EYEBROW__", esc(o.eyebrow || "SAINTS DOCTRINE · SHIP FITS"))}${ch.sigil_base}${sigil}${ribbon}${ch.title_line}` +
-      `<text x="${96 + text_w / 2}" y="276" text-anchor="middle" class="cin" style="font-family:'Cinzel Decorative',Cinzel,Georgia,serif;font-weight:900;font-size:${fs}px;fill:url(#goldtitle);letter-spacing:${lai ? 2 : 1}px" filter="url(#titleglow)">${esc(title)}</text>` +
+      `<text x="${96 + text_w / 2}" y="276" text-anchor="middle" class="cin" style="font-family:'New Rocker',Georgia,serif;font-weight:400;font-synthesis:none;font-size:${fs}px;fill:url(#goldtitle);letter-spacing:1px" filter="url(#titleglow)">${esc(title)}</text>` +
       origin +
       `<text x="${96 + text_w / 2}" y="404" text-anchor="middle" style="font:700 24px ${th.font_role};fill:${A};letter-spacing:5px">${esc(String(t.role || "").toUpperCase())}</text>` +
       (t.motto ? `<text x="${96 + text_w / 2}" y="444" text-anchor="middle" class="cin" style="font-weight:600;font-style:italic;font-size:23px;fill:${G}">“${esc(t.motto)}”</text>` : "") +

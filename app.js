@@ -1099,7 +1099,7 @@
     const font = window.ForgeCard && window.ForgeCard.fontCss ? window.ForgeCard.fontCss() : "";
     const tile = (x, label, v) => `<text x="${x}" y="128" class="m" font-size="13" fill="${GOLD}" letter-spacing="2">${label}</text><text x="${x}" y="156" class="c" font-size="24" font-weight="800" fill="${FG}">${xe(v)}</text>`;
     let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><style>${font}`
-      + `.c{font-family:Cinzel,Georgia,serif}.d{font-family:'Cinzel Decorative',Cinzel,Georgia,serif}.m{font-family:Rajdhani,'IBM Plex Mono',Consolas,monospace;font-weight:700}`
+      + `.c{font-family:'New Rocker',Georgia,serif;font-synthesis:none}.d{font-family:'New Rocker',Georgia,serif;font-synthesis:none}.m{font-family:Rajdhani,'IBM Plex Mono',Consolas,monospace;font-weight:700}`
       + `.modnum{font-family:Rajdhani,'Arial Narrow',Consolas,monospace;font-weight:700;fill:#fff;text-anchor:middle;paint-order:stroke;stroke:${INK};stroke-width:2.6px;stroke-linejoin:round}</style>`
       + `<rect width="${W}" height="${H}" fill="${INK}"/><rect x="0" y="0" width="14" height="${H}" fill="#8f1118"/><rect x="14" y="0" width="2" height="${H}" fill="${GOLD}"/>`
       + `<rect x="28" y="16" width="${W - 44}" height="${H - 32}" fill="none" stroke="${GOLD}" stroke-opacity=".55" stroke-width="2"/>`
@@ -1200,7 +1200,7 @@
       $("card-svg").innerHTML = "";
       if (downloads === undefined) downloads = (window.claude && window.claude.use) ? await window.claude.use("downloads").catch(() => null) : null;
       $("card-save").hidden = !(downloads || !window.claude); $("card-copy").hidden = !(navigator.clipboard && window.ClipboardItem);   /* a plain website downloads by itself */
-      st.textContent = `PNG ready (${(cardPng.size / 1024).toFixed(0)} KB, 2880 × 1800).` + (window.FORGE_FONTS ? "" : " The PNG uses Georgia where Cinzel is not embedded.") + ($("card-save").hidden ? " Right-click the image to save or copy it." : "");
+      st.textContent = `PNG ready (${(cardPng.size / 1024).toFixed(0)} KB, 2880 × 1800).` + (window.FORGE_FONTS ? "" : " The PNG uses Georgia where New Rocker is not embedded.") + ($("card-save").hidden ? " Right-click the image to save or copy it." : "");
       st.className = "status ok";
     } catch (e) { st.textContent = "Render failed: " + e.message; st.className = "status bad"; }
   }

@@ -66,7 +66,7 @@
     var grid = $("d-grid");
     grid.innerHTML = cards.map(function (c, i) {
       return '<figure class="d-card"><button type="button" class="d-img" data-view="' + i + '" aria-label="' + esc(c.title) + ' card, larger"><img src="' + c.url + '" alt="' + esc(c.title) + ' doctrine card" decoding="async" width="1920" height="1200"></button>'
-        + '<figcaption><span class="d-sig">' + esc(c.sigil) + '</span><span class="d-name"><b>' + esc(c.title) + '</b><i>' + esc(c.role) + " · " + esc(c.hull) + "</i></span>"
+        + '<figcaption><span class="d-name"><b>' + esc(c.title) + '</b><i>' + esc(c.role) + " · " + esc(c.hull) + "</i></span>"
         + '<span class="d-acts"><button type="button" class="d-btn" data-build="' + i + '" title="Every module of this fit as a build list in the Building Calculator">⚒ Import into the Building Calculator</button><button type="button" class="d-btn d-build" data-link="' + i + '" title="Copy a link that opens this fit in the Fitting Tool">🔗 Copy fit link</button><button type="button" class="d-btn" data-forge="' + i + '">Open in the Fitting Tool</button><button type="button" class="d-btn" data-png="' + i + '">Save PNG</button></span></figcaption></figure>';
     }).join("");
     grid.hidden = !cards.length;
