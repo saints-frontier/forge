@@ -10,12 +10,13 @@
   // what the login knows, for the other pages (the Doctrine page draws the cards from it): window.__tribeData + an event
   function share(o) { var d = window.__tribeData = window.__tribeData || {}; for (var k in o) d[k] = o[k]; window.dispatchEvent(new Event("tribe:data")); }
   // the login comes back to the page it started from
-  function nextPage() { var seg = (location.pathname.split("/").filter(Boolean).pop() || "").toLowerCase(); return /^(forge|doctrine|lodge|quarry|roads|machines|companion|guide|aboutus)$/.test(seg) ? "?next=" + seg : ""; }
+  function nextPage() { var seg = (location.pathname.split("/").filter(Boolean).pop() || "").toLowerCase(); return /^(fitting|doctrine-ships|building|mining|map|structures|forge|doctrine|lodge|quarry|roads|machines|companion|guide|aboutus)$/.test(seg) ? "?next=" + seg : ""; }
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function loggedOut(msg) {
     box.innerHTML = (msg ? '<span class="tribe-msg">' + esc(msg) + "</span>" : "") + '<a class="tribe-btn" href="/api/login' + nextPage() + '">✠ Tribe fits · log in with Discord</a>';
     share({ state: q === "denied" ? "denied" : "out", msg: msg });
   }
+  var DOCTRINE = false;      // the site build writes false while the doctrine is off the site (2026-10-19)
   fetch("/api/me", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (me) {
     if (!me || !me.ok) {
       loggedOut(q === "denied" ? "A Saints rank is needed (Squire or above). Ask in Discord." : q === "error" ? "The login did not go through. Try again." : "");
@@ -25,10 +26,10 @@
     share({ state: "in", me: { name: me.name, rank: me.rank, upload: !!me.upload } });
     var knight = !!me.upload;                       // Paladins, Knights and the site keepers (DOCTRINE_ADMINS) may replace the fits
     box.innerHTML = '<span class="tribe-who">✠ ' + esc(me.name) + " · " + esc(me.rank) + '</span>'
-      + (knight ? '<button type="button" class="tribe-up" id="tribe-set" title="Make the fit on screen a doctrine fit: it replaces the doctrine fit of the same name, or is added as a new one">set as doctrine</button>'
-                + '<button type="button" class="tribe-up" id="tribe-manage" title="Rename or remove doctrine fits">manage</button>'
-                + '<label class="tribe-up" title="Replace every doctrine fit with an exported doctrine-payload.json">upload file<input type="file" accept="application/json,.json" hidden></label>' : "")
-      + '<button type="button" class="tribe-up" id="tribe-key" title="A key for the Quarry companion (python frontier.py quarry key): it sends your mining sessions to The Quarry as you">quarry key</button>'
+      + (knight && DOCTRINE ? '<button type="button" class="tribe-up" id="tribe-set" title="Make the fit on screen a doctrine fit: it replaces the doctrine fit of the same name, or is added as a new one">set as doctrine</button>'
+                + '<button type="button" class="tribe-up" id="tribe-manage" title="Rename or remove doctrine fits">manage</button>' : "")
+      + (knight ? '<label class="tribe-up" title="' + (DOCTRINE ? "Replace every doctrine fit with an exported doctrine-payload.json (or upload the points of interest)" : "Upload the points of interest (pois.json)") + '">upload file<input type="file" accept="application/json,.json" hidden></label>' : "")
+      + '<button type="button" class="tribe-up" id="tribe-key" title="A key for the Saints Frontier Companion: it sends your mining to Mining and puts you on the Map, as you">companion key</button>'
       ;
     // Log out under the page menu, on every page but About us; it comes back to the page it was pressed on
     var out = document.getElementById("nav-logout");
@@ -44,26 +45,26 @@
       note("making a key…");
       fetch("/api/appkey", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
         if (!d || !d.ok) { note("no key: log in again"); return; }
-        var shown = function () { window.prompt("Your Quarry key (valid until " + d.expires + "). Copy it, then run: python frontier.py quarry key", d.key); };
-        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(d.key).then(function () { note("Quarry key copied to the clipboard (valid until " + d.expires + "): paste it into `python frontier.py quarry key`"); }, shown);
+        var shown = function () { window.prompt("Your companion key (valid until " + d.expires + "). Copy it and paste it into the companion's page.", d.key); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(d.key).then(function () { note("companion key copied to the clipboard (valid until " + d.expires + "): paste it into the companion's page"); }, shown);
         else shown();
       }).catch(function () { note("no key: the site did not answer"); });
     });
     // Make a card (the doctrine card design) is for Saints: the button is hidden in the public build until a login is
     // seen, and the words of the doctrine cards come from the store (user 2026-10-15: the only Forge lives on the site)
     var cardBtn = document.getElementById("btn-card");
-    if (cardBtn) cardBtn.hidden = false;
-    fetch("/api/cards", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; })
+    if (cardBtn && DOCTRINE) cardBtn.hidden = false;
+    if (DOCTRINE) fetch("/api/cards", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) { share({ cards: d && d.cards ? d : null }); if (d && window.__forgeCardText) window.__forgeCardText(d); }).catch(function () {});
     function note(t) { var n = box.querySelector(".tribe-note"); if (!n) { n = document.createElement("span"); n.className = "tribe-note"; who.after(n); } n.textContent = t ? " · " + t : ""; }
     if (knight) box.querySelector(".tribe-up input").addEventListener("change", function (e) {
       var f = e.target.files && e.target.files[0]; if (!f) return;
       note("uploading " + f.name + "…");
       var sent = "";
-      f.text().then(function (text) { sent = text; var cards = /"cards"\s*:/.test(text) && !/"presets"\s*:/.test(text), pois = /"categories"\s*:/.test(text) && !/"presets"\s*:/.test(text); return fetch(pois ? "/api/pois" : cards ? "/api/cards" : "/api/doctrine", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: text }); })
+      f.text().then(function (text) { sent = text; var cards = /"cards"\s*:/.test(text) && !/"presets"\s*:/.test(text), pois = /"categories"\s*:/.test(text) && !/"presets"\s*:/.test(text); if (!pois && !DOCTRINE) throw new Error("off"); return fetch(pois ? "/api/pois" : cards ? "/api/cards" : "/api/doctrine", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: text }); })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
         .then(function (x) { if (x.ok) { var d = null; try { d = JSON.parse(sent); } catch (e) {} if (d && Array.isArray(d.categories) && !d.presets) { note(x.d.pois + " points of interest stored"); } else if (d && d.cards && !d.presets) { note(x.d.cards + " ship cards stored"); if (window.__forgeCardText) window.__forgeCardText(d); } else if (d && Array.isArray(d.presets)) applied(d, x.d.fits + " doctrine fits stored", null); else { note(x.d.fits + " doctrine fits stored. Reloading…"); setTimeout(function () { location.reload(); }, 900); } } else note("not stored: " + (x.d && x.d.error || "error")); })
-        .catch(function () { note("upload failed"); });
+        .catch(function (e) { note(e && e.message === "off" ? "the doctrine is off the site for now: only the points of interest can be uploaded" : "upload failed"); });
     });
     // "Set as doctrine" (Paladins, Knights, site keepers): the fit on screen goes into the store under a doctrine name,
     // replacing the fit of that name or joining the list as a new one. The store is the tribe's copy; the toolkit's
@@ -132,10 +133,10 @@
         }).join("") : '<div class="trow"><span class="tn">The store is empty. Set a fit as doctrine to start it.</span></div>';
       }).catch(function (e) { list.innerHTML = '<div class="trow"><span class="tn">' + esc(e && e.message || "could not reach the doctrine store") + '</span></div>'; });
     }
-    if (knight) box.querySelector("#tribe-manage").addEventListener("click", openManage);
-    if (knight) box.querySelector("#tribe-set").addEventListener("click", function () {
+    if (knight && DOCTRINE) box.querySelector("#tribe-manage").addEventListener("click", openManage);
+    if (knight && DOCTRINE) box.querySelector("#tribe-set").addEventListener("click", function () {
       var fit = window.__forgeCurrentFit && window.__forgeCurrentFit();
-      if (!fit || !fit.placements || !fit.placements.length) { note("open a fit in the Forge first"); return; }
+      if (!fit || !fit.placements || !fit.placements.length) { note("open a fit in the Fitting Tool first"); return; }
       var base = String(fit.name || "").replace(/^\+|\+$/g, "").replace(/ proposal$/i, "").trim();
       var name = window.prompt("Doctrine name for this fit (an existing name replaces that fit):", base);
       if (!name || !name.trim()) return; name = name.trim();
@@ -161,6 +162,7 @@
           .then(function (res) { if (res.ok) applied(d, name + (old ? " replaced" : " added"), p.n); else note("not saved: " + (res.x && res.x.error || "error")); });
       }).catch(function (e) { note("not saved: " + (e && e.message || "could not reach the doctrine store")); });
     });
+    if (!DOCTRINE) { share({ fits: null }); return; }
     return fetch("/api/doctrine", { credentials: "same-origin" }).then(function (r) { if (r.status === 403) share({ doctrineDenied: true }); return r.ok ? r.json() : null; }).then(function (d) {
       share(d && d.presets ? { fits: JSON.parse(JSON.stringify(d.presets)) } : { fits: null, fitsError: "The doctrine store is empty." });   // a copy: the Forge reworks its own
       if (d && d.presets && window.__forgeAddPresets) {

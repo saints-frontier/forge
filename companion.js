@@ -18,7 +18,7 @@
       const r = await fetch("/api/appkey", { credentials: "same-origin", cache: "no-store" }); const d = r.ok ? await r.json() : null;
       if (!d || !d.ok) throw new Error(r.status === 401 ? "log in again" : "the site did not answer");
       out.innerHTML = `<div class="c-keyrow"><input id="c-keyin" readonly value="${esc(d.key)}" aria-label="Your companion key"><button type="button" class="c-btn" id="c-copykey">copy</button></div>`
-        + `<div class="c-keynote">Valid until ${esc(d.expires)}. Paste it into the companion's page under <b>Send to the Quarry</b> → <b>Save key</b>. Keep it to yourself: it sends sessions as you.</div>`;
+        + `<div class="c-keynote">Valid until ${esc(d.expires)}. Paste it into the companion's page under <b>Send to Mining</b> → <b>Save key</b>. Keep it to yourself: it sends sessions as you.</div>`;
       try { await navigator.clipboard.writeText(d.key); $("c-copykey").textContent = "copied"; } catch (x) {}
     } catch (x) { out.insertAdjacentHTML("beforeend", `<div class="c-keynote">No key: ${esc(x.message)}.</div>`); }
   });

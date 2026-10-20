@@ -2,11 +2,11 @@
    server (guilds.members.read). A random state in a short cookie guards the round trip. */
 import { CLIENT_ID, setCookie, redirect, redirectUri } from "./_lib.js";
 
-const PAGES = /^(forge|doctrine|lodge|quarry|roads|machines|companion|guide|aboutus)$/;     // where the member comes back to (?next=)
+const PAGES = /^(fitting|doctrine-ships|building|mining|map|structures|forge|doctrine|lodge|quarry|roads|machines|companion|guide|aboutus)$/;     // where the member comes back to (?next=)
 
 export async function onRequestGet({ request }) {
   const next = new URL(request.url).searchParams.get("next") || "";
-  const state = crypto.randomUUID() + "." + (PAGES.test(next) ? next : "forge");
+  const state = crypto.randomUUID() + "." + (PAGES.test(next) ? next : "fitting");
   const u = new URL("https://discord.com/oauth2/authorize");
   u.searchParams.set("client_id", CLIENT_ID);
   u.searchParams.set("response_type", "code");

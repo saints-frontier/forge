@@ -1183,7 +1183,7 @@
     const sm = link.match(/\/f\/([A-Za-z0-9]{6,14})\b/);
     if (sm && !link.includes("#")) {
       $("cmp-body").innerHTML = `<div class="note">Opening the short link...</div>`;
-      fetch("/api/short?id=" + sm[1]).then(r => r.ok ? r.json() : null).then(d => { if ($("cmp-link").value.trim() !== link) return; if (d && d.ok && d.h) { $("cmp-link").value = location.origin + "/forge#" + d.h; renderCompare(); } else $("cmp-body").innerHTML = `<div class="note">That short link is not known to the site.</div>`; }).catch(() => { $("cmp-body").innerHTML = `<div class="note">The site did not answer.</div>`; });
+      fetch("/api/short?id=" + sm[1]).then(r => r.ok ? r.json() : null).then(d => { if ($("cmp-link").value.trim() !== link) return; if (d && d.ok && d.h) { $("cmp-link").value = location.origin + "/fitting#" + d.h; renderCompare(); } else $("cmp-body").innerHTML = `<div class="note">That short link is not known to the site.</div>`; }).catch(() => { $("cmp-body").innerHTML = `<div class="note">The site did not answer.</div>`; });
       return null;
     }
     if (link) { const h = link.includes("#") ? link.split("#")[1] : link; const f = decodeFit(h); if (!f) { $("cmp-body").innerHTML = `<div class="note">That is not a proposal link from this page.</div>`; return null; } return f; }
@@ -1281,11 +1281,11 @@
   // "Build it in the Lodge" (its own button under the share row): every module of the fit becomes a goal of the Mason's Lodge. On the site the Lodge is the
   // next page over (window.__lodgeImport + window.__siteGo); stand-alone, the fit travels in the Lodge's link as
   // #build-<base64url JSON> (a link keeps only letters, digits, - and _ after the #).
-  const LODGE_URL = "https://www.thesaintsforge.com/lodge";       // the Lodge lives on the site only (user 2026-10-15)
+  const LODGE_URL = "https://www.thesaintsforge.com/building";       // the Lodge lives on the site only (user 2026-10-15)
   function lodgePayload() { return { name: state.name, hull: state.hull, goals: shopping().rows.map(r => ({ item: r.n, qty: r.k })) }; }
   function lodgeLink(p) {
     const b = btoa(unescape(encodeURIComponent(JSON.stringify(p)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    return (window.__siteGo ? "/lodge" : LODGE_URL) + "#build-" + b;
+    return (window.__siteGo ? "/building" : LODGE_URL) + "#build-" + b;
   }
 
   // ---------- the guided first visit ----------
@@ -1431,7 +1431,7 @@
     $("btn-discord").addEventListener("click", discordText);
     $("btn-layoutimg").addEventListener("click", layoutImage);
     $("btn-save").addEventListener("click", saveFit); if ($("btn-unsave")) $("btn-unsave").addEventListener("click", unsaveFit);
-    $("saved-sel").addEventListener("change", e => { if (busy()) { e.target.value = ""; return; } const x = savedFits()[+e.target.value]; if (x && decode(x.code)) { startSolver(); render(); setStatus(`Loaded "${x.name}".`, "ok"); } else if (x) setStatus(`"${x.name}" could not be read: it was saved by a different version of the Forge.`, "bad"); e.target.value = ""; });
+    $("saved-sel").addEventListener("change", e => { if (busy()) { e.target.value = ""; return; } const x = savedFits()[+e.target.value]; if (x && decode(x.code)) { startSolver(); render(); setStatus(`Loaded "${x.name}".`, "ok"); } else if (x) setStatus(`"${x.name}" could not be read: it was saved by a different version of the Fitting Tool.`, "bad"); e.target.value = ""; });
     $("btn-clear").addEventListener("click", () => cleanSlate(false));
     const ZOOMS = [0.4, 0.5, 0.63, 0.8, 1, 1.25, 1.6, 2, 2.5, 3];
     $("zoom-in").addEventListener("click", () => { state.zoom = ZOOMS.find(z => z > state.zoom + 0.005) || 3; fitZoom(); });

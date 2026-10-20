@@ -225,7 +225,7 @@
   // Workers (file://) it runs in the page.
   let worker = null, seq = 0; const pending = new Map();
   function startWorker() {
-    try { worker = new Worker("lodge-worker.js?v=a795eb9a"); } catch (e) { worker = null; return; }
+    try { worker = new Worker("lodge-worker.js?v=858c8e1d"); } catch (e) { worker = null; return; }
     worker.onmessage = e => { const cb = pending.get(e.data.id); pending.delete(e.data.id); if (cb) cb(e.data.error ? null : e.data.result); };
     worker.onerror = () => { worker = null; for (const cb of pending.values()) cb(null); pending.clear(); };
   }
@@ -452,7 +452,7 @@
     if (opts.length) {
       html += `<details class="rt"${store.routesOpen ? " open" : ""}><summary>Change how an item is made (${opts.length})</summary><div class="routes">`;
       for (const [item, list] of opts.sort((a, b) => a[0].localeCompare(b[0]))) {
-        html += `<div class="r"><span>${esc(item)}</span><select data-route="${esc(item)}">${form.routes[item] ? '<option value="">↺ let the Lodge choose again</option>' : ""}${list.map(c => {
+        html += `<div class="r"><span>${esc(item)}</span><select data-route="${esc(item)}">${form.routes[item] ? '<option value="">↺ let the calculator choose again</option>' : ""}${list.map(c => {
           const r = D.recipes.find(x => x.id === c.id);
           const ins = Object.entries(r.in).map(([i, q]) => `${q} ${i}`).join(" + ");
           return `<option value="${esc(c.id)}"${p.routes[item] === c.id ? " selected" : ""}>${esc(facLabel(r.f))}: ${esc(ins)} → ${r.out[item]}${r.t != null ? ` (${r.t}s)` : ""}</option>`;
@@ -517,12 +517,12 @@
     const s = e.target.closest("select[data-route]"); if (!s) return;
     if (s.value) form.routes[s.dataset.route] = s.value; else delete form.routes[s.dataset.route];      // a choice used to stay for every later job, with no way back
     store.opts.routes = Object.assign({}, form.routes); store.routesOpen = true; persistForm(); build();
-    toast(s.value ? `${s.dataset.route}: route changed.` : `${s.dataset.route}: the Lodge chooses again.`);
+    toast(s.value ? `${s.dataset.route}: route changed.` : `${s.dataset.route}: the calculator chooses again.`);
   });
   $("work").addEventListener("toggle", e => { if (e.target.matches && e.target.matches("details.rt")) { store.routesOpen = e.target.open; save(); } }, true);
 
   function copyText() {
-    const o = store.opts, out = [`The Mason's Lodge: ${o.goals.map(g => `${g.qty}x ${g.item}`).join(", ")}`];
+    const o = store.opts, out = [`Building Calculator: ${o.goals.map(g => `${g.qty}x ${g.item}`).join(", ")}`];
     const left = l => l.total - val(l);
     const g = lines.filter(l => l.stage === "gather" && left(l) > 0);
     if (g.length) { out.push("", "GATHER"); g.forEach(l => out.push(`- ${num(left(l))} ${l.item}${l.found ? " (found only)" : ""}`)); }
@@ -546,7 +546,7 @@
   // instead of a dialog: a confirm() never opens inside an artifact.
   let clearArmed = 0;
   $("clear-all").addEventListener("click", () => {
-    const b = $("clear-all"), rest = () => { b.textContent = "Clear the Lodge"; b.classList.remove("armed"); };
+    const b = $("clear-all"), rest = () => { b.textContent = "Clear everything"; b.classList.remove("armed"); };
     if (Date.now() - clearArmed > 4000) {
       clearArmed = Date.now(); b.textContent = "Click again to clear everything"; b.classList.add("armed");
       setTimeout(() => { if (clearArmed && Date.now() - clearArmed >= 4000) { clearArmed = 0; rest(); } }, 4100); return;
@@ -557,7 +557,7 @@
     $("inv").value = ""; store.own = {}; store.opts = null; store.routesOpen = false; plan = null; lines = [];
     renderGoals(); invNote(); persistForm(); goalHints();
     $("work").innerHTML = EMPTY_WORK; $("work-count").textContent = "";
-    toast("The Lodge is cleared.");
+    toast("Everything is cleared.");
   });
 
   renderGoals(); salvageNote(); invNote();
@@ -584,7 +584,7 @@
   const fromLink = /^#build-([A-Za-z0-9_-]+)$/.exec(location.hash); let imported = false;
   if (fromLink) {
     try { imported = importGoals(JSON.parse(decodeURIComponent(escape(atob(fromLink[1].replace(/-/g, "+").replace(/_/g, "/")))))); } catch (e) { toast("That Forge link could not be read."); }
-    history.replaceState(null, "", (window.__siteGo ? "/lodge" : location.pathname) + location.search);   // on the site the Lodge keeps its own address
+    history.replaceState(null, "", (window.__siteGo ? "/building" : location.pathname) + location.search);   // on the site the Lodge keeps its own address
   }
   if (!imported && store.opts) {                       // saved goals must still be items this data knows
     store.opts.goals = (store.opts.goals || []).filter(g => ITEMS.includes(g.item) && g.qty > 0);

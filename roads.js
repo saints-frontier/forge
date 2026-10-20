@@ -469,7 +469,7 @@
     const backHtml = back.length ? `<div class="ph" style="margin-top:12px">The way home<small>${back.length} hops · ${f0(back.reduce((a, h) => a + (h.ly || 0), 0))} LY · ${bb.launchers} more launcher${bb.launchers === 1 ? "" : "s"}</small></div>` + head + back.map(row).join("") : "";
     const acts = `<div class="pacts">${isDraft ? `<button type="button" class="primary" data-mysave="1">Save to my routes</button>${M.canEdit ? `<button type="button" data-plansave="1">Keep for the tribe</button>` : ""}<button type="button" data-plandrop="1">Drop it</button>`
       : raw.mine ? `<button type="button" data-myremove="${esc(raw.id)}">Remove from my routes</button>` : M.canEdit ? `<button type="button" data-planremove="${i}">Remove this plan</button>` : ""}` +
-      `<button type="button" data-copynote="${i}">Copy as in-game note</button><button type="button" data-copytext="${i}">Copy for Discord</button>${bill.launchers ? `<button type="button" data-lodge="${i}">⚒ Build it in the Lodge</button>` : ""}<span class="roads-hint" id="plan-copied"></span></div>`;
+      `<button type="button" data-copynote="${i}">Copy as in-game note</button><button type="button" data-copytext="${i}">Copy for Discord</button>${bill.launchers ? `<button type="button" data-lodge="${i}">⚒ Build it in the Building Calculator</button>` : ""}<span class="roads-hint" id="plan-copied"></span></div>`;
     const have = fwd.filter(h => !h.gap && (h.free || h.kind === "Our Road" || h.kind === "Public Gate")), ours = have.filter(h => h.kind === "Our Road" || h.free === true && h.kind !== "Public Gate").length, pubs = have.length - ours, todo = fwd.filter(isBuild).length;
     const haveLine = `<div class="roads-have"><span class="have"><b>${have.length}</b> hop${have.length === 1 ? "" : "s"} over what exists</span>${have.length ? ` (${[ours ? `${ours} on our roads` : "", pubs ? `${pubs} through public gates` : ""].filter(Boolean).join(", ")})` : ""} · <span class="k"><b>${todo}</b> to build</span>${bill.gaps ? ` · <span class="gap">${bill.gaps} crossing${bill.gaps > 1 ? "s" : ""} no tool makes</span>` : ""}</div>`;
     $("roads-plan").innerHTML = `<div class="roads-plan${isDraft ? "" : " saved"}"><div class="ph">${esc(p.name)}<small>${fwd.length} hops · ${f0(ly)} LY${raw.priorities ? " · " + raw.priorities.map(k => CRIT[k]).filter(Boolean).slice(0, 3).join(", ") : ""}</small></div>` + haveLine +
@@ -589,7 +589,7 @@
   function discordText(p) {
     const fwd = p.hops.filter(h => h.leg !== "back"), bill = planBill(fwd), ly = fwd.reduce((a, h) => a + (h.ly || 0), 0);
     const rows = fwd.map((h, k) => `${k + 1}. ${h.fromSys.replace(/ \(C6\)$/, "")} → ${h.toSys.replace(/ \(C6\)$/, "")} · ${h.gap ? "STARGATE NEEDED" : h.step === "gate" ? "build " + h.kind + " pair" : h.kind === "Public Gate" ? "public gate" : h.kind === "Our Road" ? "our road" : h.free ? h.kind + " (built above)" : h.kind} · ${Math.round(h.ly || 0)} LY${h.status && h.status !== "planned" ? " · " + STATUS_TEXT[h.status] : ""}${h.who ? " · " + h.who : ""}`);
-    return `**${p.name}** · ${fwd.length} hops · ${f0(ly)} LY\n${rows.join("\n")}\n**To build:** ${bill.launchers} launcher${bill.launchers === 1 ? "" : "s"} (${Object.entries(bill.kinds).map(([k, n]) => `${n}× ${k}`).join(", ") || "none"}), ${bill.newNodes.length} new Network Node${bill.newNodes.length === 1 ? "" : "s"}${bill.launchers ? ` · ${f0(bill.tar)}x Kerogen Tar, ${f0(bill.foam)}x Building Foam, ${f0(bill.kernel)}x Still Kernel` : ""}${bill.pub ? ` · ${bill.pub} public gate jump${bill.pub > 1 ? "s" : ""}` : ""}\nThe Pilgrim Roads: https://www.thesaintsforge.com/roads`;
+    return `**${p.name}** · ${fwd.length} hops · ${f0(ly)} LY\n${rows.join("\n")}\n**To build:** ${bill.launchers} launcher${bill.launchers === 1 ? "" : "s"} (${Object.entries(bill.kinds).map(([k, n]) => `${n}× ${k}`).join(", ") || "none"}), ${bill.newNodes.length} new Network Node${bill.newNodes.length === 1 ? "" : "s"}${bill.launchers ? ` · ${f0(bill.tar)}x Kerogen Tar, ${f0(bill.foam)}x Building Foam, ${f0(bill.kernel)}x Still Kernel` : ""}${bill.pub ? ` · ${bill.pub} public gate jump${bill.pub > 1 ? "s" : ""}` : ""}\nThe Map: https://www.thesaintsforge.com/map`;
   }
   async function copyText(text, note) {
     try { await navigator.clipboard.writeText(text); $("plan-copied").textContent = note; }
@@ -599,7 +599,7 @@
   function toLodge(p) {
     const bill = planBill(p.hops.filter(h => h.leg !== "back")), goals = Object.entries(bill.kinds).map(([k, n]) => ({ item: k, qty: n * (/Gate/.test(k) ? 2 : 1) }));
     if (bill.newNodes.length) goals.push({ item: "Network Node", qty: bill.newNodes.length });
-    if (!(window.__lodgeImport && window.__siteGo)) { $("plan-copied").textContent = "the Lodge is on the site: open thesaintsforge.com/roads there."; return; }
+    if (!(window.__lodgeImport && window.__siteGo)) { $("plan-copied").textContent = "the Building Calculator is on the site: open thesaintsforge.com/map there."; return; }
     window.__lodgeImport({ name: p.name, goals }); window.__siteGo("lodge");
   }
   // ---------- Check a jump: one structure from one star, every legal target on the map ----------
@@ -784,7 +784,7 @@
   }
   function chartDiscord() {
     const c = chartRes;
-    return `**Charting run** from ${nameOfId(c.from).replace(/ \(C6\)$/, "")} · ${c.tour.length} uncharted systems\n` + c.tour.map((t, k) => `${k + 1}. ${chartName(t.id)}${c.reach === "gates" ? ` · ${t.hops} jump${t.hops === 1 ? "" : "s"}` : ` · ${f0(t.ly)} LY`}`).join("\n") + `\nThe Pilgrim Roads: https://www.thesaintsforge.com/roads`;
+    return `**Charting run** from ${nameOfId(c.from).replace(/ \(C6\)$/, "")} · ${c.tour.length} uncharted systems\n` + c.tour.map((t, k) => `${k + 1}. ${chartName(t.id)}${c.reach === "gates" ? ` · ${t.hops} jump${t.hops === 1 ? "" : "s"}` : ` · ${f0(t.ly)} LY`}`).join("\n") + `\nThe Map: https://www.thesaintsforge.com/map`;
   }
   async function chartCopy(text, note) {
     const out = $("chart-copied");
@@ -853,10 +853,10 @@
   let loaded = false;
   function gate(html) { $("roads-app").hidden = true; const g = $("roads-gate"); g.hidden = false; g.innerHTML = html; }
   function load(fresh) {
-    if (!/(^|\.)thesaintsforge\.com$|^localhost$|^127\.0\.0\.1$/.test(location.hostname)) { gate("The roads are kept for the tribe. Open them on <b>thesaintsforge.com</b> and log in with Discord."); return Promise.resolve(); }   // localhost = tools/roads_local.py
+    if (!/(^|\.)thesaintsforge\.com$|^localhost$|^127\.0\.0\.1$/.test(location.hostname)) { gate("The Map is kept for the tribe. Open them on <b>thesaintsforge.com</b> and log in with Discord."); return Promise.resolve(); }   // localhost = tools/roads_local.py
     gate("Reading the roads from the chain…");
     return fetch("/api/network" + (fresh ? "?fresh=1" : ""), { credentials: "same-origin" }).then(r => {
-      if (r.status === 401) { gate('The roads are for the tribe only. <a class="tribe-btn" href="/api/login?next=roads">✠ Log in with Discord</a><br><span class="roads-hint">Squire rank or above.</span>'); return null; }
+      if (r.status === 401) { gate('The Map is for the tribe only. <a class="tribe-btn" href="/api/login?next=map">✠ Log in with Discord</a><br><span class="roads-hint">Squire rank or above.</span>'); return null; }
       if (!r.ok) throw new Error("the site answered " + r.status);
       return r.json();
     }).then(d => { if (d) render(d); }).catch(e => gate("The roads could not be read: " + esc(e.message) + "."));

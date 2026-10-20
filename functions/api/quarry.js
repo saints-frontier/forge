@@ -58,7 +58,7 @@ export function checkRun(r) {
     if (!/^[A-Za-z]{2,20}( [A-Za-z]{2,20})?$/.test(rock)) return `${r.id}: a rock name is one or two words`;
     const words = titleCase(rock).split(" ");
     if (!FAMILIES.includes(words[words.length - 1]) || (words.length === 2 && !PREFIXES.includes(words[0])))
-      return `${r.id}: unknown rock "${rock}" (ask a keeper to add it to The Quarry first)`;
+      return `${r.id}: unknown rock "${rock}" (ask a keeper to add it to Mining first)`;
   } else if (!/^[A-Za-z]{2,20}( [A-Za-z]{2,20}){0,2}$/.test(rock)) return `${r.id}: a ${kind === "rift" ? "rift" : "salvage source"} name is one to three words, letters only`;
   if (!TS.test(String(r.start || "")) || !TS.test(String(r.end || "")) || r.end < r.start) return `${r.id}: bad start/end`;
   if (!Number.isInteger(r.cuts) || r.cuts < 1 || r.cuts > 100000) return `${r.id}: bad cut count`;
@@ -121,7 +121,7 @@ const cacheKey = request => new Request(new URL(request.url).origin + CACHE_PATH
 export async function onRequestGet({ request, env, waitUntil }) {
   if (new URL(request.url).searchParams.get("mine")) {                 // a member's own samples: pending or on the Quarry
     const { s, key, cookies } = await who(env, request);
-    if (!s) return json({ ok: false, error: key ? "This Quarry key is not valid any more: fetch a new one on the site." : "Not logged in (a Quarry key or the tribe login)." }, 401, cookies);
+    if (!s) return json({ ok: false, error: key ? "This companion key is not valid any more: get a new one on thesaintsforge.com/companion." : "Not logged in (a companion key or the tribe login)." }, 401, cookies);
     if (!env.DOCTRINE) return json({ ok: false, error: "No store is bound." }, 503, cookies);
     const mine = await readUser(env, String(s.u));
     const runs = Object.values(mine.runs).map(r => ({ id: r.id, kind: r.kind || "rock", rock: r.rock, status: r.status, at: r.at }));
@@ -150,7 +150,7 @@ export async function onRequestGet({ request, env, waitUntil }) {
 
 export async function onRequestPost({ request, env, waitUntil }) {
   const { s, key, cookies } = await who(env, request);
-  if (!s) return json({ ok: false, error: key ? "This Quarry key is not valid any more: fetch a new one on the site." : "Not logged in (a Quarry key or the tribe login)." }, 401, cookies);
+  if (!s) return json({ ok: false, error: key ? "This companion key is not valid any more: get a new one on thesaintsforge.com/companion." : "Not logged in (a companion key or the tribe login)." }, 401, cookies);
   if (!env.DOCTRINE) return json({ ok: false, error: "No store is bound." }, 503, cookies);
   const text = await request.text();
   if (text.length > MAX_BODY) return json({ ok: false, error: "Too large." }, 413, cookies);

@@ -175,7 +175,7 @@
     const ores = raw.filter(x => ORESET.has(x)), other = raw.filter(x => !ORESET.has(x));
     if (ores.length || other.length) h += `<h3>Comes down to</h3><div class="chips">` + ores.map(o => `<button type="button" class="chip" data-go="${esc(o)}">${dot(o)}${esc(o)}</button>`).join("")
       + other.map(x => `<button type="button" class="chip" data-go="${esc(x)}" title="${esc(sourceTag(x))}">${esc(x)}</button>`).join("") + `</div>`;
-    if (window.__lodgeImport && window.__siteGo) h += `<button type="button" class="lodge" data-lodge="${esc(it)}">\u2692 Plan it in the Lodge</button>`;
+    if (window.__lodgeImport && window.__siteGo) h += `<button type="button" class="lodge" data-lodge="${esc(it)}">\u2692 Plan it in the Building Calculator</button>`;
     h += usedIn(it, false);
     return h;
   }
@@ -213,22 +213,22 @@
     const bits = [m.n === 1 ? "1 run" : m.n + " runs", n0(m.units) + " units"];
     if (m.per_min) bits.push("~" + n0(m.per_min) + "/min");
     const more = `${n0(m.cuts)} cuts in ${m.minutes} minutes of cutting, our own logs. Units a cut: ${sizesText(m.sizes)}.`;
-    return `<h3>From salvage</h3><div class="meta">${bits.join(" \u00b7 ")} ${info(more)}</div>`;
+    const from = SV.sources.filter(s => s.materials.includes(name));
+    return `<h3>From salvage</h3><div class="meta">${from.length ? "cut from " + from.map(s => go(s.name)).join(", ") + " \u00b7 " : ""}${bits.join(" \u00b7 ")} ${info(more)}</div>`;
   }
   function salvageView() {
-    let h = head("Salvage", "Wrecks", info("Salvage is cut with a laser from wrecks, debris fields and ruins. Numbers are from our own game logs and from the Saints Frontier Companion's sessions."));
-    h += `<div class="meta">what we cut, how fast, and where it came from</div>`;
-    h += `<div class="rows">` + SV.materials.map(m => `<div class="row"><span class="nm">${go(m.name)}<span class="dim small"> ${m.n}\u00d7</span></span><span class="pc">${n0(m.units)} units</span><span class="pc dim">${m.per_min ? "~" + n0(m.per_min) + "/min" : ""}</span></div>`).join("") + `</div>`;
-    if (SV.sources.length) h += `<h3>By source</h3><div class="rows">` + SV.sources.map(s => `<div class="row"><span class="nm">${go(s.name)}<span class="dim small"> gave ${s.materials.map(esc).join(", ")}</span></span><span class="pc">${n0(s.units)} units</span><span class="pc dim">${s.n}\u00d7</span></div>`).join("") + `</div>`;
-    else h += `<p class="note">No source has a name yet: name the wreck or ruin on the companion's page when you cut it.</p>`;
+    let h = head("Salvage", "Category", info("Salvage is mined like rocks: a salvage object (like Salvageable Debris) is cut with a laser, and what it holds drops (like Debris). Numbers are from our own game logs and from the Saints Frontier Companion's sessions."));
+    h += `<div class="meta">what you cut, and what it gives</div>`;
+    if (SV.sources.length) h += `<h3>What you cut</h3><div class="rows">` + SV.sources.map(s => `<div class="row"><span class="nm">${go(s.name)}<span class="dim small"> gives ${s.materials.map(n => go(n)).join(", ")}</span></span><span class="pc">${n0(s.units)} units</span><span class="pc dim">${s.n}\u00d7</span></div>`).join("") + `</div>`;
+    h += `<h3>What it gives</h3><div class="rows">` + SV.materials.map(m => `<div class="row"><span class="nm">${go(m.name)}<span class="dim small"> ${m.n}\u00d7</span></span><span class="pc">${n0(m.units)} units</span><span class="pc dim">${m.per_min ? "~" + n0(m.per_min) + "/min" : ""}</span></div>`).join("") + `</div>`;
     h += `<h3>Good to know</h3><ul class="facts">` + SV.facts.map(f => `<li>${esc(f)}</li>`).join("") + `</ul>`;
     return h;
   }
   function salvSourceView(sub) {
     const s = SV.sources.find(x => x.name === sub.name);
-    let h = head(sub.name, "Salvage source");
-    h += `<div class="meta">${s.n === 1 ? "1 run" : s.n + " runs"} \u00b7 ${n0(s.units)} units</div>`;
-    h += `<h3>It gave</h3><div class="rows">` + s.materials.map(mn => { const m = salvMat(mn); const ss = m ? m.sessions.filter(x => x.source === sub.name) : []; const u = ss.reduce((a, x) => a + x.units, 0);
+    let h = head(sub.name, "Salvage", info(`Cut it with a laser as you would a rock; each cut drops a chunk to pick up.${s.cuts ? ` ${n0(s.cuts)} cuts in ${s.minutes} minutes, our own logs. Units a cut: ${sizesText(s.sizes)}.` : ""}`));
+    h += `<div class="meta">salvage, cut like a rock \u00b7 ${s.n === 1 ? "1 run" : s.n + " runs"} \u00b7 ${n0(s.units)} units${s.per_min ? " \u00b7 ~" + n0(s.per_min) + "/min" : ""}</div>`;
+    h += `<h3>What it gives</h3><div class="rows">` + s.materials.map(mn => { const m = salvMat(mn); const ss = m ? m.sessions.filter(x => x.source === sub.name) : []; const u = ss.reduce((a, x) => a + x.units, 0);
       return `<div class="row"><span class="nm">${go(mn)}</span><span class="pc">${n0(u)} units</span><span class="pc dim">${ss.length}\u00d7</span></div>`; }).join("") + `</div>`;
     return h;
   }
@@ -337,7 +337,7 @@
   // ---------- start ----------
   $("q-rocks").innerHTML = FAMS.map(f => go(f)).join("");
   $("q-ores").innerHTML = ORES.map(o => `<button type="button" class="lk" data-go="${esc(o)}">${dot(o)}${esc(o)}</button>`).join("");
-  if ($("q-salv")) { $("q-salv").innerHTML = SV ? [go("Salvage", "what salvage gives")].concat(SV.materials.map(m => go(m.name))).concat(SV.sources.map(s => go(s.name))).join("") : ""; if ($("q-salvrow")) $("q-salvrow").hidden = !SV; }
+  if ($("q-salv")) { $("q-salv").innerHTML = SV ? [go("Salvage", "what salvage is")].concat(SV.sources.map(s => go(s.name))).concat(SV.materials.length ? [`<span class="dim small">gives</span>`] : []).concat(SV.materials.map(m => go(m.name))).join("") : ""; if ($("q-salvrow")) $("q-salvrow").hidden = !SV; }
   if ($("q-rifts")) { $("q-rifts").innerHTML = R ? [go("Rifts", "what rifts give")].concat(RIFT_NAMES.map(n => go(n))).concat(R.kinds.map(k => go(k.crude, k.crude.replace("Crude - ", "")))).join("") : ""; if ($("q-riftrow")) $("q-riftrow").hidden = !R; }
   $("q-foot").textContent = "data of " + D.generated;
   const CR = D.contributors || [];
@@ -449,7 +449,7 @@
     const tot = Object.values(r.ores).reduce((a, b) => a + b, 0), out = [];
     const rate = r.minutes >= 1 ? tot / r.minutes : null;
     const kind = r.kind || (Object.keys(r.ores).every(o => /^Crude/.test(o)) ? "rift" : Object.keys(r.ores).every(o => SALV.has(o)) ? "salvage" : "rock");
-    if (rate && kind === "rock" && rate > 1.25 * maxRate()) out.push(["warn", `${n0(rate)} a minute: faster than any rock on the Quarry (${n0(maxRate())})`]);
+    if (rate && kind === "rock" && rate > 1.25 * maxRate()) out.push(["warn", `${n0(rate)} a minute: faster than any rock in Mining (${n0(maxRate())})`]);
     if (kind === "rock") {
       const [, fam] = splitRock(r.rock), named = new Set(gameOf(fam).map(g => g.ore));
       D.rocks.filter(a => a.family === fam).forEach(a => Object.keys(a.share).forEach(o => named.add(o)));
