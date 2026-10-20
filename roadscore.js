@@ -11,11 +11,16 @@
   // every system a text mentions, in order: a full name always; a three-character short code when exactly one known
   // full name starts with it (known: first three characters -> full name, "" when two names share them)
   let fullNames = new Set();          /* every full system name that is not ABC|D11-shaped (ours + EF-Map's), set by build() */
+  /* Look-alike spellings (2026-10-20: builders typed AB0|C11 for ABO|C11, or both spellings for one system): 0 and O,
+     1 and I count as the same. A name with no number that looks like exactly one numbered system IS that system; two
+     unnumbered spellings of one system become the one the builders wrote most. Set by build(). */
+  const fold = s => s.replace(/0/g, "O").replace(/1/g, "I");
+  let canonOf = new Map();
   function mentions(text, known) {
     const out = [], re = /[A-Z0-9][A-Z0-9|.\-]*[A-Z0-9]|[A-Z0-9]/g; let m;
     while ((m = re.exec(text))) {
       const t = m[0];
-      if (/^[A-Z0-9]{3}\|[A-Z0-9]{3}$/.test(t) || fullNames.has(t)) out.push({ name: t, at: m.index, end: m.index + t.length });
+      if (/^[A-Z0-9]{3}\|[A-Z0-9]{3}$/.test(t) || fullNames.has(t)) out.push({ name: canonOf.get(t) || t, at: m.index, end: m.index + t.length });
       else if (t.length > 3 && /\d/.test(t) && /[|.\-]/.test(t)) out.push({ name: null, raw: t, at: m.index, end: m.index + t.length });   /* shaped like a system name nobody knows */
       else if (t.length === 3 && !STOP.has(t)) { const full = known && known.get(t); if (full) out.push({ name: full, at: m.index, end: m.index + 3, short: true }); else if (/\d/.test(t)) out.push({ name: null, raw: t, at: m.index, end: m.index + 3 }); }
     }
@@ -55,11 +60,20 @@
     const nodeById = new Map((d.nodes || []).map(n => [n.id, n]));
     // one unit of fuel lasts burn_rate x efficiency / 100 (the chain's rule: EU-40 Fuel, efficiency 40, in a node of 50 minutes = 20 minutes a unit)
     const daysOf = n => n && n.fuel && n.fuel.burning && n.fuel.burnMs && n.fuel.eff ? n.fuel.quantity * n.fuel.burnMs * n.fuel.eff / 100 / 86400000 : null;
+    // look-alike spellings first (see canonOf): every code the builders wrote, grouped by its folded form
+    const written = new Map(); for (const x of (d.assemblies || []).concat(d.nodes || [])) for (const c of up(x.name).match(CODE) || []) written.set(c, (written.get(c) || 0) + 1);
+    const numbered = new Map(); for (const n of new Set([...ids.keys(), ...efByName.keys()])) { const f = fold(n); numbered.set(f, numbered.has(f) && numbered.get(f) !== n ? "" : n); }
+    const groups = new Map(); for (const c of written.keys()) { const f = fold(c); if (!groups.has(f)) groups.set(f, []); groups.get(f).push(c); }
+    canonOf = new Map(); const aliases = [];
+    for (const [f, cs] of groups) {
+      const nb = numbered.get(f), to = nb || (cs.length > 1 ? cs.slice().sort((a, b) => written.get(b) - written.get(a) || a.localeCompare(b))[0] : null);
+      if (to) for (const c of cs) if (c !== to && !ids.has(c) && !efByName.has(c)) { canonOf.set(c, to); aliases.push([c, to, !!nb]); }
+    }
     // every full system name the chain or the numbered systems mention: what a short code may stand for
     const known = new Map(), learn = n => { const k = n.slice(0, 3); known.set(k, known.has(k) && known.get(k) !== n ? "" : n); };
     for (const n of ids.keys()) if (/^[A-Z0-9]{3}\|[A-Z0-9]{3}$/.test(n)) learn(n);
     fullNames = new Set([...ids.keys(), ...efByName.keys()].filter(n => !/^[A-Z0-9]{3}\|[A-Z0-9]{3}$/.test(n)));
-    for (const x of (d.assemblies || []).concat(d.nodes || [])) for (const c of up(x.name).match(CODE) || []) { learn(c); fromEf(c); }
+    for (const x of (d.assemblies || []).concat(d.nodes || [])) for (const c0 of up(x.name).match(CODE) || []) { const c = canonOf.get(c0) || c0; learn(c); fromEf(c); }
 
     // where each node stands: { sys, basis: "node" | "name" | "gate" | "inferred", why, dests }
     const info = new Map(), ni = id => { if (!info.has(id)) info.set(id, { sys: null, basis: null, why: "", dests: [] }); return info.get(id); };
@@ -150,7 +164,7 @@
     let home = up(list.home); if (!systems.has(home)) home = [...systems.keys()].sort()[0] || "";
     const nodeSys = id => (id && info.has(id) && info.get(id).sys) || null, nodeGuess = id => !!(id && info.has(id) && info.get(id).basis === "inferred");
     const ef = { byId: efById, byName: efByName, notes: efNotes, count: efById.size, confirmed: [...efById.values()].filter(e => e.status === "confirmed").length, error: (d.names && d.names.error) || null, used: [...ids.values()].filter(k => k.ef).length };
-    return { list, roads, unplaced, systems, ids, plans, nodeById, nodeSys, nodeGuess, daysOf, home, ef, canEdit: !!d.canEdit, at: d.at, error: d.error, nodes: d.nodes || [] };
+    return { list, roads, unplaced, systems, ids, plans, nodeById, nodeSys, nodeGuess, daysOf, home, ef, aliases, canEdit: !!d.canEdit, at: d.at, error: d.error, nodes: d.nodes || [] };
   }
 
   // ---------- the stars and the public gates, read from the site's own files ----------

@@ -389,7 +389,9 @@
       for (const r of M.roads) { const a = M.ids.get(r.from), b = M.ids.get(r.to); if (a && b) roads.push({ a: a.id, b: b.id, kind: r.kind, twoWay: r.twoWay, online: r.online, source: r.inferred ? "inferred" : r.source, status: r.status || "built" }); }
       s.setScene({ systems, roads }); if (!drawStars.fitted) { if (location.search.indexOf("sf=all") >= 0) s.fitAll(); else s.fit(); drawStars.fitted = true; }
       const sel = selected && M.ids.get(selected); s.select(sel ? sel.id : null);
-      $("sf-missing").innerHTML = missing.length ? `<b>${missing.length} system${missing.length === 1 ? "" : "s"} without a number:</b> ${missing.map(esc).join(", ")}${M.canEdit ? " · Manage → paste its link from the game" : ""}` : "";
+      const al = (M.aliases || []).filter(x => x[2]).map(x => `${esc(x[0])} = ${esc(x[1])}`);
+      $("sf-missing").innerHTML = (missing.length ? `<b>${missing.length} system${missing.length === 1 ? "" : "s"} without a number:</b> ${missing.map(esc).join(", ")} · to put one on the star map, copy its link in game (drag the system into a chat line, select it, right-click › Copy selected with formatting) with the companion's "Save system links" switch on${M.canEdit ? ", or paste it under Manage" : ""}` : "")
+        + (al.length ? `${missing.length ? "<br>" : ""}<span class="roads-hint">read as the same system: ${al.join(", ")}</span>` : "");
     });
   }
   function setView(v) {
