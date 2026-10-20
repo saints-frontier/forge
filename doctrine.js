@@ -60,18 +60,23 @@
       var opts = { hull: p.hull, hullData: D.hulls[p.hull], placements: sound.placements, exterior: sound.exterior, text: t, sigil: (w && w.sigil) || "✠", eyebrow: "SAINTS DOCTRINE · SHIP FITS", fonts: fonts };
       var svg; try { svg = window.ForgeCard.build(opts); } catch (e) { return; }
       var url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" })); urls.push(url);
-      cards.push({ name: p.name, title: t.title || p.name, role: t.role || p.role || "", hull: p.hull, motto: t.motto || "", purpose: t.purpose || "", how: t.how || "", why: t.why || "", sigil: opts.sigil, order: roman(opts.sigil), url: url, svg: svg });
+      cards.push({ name: p.name, title: t.title || p.name, role: t.role || p.role || "", hull: p.hull, motto: t.motto || "", purpose: t.purpose || "", how: t.how || "", why: t.why || "", sigil: opts.sigil, order: roman(opts.sigil), section: w.section || "Other", rank: +w.order || 999, lead: w.lead || "", url: url, svg: svg });
     });
-    cards.sort(function (a, b) { return a.order - b.order || a.name.localeCompare(b.name); });
+    // grouped in sections (user 2026-10-20: the Combat ships together, the flagship first and set apart, no numbers);
+    // section, order and lead come with the card words from the store
+    var SECTIONS = ["Combat", "Mining", "Hauling", "Logistics", "Exploration"], sec = function (s) { var k = SECTIONS.indexOf(s); return k < 0 ? 99 : k; };
+    cards.sort(function (a, b) { return sec(a.section) - sec(b.section) || a.section.localeCompare(b.section) || (b.lead ? 1 : 0) - (a.lead ? 1 : 0) || a.rank - b.rank || a.order - b.order || a.name.localeCompare(b.name); });
     var grid = $("d-grid");
+    var lastSec = null;
     grid.innerHTML = cards.map(function (c, i) {
+      var head = c.section !== lastSec ? '<h2 class="d-sec">' + esc(c.section) + '</h2>' : ""; lastSec = c.section;
       // the card's words beside it as page text (user 2026-10-20: the card's small print is hard to read at a glance)
       var words = [["Purpose", c.purpose], ["How it works", c.how], ["Why this fit", c.why]].filter(function (x) { return x[1]; })
         .map(function (x) { return '<h3>' + esc(x[0]) + '</h3><p>' + esc(x[1]) + '</p>'; }).join("");
-      return '<article class="d-ship"><figure class="d-card"><button type="button" class="d-img" data-view="' + i + '" aria-label="' + esc(c.title) + ' card, larger"><img src="' + c.url + '" alt="' + esc(c.title) + ' doctrine card" decoding="async" width="1920" height="1200"></button>'
+      return head + '<article class="d-ship' + (c.lead ? ' d-lead' : '') + '"><figure class="d-card"><button type="button" class="d-img" data-view="' + i + '" aria-label="' + esc(c.title) + ' card, larger"><img src="' + c.url + '" alt="' + esc(c.title) + ' doctrine card" decoding="async" width="1920" height="1200"></button>'
         + '<figcaption><span class="d-name"><b>' + esc(c.title) + '</b><i>' + esc(c.role) + " · " + esc(c.hull) + "</i></span>"
         + '<span class="d-acts"><button type="button" class="d-btn" data-build="' + i + '" title="Every module of this fit as a build list in the Building Calculator">⚒ Import into the Building Calculator</button><button type="button" class="d-btn d-build" data-link="' + i + '" title="Copy a link that opens this fit in the Fitting Tool">🔗 Copy fit link</button><button type="button" class="d-btn" data-forge="' + i + '">Open in the Fitting Tool</button><button type="button" class="d-btn" data-png="' + i + '">Save PNG</button></span></figcaption></figure>'
-        + '<div class="d-text"><h2>' + esc(c.title) + '</h2><div class="d-role">' + esc(c.role) + ' · ' + esc(c.hull) + '</div>' + (c.motto ? '<div class="d-motto">“' + esc(c.motto) + '”</div>' : '') + words + '</div></article>';
+        + '<div class="d-text">' + (c.lead ? '<div class="d-flag">✠ ' + esc(c.lead) + ' ✠</div>' : '') + '<h2>' + esc(c.title) + '</h2><div class="d-role">' + esc(c.role) + ' · ' + esc(c.hull) + '</div>' + (c.motto ? '<div class="d-motto">“' + esc(c.motto) + '”</div>' : '') + words + '</div></article>';
     }).join("");
     grid.hidden = !cards.length;
     $("d-status").textContent = cards.length ? (cards.length === 1 ? "1 doctrine ship" : cards.length + " doctrine ships") + ", drawn from the tribe store. More join as their cards are finished." : (fits.length ? "No doctrine card is finished yet." : "The doctrine store holds no fits yet.");

@@ -965,6 +965,11 @@ button.np-name:hover, button.np-name:focus-visible { color: var(--gold); outline
 .d-ship { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 24px; align-items: start; }
 @media (max-width: 1100px) { .d-ship { grid-template-columns: 1fr; } }
 .d-text { min-width: 0; padding: 4px 4px 0; }
+.d-sec { margin: 6px 0 -12px; padding-bottom: 8px; border-bottom: 1px solid #4a4238; font: 400 34px/1.1 var(--display); color: var(--gold); }
+.d-lead { padding: 16px; border: 2px solid var(--gold); background: linear-gradient(135deg, rgba(122,14,20,.35), rgba(14,12,11,.6) 60%); box-shadow: 0 0 0 1px #000, 0 0 34px rgba(217,178,76,.28); }
+.d-lead .d-card { border-color: var(--gold); }
+.d-lead .d-text h2 { font-size: 52px; text-shadow: 0 0 18px rgba(217,178,76,.45); }
+.d-flag { display: inline-block; margin-bottom: 8px; padding: 4px 12px; border: 1px solid var(--gold); background: #3a0c10; font: 600 12px var(--mono); letter-spacing: 3px; text-transform: uppercase; color: #f3e3b5; }
 .d-text h2 { margin: 0; font: 400 40px/1.05 var(--display); color: var(--gold); }
 .d-text .d-role { margin: 6px 0 4px; font: 600 12px var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--red); }
 .d-text .d-motto { margin: 0 0 6px; font: 400 20px/1.3 var(--display); color: #f3e3b5; }
@@ -1582,5 +1587,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=4b72d8d5"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=6deb49f8"></script><script src="quarry-data.js?v=67cd529f"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=4ef52315"></script><script src="sites.js?v=209dd811"></script><script src="npcs-data.js?v=2066fd4d"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=a9dd9c43"></script><script src="tribe.js?v=faeb2aad"></script><script src="starfield.js?v=912ddd63"></script><script src="roadscore.js?v=55188bd0"></script><script src="roads.js?v=b25fec7b"></script><script type="module" src="machines.js?v=c085ca6e"></script>
+<script src="lodge-data.js?v=4b72d8d5"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=6deb49f8"></script><script src="quarry-data.js?v=67cd529f"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=4ef52315"></script><script src="sites.js?v=209dd811"></script><script src="npcs-data.js?v=2066fd4d"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=f6b36386"></script><script src="tribe.js?v=faeb2aad"></script><script src="starfield.js?v=912ddd63"></script><script src="roadscore.js?v=55188bd0"></script><script src="roads.js?v=b25fec7b"></script><script type="module" src="machines.js?v=c085ca6e"></script>
 </body></html>

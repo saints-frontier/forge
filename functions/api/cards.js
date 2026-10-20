@@ -6,7 +6,7 @@
         by tools/export_card_payload.py ({generated, cards: {name: {...}}}), checked before it is stored. */
 import { session, json, canUpload } from "./_lib.js";
 
-const FIELDS = ["title", "role", "origin", "motto", "latin", "weapon", "purpose", "how", "why", "sigil"];
+const FIELDS = ["title", "role", "origin", "motto", "latin", "weapon", "purpose", "how", "why", "sigil", "section", "order", "lead"];   // section / order / lead: the Doctrine page's grouping (2026-10-20)
 const MAX_CARDS = 60, MAX_NAME = 60, MAX_TEXT = 2000;
 function checkPayload(d) {
   if (!d || typeof d !== "object" || !d.cards || typeof d.cards !== "object" || Array.isArray(d.cards)) return "Not a card payload (expected {cards: {name: {...}}}).";
