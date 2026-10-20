@@ -150,8 +150,8 @@
   const lastEngine = l => isEngine(l) && engineCount(counts(state.placements)) <= 1;
   // Saints Doctrine rules (user 2026-10-20): every Saints ship carries these; "Build a Saints Doctrine ship" turns them on,
   // and so does loading a doctrine fit. A Launch Bay brings an Autohelm with it while they are on.
-  const SAINTS = { must: { "Transponder": 1, "Docking Clamp": 1, "Hull Repairer": 1, "Fuel Blister": 1, "Leap": 1 },
-                   withMod: { "Launch Bay": "Autohelm" }, engine: { Reiver: "Propulsion Engine R25", LAI: "Propulsion Engine R25" } };
+  const SAINTS = { must: { "Transponder": 1, "Docking Clamp": 1, "Hull Repairer": 1, "Fuel Blister": 1, "Leap": 1, "Gravity Sensor": 1 },
+                   mustExt: { "Directional Scanner": 1 }, withMod: { "Launch Bay": "Autohelm" }, engine: { Reiver: "Propulsion Engine R25", LAI: "Propulsion Engine R25" } };
   const saintsMin = n => state.saints ? (SAINTS.must[n] || 0) : 0;
   const saintsKept = l => !!saintsMin(l) && (counts(state.placements)[l] || 0) <= saintsMin(l);
   const keptMsg = l => isEngine(l) ? "A ship cannot fly without an engine: press + on another engine to switch." : saintsKept(l) && !(D.base_ship.never_removed[l] && counts(state.placements)[l] <= D.base_ship.never_removed[l]) ? `${l} is required on every Saints Doctrine ship.` : `${l} cannot be removed (the game keeps it).`;
@@ -243,7 +243,8 @@
     if (!has("Gravity Sensor") && !has("Ion Sensor")) out.push({ text: "No sensor: you cannot find rocks, sites or ships.", add: ["Gravity Sensor"], label: "Add a Gravity Sensor" });
     else if (!scannerSlots(c)) out.push({ text: "No Gravity Sensor: the Directional Scanner mounts only on that one.", add: ["Gravity Sensor"], label: "Add a Gravity Sensor" });
     else if (!ext["Directional Scanner"]) out.push({ text: "No Directional Scanner on the sensor: no scanning for what is out there.", ext: "Directional Scanner", label: "Add one" });
-    if (state.saints) { for (const n in SAINTS.must) if ((c[n] || 0) < SAINTS.must[n] && !out.some(h => h.add && h.add[0] === n)) out.push({ text: `No ${n}: every Saints Doctrine ship carries one.`, add: [n], label: "Add one" });
+    if (state.saints) { for (const n in SAINTS.mustExt) if ((ext[n] || 0) < SAINTS.mustExt[n] && scannerSlots(c) && !out.some(h => h.ext === n)) out.push({ text: `No ${n}: every Saints Doctrine ship carries one on its Gravity Sensor.`, ext: n, label: "Add one" });
+      for (const n in SAINTS.must) if ((c[n] || 0) < SAINTS.must[n] && !out.some(h => h.add && h.add[0] === n)) out.push({ text: `No ${n}: every Saints Doctrine ship carries one.`, add: [n], label: "Add one" });
       for (const n in SAINTS.withMod) if (c[n] && !c[SAINTS.withMod[n]]) out.push({ text: `A ${n} needs an ${SAINTS.withMod[n]} on a Saints Doctrine ship.`, add: [SAINTS.withMod[n]], label: `Add an ${SAINTS.withMod[n]}` }); }
     if (!(c["Weapon Receiver"] || 0)) out.push({ text: "No Weapon Receiver: nothing to mine or shoot with.", add: ["Weapon Receiver"], label: "Add one" });
     else if (!Object.keys(ext).some(n => EXT[n] && EXT[n].hardpoint === "weapon" && ext[n])) out.push({ text: "Empty Weapon Receiver: mount a Cutting Laser to mine and defend.", ext: "Cutting Laser", label: "Add a Cutting Laser" });
@@ -277,6 +278,7 @@
     out.push([(ext["Directional Scanner"] || 0) <= scanners, "Directional Scanner on a sensor"]);
     if (state.saints) {
       for (const n in SAINTS.must) out.push([(c[n] || 0) >= SAINTS.must[n], `Saints: ${n}`]);
+      for (const n in SAINTS.mustExt) out.push([(ext[n] || 0) >= SAINTS.mustExt[n], `Saints: ${n}`]);
       for (const n in SAINTS.withMod) if (c[n]) out.push([(c[SAINTS.withMod[n]] || 0) >= 1, `Saints: ${SAINTS.withMod[n]} with the ${n}`]);
     }
     if (scanners) out.push([(ext["Directional Scanner"] || 0) >= 1, "Directional Scanner on the Gravity Sensor"]);
@@ -791,8 +793,9 @@
     for (const n in SAINTS.must) for (let i = 0; i < SAINTS.must[n]; i++) if (MOD[n]) core.push(n);
     progressStart(0, "Laying the keel of a Saints ship…");
     const r = await solve({ type: "tryadd", placements: [], add: core, seconds: 6, seed: 7 }, "tryadd");
-    state.placements = r.placements; state.minCaps = D.base_ship.never_removed["Capacitor"] || 1; setMinsFromFit(); markDirty(); render();
-    setStatus(`Saints Doctrine ${state.hull}: ${engine ? engine + ", " : ""}${Object.keys(SAINTS.must).join(", ")} fitted and kept. A Launch Bay brings an Autohelm, a Gravity Sensor its Directional Scanner. Add the rest from the palette, then forge for the role.` + (r.missing && r.missing.length ? ` No room for: ${r.missing.join(", ")}.` : ""), r.missing && r.missing.length ? "warn" : "info");
+    state.placements = r.placements; for (const n in SAINTS.mustExt) if (EXT[n]) state.exterior[n] = SAINTS.mustExt[n];
+    state.minCaps = D.base_ship.never_removed["Capacitor"] || 1; setMinsFromFit(); markDirty(); render();
+    setStatus(`Saints Doctrine ${state.hull}: ${engine ? engine + ", " : ""}${Object.keys(SAINTS.must).join(", ")} with its Directional Scanner fitted and kept. A Launch Bay brings an Autohelm. Add the rest from the palette, then forge for the role.` + (r.missing && r.missing.length ? ` No room for: ${r.missing.join(", ")}.` : ""), r.missing && r.missing.length ? "warn" : "info");
   }
 
   // ---------- Forge for the role: parallel searches until nothing better turns up ----------
@@ -1437,6 +1440,7 @@
       else if ((b.dataset.addx || b.dataset.subx) && busy()) return;
       else if (b.dataset.addx && EXT[b.dataset.addx] && EXT[b.dataset.addx].auto) return;
       else if (b.dataset.addx) { state.exterior[b.dataset.addx] = (state.exterior[b.dataset.addx] || 0) + 1; markDirty(); render(); }
+      else if (b.dataset.subx && state.saints && (state.exterior[b.dataset.subx] || 0) <= ((SAINTS.mustExt || {})[b.dataset.subx] || 0)) setStatus(`${b.dataset.subx} is required on every Saints Doctrine ship.`, "bad");
       else if (b.dataset.subx) { state.exterior[b.dataset.subx] = Math.max(0, (state.exterior[b.dataset.subx] || 0) - 1); if (!state.exterior[b.dataset.subx]) delete state.exterior[b.dataset.subx]; markDirty(); render(); }
     });
     $("btn-ccw").addEventListener("click", () => turnSelected("ccw"));
