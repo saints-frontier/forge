@@ -1,85 +1,72 @@
-/* Sites (/sites): every kind of site, what may be there and what the Saints found there (user 2026-10-20).
-   Data: window.SITES_DATA from sites-data.js (python tools/export_sites_data.py). Kept ASCII: special characters as
-   \u escapes. */
+/* Sites (/sites): every kind of site in ONE table, the game's own figures only. 2026-10-20, user: "a table ... if I
+   see a site on the map, I hover over it and I see the name" (search by name), then "I just want to make sure that we're
+   not lying to anybody. We need more data before we start making statements": no ratings, no levels, no verdicts;
+   the raw spawn-point counts of each layout and the game's own design name. Data: window.SITES_DATA from
+   sites-data.js (tools/export_sites_data.py). Kept ASCII: special characters as \u escapes. */
 (function () {
   "use strict";
   var D = window.SITES_DATA; if (!D) return;
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); };
   var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  var day = function (iso) { var p = String(iso).split("-"); return p.length === 3 ? (+p[2]) + " " + MON[+p[1] - 1] : esc(iso); };
-  var nf = function (n) { return Number(n).toLocaleString("en-US"); };
-  var DOT = " · ";
-  var state = { group: "all", q: "" };
-  try { var s = JSON.parse(localStorage.getItem("sites:view") || "{}"); if (s.group) state.group = s.group; } catch (e) {}
-  var keep = function () { try { localStorage.setItem("sites:view", JSON.stringify({ group: state.group })); } catch (e) {} };
-  /* client info only since 2026-10-20: the export carries no sightings; these stay empty unless OUR_DATA comes back */
-  D.sites.forEach(function (s) { s.seen = s.seen || []; s.rocks = s.rocks || []; s.foes = s.foes || []; s.loot = s.loot || []; });
+  var DOT = " \u00b7 ", DASH = "\u2014";
+  D.sites.forEach(function (s) { s.spawns = s.spawns || {}; });
 
-  function text(site) {                                   // everything a search can match on a card
-    var t = [site.name, site.place, site.belt, site.game].concat(site.rocks, site.foes, site.fixed);
-    site.seen.forEach(function (x) { t.push(x.text); });
-    site.loot.forEach(function (l) { t.push(l.from); for (var k in l.items) t.push(k); });
-    return t.join(" ").toLowerCase();
-  }
-  function tag(word, label, kind) { return '<span class="st-tag ' + kind + '">' + esc(label) + ": " + esc(word) + "</span>"; }
-  function card(site) {
-    var visited = site.seen.length && !site.mapOnly, ours = site.seen.length || site.rocks.length || site.loot.length;
-    var where = [site.place, site.belt].filter(Boolean).join(DOT);
-    var placeNote = site.place && D.places[site.place] ? D.places[site.place] : "";
-    var h = '<article class="st-card' + (visited || !ours ? "" : " unseen") + '"><h4>' + esc(site.name) + "</h4>";
-    if (where) h += '<div class="st-where">' + esc(where) + (placeNote ? DOT + esc(placeNote) : "") + "</div>";
-    var tags = [];
-    if (!site.noLevels) {
-      tags.push(tag(site.rockSpots, "Rocks", site.rockSpots === "none" ? "calm" : "good"));
-      tags.push(tag(site.hostiles, "Hostiles", site.hostiles === "none expected" ? "calm" : (site.hostiles === "a few" ? "" : "warn")));
-    }
-    site.fixed.forEach(function (f) { tags.push('<span class="st-tag good">' + esc(f) + "</span>"); });
-    if (tags.length) h += '<div class="st-tags">' + tags.join("") + "</div>";
-    if (site.game) {
-      var short = site.game.length > 190 ? site.game.slice(0, site.game.lastIndexOf(" ", 180)) + "…" : "";
-      h += '<blockquote class="st-game" data-full="' + esc(site.game) + '">' + esc(short || site.game) + (short ? ' <button type="button" data-more>more</button>' : "") + "</blockquote>";
-    }
-    if (site.rocks.length) h += '<div class="st-sub">Rocks found</div><div class="st-tags">' + site.rocks.map(function (r) { return '<a class="st-tag good" href="/mining" title="What ' + esc(r) + ' gives, on Mining">' + esc(r) + "</a>"; }).join("") + "</div>";
-    if (site.foes.length) h += '<div class="st-sub">Met here</div><div class="st-tags">' + site.foes.map(function (f) { return '<span class="st-tag warn">' + esc(f) + "</span>"; }).join("") + "</div>";
-    if (site.seen.length && !site.mapOnly) {
-      h += '<div class="st-sub">' + (visited ? "What the Saints found" : "Seen") + '</div><ul class="st-seen">';
-      site.seen.forEach(function (x) { h += "<li><time datetime=\"" + esc(x.date) + "\">" + day(x.date) + "</time><span>" + esc(x.text) + "</span></li>"; });
-      h += "</ul>";
-    }
-    site.loot.forEach(function (l) {
-      var items = Object.keys(l.items).map(function (k) { return "<li>" + nf(l.items[k]) + "x " + esc(k) + "</li>"; }).join("");
-      h += '<div class="st-loot"><b>Looted from ' + esc(l.from) + "</b>" + DOT + day(l.date) + "<ul>" + items + "</ul></div>";
-    });
-    if (ours && !visited) h += '<p class="st-none">' + (site.mapOnly ? "Seen on a system map, not visited by the Saints yet." : "Not visited by the Saints yet.") + "</p>";
-    return h + "</article>";
+  var COLS = { name: 1, design: 1, belt: 1, resource: 1, npc: 1, threat: 1, event: 1, fixed: 1 };
+  var state = { sort: "name", dir: 1, q: "", open: {} };
+  try { var sv = JSON.parse(localStorage.getItem("sites:raw") || "{}"); if (sv.sort && COLS[sv.sort]) { state.sort = sv.sort; state.dir = sv.dir === -1 ? -1 : 1; } } catch (e) {}
+  var keep = function () { try { localStorage.setItem("sites:raw", JSON.stringify({ sort: state.sort, dir: state.dir })); } catch (e) {} };
+
+  /* a name typed from the in-game map: case, extra spaces and missing words do not matter */
+  var norm = function (t) { return String(t).toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim(); };
+  function matches(s, q) { if (!q) return true; var n = norm(s.name); return q.split(" ").every(function (w) { return n.indexOf(w) >= 0; }); }
+  var KEY = {
+    name: function (s) { return s.name.toLowerCase(); },
+    design: function (s) { return (s.design || "").toLowerCase(); },
+    belt: function (s) { return s.belt || "~"; },
+    resource: function (s) { return s.spawns.resource || 0; },
+    npc: function (s) { return s.spawns.npc || 0; },
+    threat: function (s) { return s.spawns.threat || 0; },
+    event: function (s) { return s.spawns.event || 0; },
+    fixed: function (s) { return s.fixed.length ? s.fixed.join(" ") : "~"; }
+  };
+  function cmp(a, b) { var x = KEY[state.sort](a), y = KEY[state.sort](b); if (x < y) return -state.dir; if (x > y) return state.dir; return a.name < b.name ? -1 : 1; }
+  var num = function (v) { return v ? String(v) : '<span class="st-zero">0</span>'; };
+
+  function row(s) {
+    var open = !!state.open[s.name], hasText = !!s.game;
+    var h = "<tr>"
+      + '<th scope="row">' + (hasText ? '<button type="button" class="st-name" data-open="' + esc(s.name) + '" aria-expanded="' + open + '">' + esc(s.name) + '<span class="st-i">' + (open ? "\u2212" : "+") + "</span></button>" : '<span class="st-name plain">' + esc(s.name) + "</span>") + "</th>"
+      + '<td class="st-design">' + esc(s.design || DASH) + "</td>"
+      + "<td>" + esc(s.belt || DASH) + "</td>"
+      + '<td class="num">' + num(s.spawns.resource) + "</td>"
+      + '<td class="num">' + num(s.spawns.npc) + "</td>"
+      + '<td class="num">' + num(s.spawns.threat) + "</td>"
+      + '<td class="num">' + num(s.spawns.event) + "</td>"
+      + "<td>" + (s.fixed.length ? s.fixed.map(esc).join("<br>") : DASH) + "</td></tr>";
+    if (open && hasText) h += '<tr class="st-text"><td colspan="8"><blockquote>' + esc(s.game) + "</blockquote></td></tr>";
+    return h;
   }
   function draw() {
-    var q = state.q.trim().toLowerCase(), out = "", shown = 0;
-    D.groups.forEach(function (g) {
-      if (state.group !== "all" && state.group !== g.key) return;
-      var list = D.sites.filter(function (s) { return s.group === g.key && (!q || text(s).indexOf(q) >= 0); });
-      if (!list.length) return;
-      shown += list.length;
-      out += '<section class="st-group"><h3>' + esc(g.title) + "</h3><p>" + esc(g.note) + '</p><div class="st-grid">' + list.map(card).join("") + "</div></section>";
-    });
-    $("st-list").innerHTML = out || '<p class="st-empty">No site matches that.</p>';
-    var bs = $("st-groups").querySelectorAll("button");
-    for (var i = 0; i < bs.length; i++) bs[i].setAttribute("aria-pressed", String(bs[i].getAttribute("data-g") === state.group));
+    var q = norm(state.q), list = D.sites.filter(function (s) { return matches(s, q); }).sort(cmp);
+    $("st-body").innerHTML = list.length ? list.map(row).join("") : '<tr><td colspan="8" class="st-empty">No site by that name. Check the spelling, or type just one word of it.</td></tr>';
+    $("st-count").textContent = q ? list.length + " of " + D.sites.length : D.sites.length + " kinds of site";
+    var ths = document.querySelectorAll("#st-table th[data-sort]");
+    for (var i = 0; i < ths.length; i++) { var k = ths[i].getAttribute("data-sort"); ths[i].setAttribute("aria-sort", k === state.sort ? (state.dir > 0 ? "ascending" : "descending") : "none"); }
   }
   function init() {
-    if (!$("st-list")) return;
-    var chips = '<button type="button" data-g="all">All</button>' + D.groups.map(function (g) { return '<button type="button" data-g="' + esc(g.key) + '">' + esc(g.title) + "</button>"; }).join("");
-    $("st-groups").innerHTML = chips;
-    $("st-groups").addEventListener("click", function (e) { var b = e.target.closest("button[data-g]"); if (!b) return; state.group = b.getAttribute("data-g"); keep(); draw(); });
-    $("st-find").addEventListener("input", function () { state.q = this.value; draw(); });
-    $("st-list").addEventListener("click", function (e) {
-      var b = e.target.closest("button[data-more]"); if (!b) return;
-      var q = b.closest(".st-game"); q.textContent = q.getAttribute("data-full");
+    if (!$("st-body")) return;
+    document.querySelector("#st-table thead").addEventListener("click", function (e) {
+      var th = e.target.closest("th[data-sort]"); if (!th) return;
+      var k = th.getAttribute("data-sort");
+      if (state.sort === k) state.dir = -state.dir; else { state.sort = k; state.dir = /^(resource|npc|threat|event)$/.test(k) ? -1 : 1; }
+      keep(); draw();
     });
-    $("st-foot").textContent = D.sites.length + " kinds of site" + DOT + "client build " + D.build + DOT + "data of " + day(D.generated) + " " + String(D.generated).slice(0, 4);
+    $("st-body").addEventListener("click", function (e) { var b = e.target.closest("button[data-open]"); if (!b) return; var n = b.getAttribute("data-open"); state.open[n] = !state.open[n]; draw(); });
+    $("st-find").addEventListener("input", function () { state.q = this.value; draw(); });
+    var p = String(D.generated).split("-");
+    $("st-foot").textContent = D.sites.length + " kinds of site" + DOT + "client build " + D.build + DOT + "data of " + (+p[2]) + " " + MON[+p[1] - 1] + " " + p[0];
     draw();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
-  window.__sitesDraw = draw;
 })();

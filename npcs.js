@@ -1,67 +1,69 @@
-/* NPCs (/npcs): the drones and towers that guard the Frontier (user 2026-10-20, under Guides).
-   Data: window.NPCS_DATA from npcs-data.js (python tools/export_npcs_data.py). Kept ASCII: special characters as
-   \u escapes. */
+/* NPCs (/npcs): every drone and guard tower in ONE table, the game's own numbers only. 2026-10-20, user: "Just the
+   stuff that we know from the game client", then "I just want to make sure that we're not lying to anybody. We need
+   more data before we start making statements": no ratings or verdicts, the game's figures under neutral names.
+   Data: window.NPCS_DATA from npcs-data.js (tools/export_npcs_data.py). Kept ASCII: special characters as \u escapes. */
 (function () {
   "use strict";
   var D = window.NPCS_DATA; if (!D) return;
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); };
-  var nf = function (n) { return Number(n).toLocaleString("en-US"); };
+  var nf = function (n) { return Number(n).toLocaleString("en-US", { maximumFractionDigits: 1 }); };
   var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  var DOT = " · ", DASH = "—";
-  var state = { fam: "all", met: false, q: "" };
-  try { var s = JSON.parse(localStorage.getItem("npcs:view") || "{}"); if (s.fam) state.fam = s.fam; state.met = !!s.met; } catch (e) {}
-  var keep = function () { try { localStorage.setItem("npcs:view", JSON.stringify({ fam: state.fam, met: state.met })); } catch (e) {} };
-  var met = function (n) { return !!(n.met.length || n.fought); };
-  function text(n) { return [n.name, n.game].concat(n.met, n.notes, n.drops).join(" ").toLowerCase(); }
-  function stat(label, value, hot) { return '<div class="np-stat' + (hot ? " hot" : "") + '"><span>' + esc(label) + "</span><b>" + value + "</b></div>"; }
-  function card(n) {
-    var h = '<article class="np-card' + (met(n) ? "" : " unmet") + '"><h4>' + esc(n.name) + "</h4>";
-    h += '<div class="np-stats">'
-      + stat("Toughness", nf(n.tough), n.tough >= 3000)
-      + stat("Speed", n.speed ? nf(n.speed) + " m/s" : "never moves")
-      + stat("Fights within", n.fightsWithin != null ? n.fightsWithin + " km" : DASH)
-      + stat("Locks you from", n.locks != null ? n.locks + " km" : DASH)
-      + "</div>";
-    if (n.repairs) h += '<div class="np-tags"><span class="np-tag">Repairs itself in a fight</span></div>';
-    if (n.game) {
-      var short = n.game.length > 170 ? n.game.slice(0, n.game.lastIndexOf(" ", 160)) + "…" : "";
-      h += '<blockquote class="np-game" data-full="' + esc(n.game) + '">' + esc(short || n.game) + (short ? ' <button type="button" data-more>more</button>' : "") + "</blockquote>";
-    }
-    if (n.fight) {
-      var f = n.fight;
-      h += '<div class="np-sub">In our fights</div><p class="np-fight">About <b>' + nf(f.avgHit) + "</b> a hit, a shot every " + f.every + " s, " + f.hitRate + "% of its shots landed" + DOT + f.fights + (f.fights === 1 ? " fight" : " fights") + ".</p>";
-    }
-    else if (n.fought) h += '<div class="np-sub">In our fights</div><p class="np-fight">Met in ' + n.fought + (n.fought === 1 ? " fight" : " fights") + ", too few shots to tell how hard it hits.</p>";
-    if (n.killedAt) h += '<p class="np-small">One took about ' + nf(n.killedAt) + " damage to kill" + (n.killedAt > n.tough * 1.3 ? ", more than its toughness: it repairs while you shoot." : ".") + "</p>";
-    if (n.met.length) h += '<div class="np-sub">Where we met it</div><ul class="np-list">' + n.met.map(function (m) { return "<li>" + esc(m) + "</li>"; }).join("") + "</ul>";
-    if (n.notes.length) h += '<div class="np-sub">Good to know</div><ul class="np-list">' + n.notes.map(function (m) { return "<li>" + esc(m) + "</li>"; }).join("") + "</ul>";
-    if (n.drops.length) h += '<div class="np-sub">Dropped</div><div class="np-tags">' + n.drops.map(function (d) { return '<span class="np-tag">' + esc(d) + "</span>"; }).join("") + "</div>" + (n.dropsNote ? '<p class="np-small">' + esc(n.dropsNote) + "</p>" : "");
-    if (!met(n)) h += '<p class="np-none">Not met by the Saints yet.</p>';
-    return h + "</article>";
+  var DOT = " \u00b7 ", DASH = "\u2014";
+  var KIND = {}; D.families.forEach(function (f, i) { KIND[f.key] = { title: f.title, i: i }; });
+  D.npcs.forEach(function (n) { n.kind = (KIND[n.family] || {}).title || ""; });
+
+  var COLS = { name: 1, tough: 1, hit: 1, speed: 1, within: 1, locks: 1, repairs: 1 };
+  var state = { sort: "name", dir: 1, q: "", open: {} };
+  try { var sv = JSON.parse(localStorage.getItem("npcs:raw") || "{}"); if (sv.sort && COLS[sv.sort]) { state.sort = sv.sort; state.dir = sv.dir === -1 ? -1 : 1; } } catch (e) {}
+  var keep = function () { try { localStorage.setItem("npcs:raw", JSON.stringify({ sort: state.sort, dir: state.dir })); } catch (e) {} };
+
+  var norm = function (t) { return String(t).toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim(); };
+  function matches(n, q) { if (!q) return true; var s = norm(n.name); return q.split(" ").every(function (w) { return s.indexOf(w) >= 0; }); }
+  var KEY = {
+    name: function (n) { return n.name.toLowerCase(); },
+    tough: function (n) { return n.tough; },
+    hit: function (n) { return n.hit; },
+    speed: function (n) { return n.speed; },
+    within: function (n) { return n.fightsWithin == null ? -1 : n.fightsWithin; },
+    locks: function (n) { return n.locks == null ? -1 : n.locks; },
+    repairs: function (n) { return n.repairs ? 1 : 0; }
+  };
+  function cmp(a, b) { var x = KEY[state.sort](a), y = KEY[state.sort](b); if (x < y) return -state.dir; if (x > y) return state.dir; return a.name < b.name ? -1 : 1; }
+  var unit = function (v, u) { return v == null ? DASH : nf(v) + '<span class="np-unit"> ' + u + "</span>"; };
+
+  function row(n) {
+    var open = !!state.open[n.name], hasText = !!n.game;
+    var h = "<tr>"
+      + '<th scope="row">' + (hasText ? '<button type="button" class="np-name" data-open="' + esc(n.name) + '" aria-expanded="' + open + '">' + esc(n.name) + '<span class="np-i">' + (open ? "\u2212" : "+") + "</span></button>" : '<span class="np-name plain">' + esc(n.name) + "</span>") + '<span class="np-kind">' + esc(n.kind) + "</span></th>"
+      + '<td class="num">' + nf(n.tough) + "</td>"
+      + '<td class="num">' + (n.hit ? nf(n.hit) : "0") + "</td>"
+      + '<td class="num">' + unit(n.speed, "m/s") + "</td>"
+      + '<td class="num">' + unit(n.fightsWithin, "km") + "</td>"
+      + '<td class="num">' + unit(n.locks, "km") + "</td>"
+      + "<td>" + (n.repairs ? "yes" : "no") + "</td></tr>";
+    if (open && hasText) h += '<tr class="np-text"><td colspan="7"><blockquote>' + esc(n.game) + "</blockquote></td></tr>";
+    return h;
   }
   function draw() {
-    var q = state.q.trim().toLowerCase(), out = "";
-    D.families.forEach(function (fm) {
-      if (state.fam !== "all" && state.fam !== fm.key) return;
-      var list = D.npcs.filter(function (n) { return n.family === fm.key && (!state.met || met(n)) && (!q || text(n).indexOf(q) >= 0); });
-      if (!list.length) return;
-      out += '<section class="np-fam"><h3>' + esc(fm.title) + "</h3><p>" + esc(fm.note) + '</p><div class="np-grid">' + list.map(card).join("") + "</div></section>";
-    });
-    $("np-list").innerHTML = out || '<p class="np-empty">No NPC matches that.</p>';
-    var bs = $("np-fams").querySelectorAll("button");
-    for (var i = 0; i < bs.length; i++) bs[i].setAttribute("aria-pressed", String(bs[i].getAttribute("data-f") === state.fam));
+    var q = norm(state.q), list = D.npcs.filter(function (n) { return matches(n, q); }).sort(cmp);
+    $("np-body").innerHTML = list.length ? list.map(row).join("") : '<tr><td colspan="7" class="np-empty">No NPC by that name. Check the spelling, or type just one word of it.</td></tr>';
+    $("np-count").textContent = q ? list.length + " of " + D.npcs.length : D.npcs.length + " NPCs";
+    var ths = document.querySelectorAll("#np-table th[data-sort]");
+    for (var i = 0; i < ths.length; i++) { var k = ths[i].getAttribute("data-sort"); ths[i].setAttribute("aria-sort", k === state.sort ? (state.dir > 0 ? "ascending" : "descending") : "none"); }
   }
   function init() {
-    if (!$("np-list")) return;
-    $("np-fams").innerHTML = '<button type="button" data-f="all">All</button>' + D.families.map(function (f) { return '<button type="button" data-f="' + esc(f.key) + '">' + esc(f.title) + "</button>"; }).join("");
-    $("np-fams").addEventListener("click", function (e) { var b = e.target.closest("button[data-f]"); if (!b) return; state.fam = b.getAttribute("data-f"); keep(); draw(); });
-    $("np-met").checked = state.met;
-    $("np-met").addEventListener("change", function () { state.met = this.checked; keep(); draw(); });
+    if (!$("np-body")) return;
+    document.querySelector("#np-table thead").addEventListener("click", function (e) {
+      var th = e.target.closest("th[data-sort]"); if (!th) return;
+      var k = th.getAttribute("data-sort");
+      if (state.sort === k) state.dir = -state.dir; else { state.sort = k; state.dir = k === "name" ? 1 : -1; }
+      keep(); draw();
+    });
+    $("np-body").addEventListener("click", function (e) { var b = e.target.closest("button[data-open]"); if (!b) return; var n = b.getAttribute("data-open"); state.open[n] = !state.open[n]; draw(); });
     $("np-find").addEventListener("input", function () { state.q = this.value; draw(); });
-    $("np-list").addEventListener("click", function (e) { var b = e.target.closest("button[data-more]"); if (!b) return; var q = b.closest(".np-game"); q.textContent = q.getAttribute("data-full"); });
     var p = String(D.generated).split("-");
-    $("np-foot").textContent = D.npcs.length + " NPCs" + DOT + D.npcs.filter(met).length + " met by the Saints" + DOT + "client build " + D.build + DOT + "data of " + (+p[2]) + " " + MON[+p[1] - 1] + " " + p[0];
+    $("np-foot").textContent = D.npcs.length + " NPCs" + DOT + "client build " + D.build + DOT + "data of " + (+p[2]) + " " + MON[+p[1] - 1] + " " + p[0];
     draw();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
