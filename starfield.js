@@ -24,7 +24,7 @@
     if (!gl) { container.innerHTML = '<div class="sf-nogl">Your browser has no WebGL: the flat map still works.</div>'; return null; }
     const ctx = ov.getContext("2d");
     const mono = getComputedStyle(document.documentElement).getPropertyValue("--mono").trim() || "Consolas, monospace";
-    const display = getComputedStyle(document.documentElement).getPropertyValue("--display").trim() || "Georgia, serif";
+    const display = getComputedStyle(document.documentElement).getPropertyValue("--body").trim() || "'Segoe UI', Arial, sans-serif";   /* system names in a plain sans: the gothic display font is hard to read on the map (user 2026-10-20) */
 
     // ---------- shaders ----------
     const compile = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
@@ -224,7 +224,7 @@
           const a = project(A), b = project(B); if (a && b) { ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.strokeStyle = "#d9b24c"; ctx.lineWidth = 1.2; ctx.setLineDash([2, 4]); ctx.stroke(); ctx.setLineDash([]); } } } }
       for (const m of many) { const p = project(P(m.id)); if (!p) continue; const col = m.cls === "ok" ? "#7ec98b" : m.cls === "bad" ? "#e3222c" : m.cls === "unc" ? "#8fb8e8" : "#d9b24c", R = m.cls === "aim" ? 9 : m.cls === "tour" ? 7 : m.cls === "unc" ? 4 : 5;
         ctx.beginPath(); ctx.arc(p[0], p[1], R, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.lineWidth = m.cls === "aim" || m.cls === "tour" ? 2 : 1.4; ctx.globalAlpha = 0.9; ctx.stroke(); ctx.globalAlpha = 1;
-        if (m.label) { ctx.font = `600 12px ${display}`; ctx.fillStyle = "rgba(7,7,10,.8)"; ctx.fillText(m.label, p[0] + R + 7, p[1] + 1); ctx.fillStyle = col; ctx.fillText(m.label, p[0] + R + 6, p[1]); } }
+        if (m.label) { ctx.font = `600 12.5px ${display}`; ctx.fillStyle = "rgba(7,7,10,.8)"; ctx.fillText(m.label, p[0] + R + 7, p[1] + 1); ctx.fillStyle = col; ctx.fillText(m.label, p[0] + R + 6, p[1]); } }
       // rings and labels. In priority order (selected, home, ours, the rest, plan waypoints): far from the camera a
       // system close to one already drawn (34 px at galaxy scale, 10 px mid-way, never up close) folds into it (the leader's label gains "+N"); a label whose box would
       // cover another label is left out, its ring stays. Nothing is ever stacked.
@@ -247,7 +247,7 @@
         if (hot || s.cls === "me") { ctx.beginPath(); ctx.arc(p[0], p[1], R + 5, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.globalAlpha = 0.45; ctx.stroke(); ctx.globalAlpha = 1; }
         if ((plan && !labelPlans && !hot) || (unch && !hot)) continue;   // an uncharted mark is named only under the pointer
         const label = (s.cls === "home" ? "✠ " : "") + (s.name || String(s.id)) + (o.more ? `  +${o.more}` : "");
-        ctx.font = charted ? `600 12px ${display}` : `700 13px ${display}`;
+        ctx.font = charted ? `600 12.5px ${display}` : `700 13.5px ${display}`;
         const x = p[0] + R + 6, y = p[1] - (s.sub && !far ? 4 : 0), wdt = ctx.measureText(label).width, showSub = !!s.sub && !far;
         const box = [x - 3, y - 9, x + wdt + 3, y + (showSub ? 22 : 9)];
         if (!hot && hit(box)) continue;
@@ -258,7 +258,7 @@
       }
       // a star picked from the background (no ring of its own): a dashed ring and its label
       if (marked) { const p = project(P(marked.id)); if (p) { ctx.beginPath(); ctx.arc(p[0], p[1], 7, 0, Math.PI * 2); ctx.strokeStyle = "#f1e9d2"; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
-        ctx.font = `600 12px ${display}`; ctx.fillStyle = "rgba(7,7,10,.8)"; ctx.fillText(marked.label, p[0] + 14, p[1] + 1); ctx.fillStyle = "#f1e9d2"; ctx.fillText(marked.label, p[0] + 13, p[1]); } }
+        ctx.font = `600 12.5px ${display}`; ctx.fillStyle = "rgba(7,7,10,.8)"; ctx.fillText(marked.label, p[0] + 14, p[1] + 1); ctx.fillStyle = "#f1e9d2"; ctx.fillText(marked.label, p[0] + 13, p[1]); } }
     }
     // 1 when the camera is within ~350 LY of its target (rings at full size), falling to 0.3 at galaxy scale
     function zoomK() { return Math.max(0.3, Math.min(1, 350 / cam.dist)); }
