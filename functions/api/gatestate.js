@@ -61,10 +61,14 @@ async function stars(env, request) {
   STARS = m; return m;
 }
 const lyBetween = (S, a, b) => { const p = S.get(a), q = S.get(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; };
-/* the chain's player gate jump of this character near this time, or null (two pages of the newest events at most) */
-export async function findJump(char, atMs, fetcher) {
+/* the chain's player gate jump of this character for ONE move, or null. The jump's event lands a few seconds before
+   the Local line, so it lies after prevMs (when the pilot came into the system it left) and at most 15 s after atMs;
+   of those, the one nearest atMs. Without prevMs (older companions) 20 s before atMs. 2026-10-20: the old window
+   (90 s before, first match) filed a catapult jump made 30 s after a gate jump under that gate. */
+export async function findJump(char, atMs, fetcher, prevMs) {
   const F = fetcher || fetch;
-  let before = null;
+  const lo = prevMs && prevMs < atMs && atMs - prevMs < 2 * 3600e3 ? prevMs - 1000 : atMs - 20000, hi = atMs + 15000;
+  let before = null, best = null;
   for (let page = 0; page < 3; page++) {
     const r = await F(SUI, { method: "POST", headers: { "content-type": "application/json", "user-agent": "saints-forge (read-only)" },
       body: JSON.stringify({ query: "query($t:String!,$b:String){ events(filter:{type:$t}, last:50, before:$b) { pageInfo { hasPreviousPage startCursor } nodes { timestamp contents { json } } } }", variables: { t: WORLD + "::gate::JumpEvent", b: before } }) });
@@ -72,13 +76,14 @@ export async function findJump(char, atMs, fetcher) {
     const e = ((await r.json()).data || {}).events; if (!e) return null;
     for (const x of e.nodes || []) {
       const j = (x.contents || {}).json || {}, t = Date.parse(x.timestamp);
-      if (String(((j.character_key || {}).item_id) || "") === char && t >= atMs - 90000 && t <= atMs + 30000) return { src: j.source_gate_id, dst: j.destination_gate_id, at: x.timestamp };
+      if (String(((j.character_key || {}).item_id) || "") === char && t > lo && t <= hi && (!best || Math.abs(t - atMs) < Math.abs(best.t - atMs)))
+        best = { src: j.source_gate_id, dst: j.destination_gate_id, at: x.timestamp, t };
     }
     const oldest = e.nodes && e.nodes.length ? Date.parse(e.nodes[0].timestamp) : 0;
-    if (!e.pageInfo.hasPreviousPage || oldest < atMs - 90000) return null;
+    if (!e.pageInfo.hasPreviousPage || oldest <= lo) break;
     before = e.pageInfo.startCursor;
   }
-  return null;
+  return best;
 }
 /* a road a Saint jumped: returns the new seen list, or null when nothing changes (the same road the same day) */
 export function mergeSeen(seen, a, b, kind, at, by) {
@@ -177,7 +182,10 @@ async function otherMove(env, request, stored, d, from, to, fromId, toId, at, by
   /* no character id = a companion from before 2026-10-19 05:06Z: it cannot tell a player gate from a catapult (its gate
      jumps were filed as catapults on the first day), so its moves are not recorded */
   if (!char) return json({ ok: true, recorded: false, why: "update the companion (restart it) to record catapult and gate roads" }, 200, cookies);
-  let jump = null; try { if (char) jump = await findJump(char, Date.parse(at)); } catch (e) { /* the chain did not answer: judged by distance alone */ }
+  const prev = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/.test(String(d.prev || "")) ? Date.parse(d.prev) : null;
+  let jump = null, asked = false; try { if (char) { jump = await findJump(char, Date.parse(at), null, prev); asked = true; } } catch (e) { /* the chain did not answer: judged by distance alone */ }
+  /* a jump across a relog counts only as a gate jump the chain shows: a new log in another system may be a respawn */
+  if (d.relog === true && !jump) return json({ ok: true, recorded: false, why: asked ? "a relog with no gate jump on chain: not recorded" : "the chain did not answer: not recorded" }, 200, cookies);
   let kind = null;
   if (jump) kind = "gate";
   else {

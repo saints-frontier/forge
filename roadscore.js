@@ -86,6 +86,9 @@
       if (free.length && free.length === blank.length) blank.forEach((l, k) => { l.to = free[k]; l.viaNode = true; }); }
     const place = (nid, sys, basis, why) => { if (!nid || !sys) return false; const i = ni(nid); if (i.sys) return false; i.sys = sys; i.basis = basis; i.why = why || ""; return true; };
     for (const l of L) if (l.from && !l.both) place(l.a.node, l.from, "name");
+    // a gate named "A to B" / "A > B" stands in A and leads to B, so the gate linked to it stands in B: names before
+    // jump records (2026-10-20: a misfiled jump put an unnamed gate in the wrong system)
+    for (const l of L) if (l.gate && l.a.linked && l.from && l.to && !l.both) { const h = byId.get(l.a.linked); if (h) place(h.a.node, l.to, "gate"); }
     // placed by a jump: a Saint's companion saw them jump through this player gate (the chain's JumpEvent + the Local log)
     for (const a of d.assemblies || []) { const p = (list.placed || {})[a.id]; if (p && p.sys && a.node) place(a.node, up(p.sys), "jump", `${p.by || "a Saint"} jumped through it (${String(p.at || "").slice(0, 10)})`); }
     // a gate is named for where it leads, so the gate linked to it stands there
@@ -98,7 +101,8 @@
     for (let changed = true; changed;) { changed = false;
       for (const sid of [...onNode.keys()].sort()) { const S = sid && ni(sid).sys; if (!S) continue;
         for (const l of onNode.get(sid)) { const X = l.to; if (l.gate || !X || X === S || (l.from && l.from !== S)) continue;
-          if ([...info.values()].some(i => i.sys === X)) continue;
+          /* X may hold several of our nodes (2026-10-20: two of one builder in one system); skip only when one already there throws back to S */
+          if ([...info].some(([nid, i]) => i.sys === X && reaches(nid, S))) continue;
           const cands = [...onNode].filter(([nid, qs]) => nid && !ni(nid).sys
             && qs.some(q => q.to === S && !q.from && (!q.route || q.route === S || reaches(sid, q.route)))
             && (!l.route || l.route === X || reaches(nid, l.route))
