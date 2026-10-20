@@ -158,7 +158,7 @@
     const title = String(t.title || "");                    // as written, in New Rocker (user 2026-10-20)
     const fs = Math.min(80, Math.floor(text_w / (0.62 * Math.max(4, title.length))));        // long proposal names shrink to fit the column
     const pf = `400 ${lai ? 18 : 20}px 'Segoe UI',Arial`, lh = (lai ? 18 : 20) * 1.4;
-    const origin = lines(balance(t.origin, "italic " + pf, text_w), 96 + text_w / 2, 292 + lh * 0.72, lh, "p origin", "middle");
+    const origin = lines(balance(t.origin, "italic " + pf, text_w), 96 + text_w / 2, 300 + lh * 0.72, lh, "p origin", "middle");
     let para = "", cy = 506;
     [["PURPOSE", t.purpose], ["HOW IT WORKS", t.how], ["WHY THIS FIT", t.why]].filter(([, x]) => x).forEach(([hd, tx]) => {
       para += `<text x="96" y="${cy + 15}" class="h">${hd}</text>`; cy += 26;
@@ -166,7 +166,7 @@
     const crest = ch.crest.replace("__LOGO__", K.logo);
     const extraCss = `svg.card text.p{fill:${th.text}} svg.card text.p.origin{fill:${th.silver};font-style:italic}`;
     return `<svg class="card" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><style>${o.fonts || ""}${ch.css}${extraCss}</style><defs>${ch.defs}</defs>${ch.bg}${ch.band}${ch.frame}${ch.tier}${crest}${ch.header.replace("__EYEBROW__", esc(o.eyebrow || "SAINTS DOCTRINE · SHIP FITS"))}${ch.sigil_base}${sigil}${ribbon}${ch.title_line}` +
-      `<text x="${96 + text_w / 2}" y="276" text-anchor="middle" class="cin" style="font-family:'New Rocker',Georgia,serif;font-weight:400;font-synthesis:none;font-size:${fs}px;fill:url(#goldtitle);letter-spacing:1px" filter="url(#titleglow)">${esc(title)}</text>` +
+      `<text x="${96 + text_w / 2}" y="264" text-anchor="middle" class="cin" style="font-family:'New Rocker',Georgia,serif;font-weight:400;font-synthesis:none;font-size:${fs}px;fill:url(#goldtitle);letter-spacing:1px" filter="url(#titleglow)">${esc(title)}</text>` +
       origin +
       `<text x="${96 + text_w / 2}" y="404" text-anchor="middle" style="font:700 24px ${th.font_role};fill:${A};letter-spacing:5px">${esc(String(t.role || "").toUpperCase())}</text>` +
       (t.motto ? `<text x="${96 + text_w / 2}" y="444" text-anchor="middle" class="cin" style="font-weight:600;font-style:italic;font-size:23px;fill:${G}">“${esc(t.motto)}”</text>` : "") +
