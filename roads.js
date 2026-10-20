@@ -147,10 +147,11 @@
       const before = JSON.stringify(NAV); NAV = d && d.ok ? d.nav : null;
       if (JSON.stringify(NAV) !== before) drawLoc();
     }).catch(() => {});
-    if (!gatePairs) { gatePairs = []; fetch("gates.bin?v=3").then(r => r.ok ? r.arrayBuffer() : null).then(b => { if (b) { gatePairs = window.RoadsCore.parseGates(b); drawLoc(); } }).catch(() => {}); }
+    if (!gatePairs) { gatePairs = []; fetch("gates.bin?v=3").then(r => r.ok ? r.arrayBuffer() : null).then(b => { if (b) { gatePairs = window.RoadsCore.parseGates(b); drawLoc(); if ($("roads-route") && $("roads-route").textContent) route(); } }).catch(() => {}); }
   }
   function navSet(id) {
-    const body = id ? { to: id, name: String(nameOfId(id)).slice(0, 40) } : { to: null };
+    /* a system without a number goes by its name ("n:NAME"): the navigator finds it over our roads */
+    const body = typeof id === "string" && id.startsWith("n:") ? { to: null, name: id.slice(2).slice(0, 40) } : id ? { to: id, name: String(nameOfId(id)).slice(0, 40) } : { to: null };
     return fetch("/api/nav", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then(r => r.json()).then(d => { if (d && d.ok) { NAV = d.nav; drawLoc(); } else alertNav((d && d.error) || "could not set it"); }).catch(() => alertNav("the site did not answer"));
   }
@@ -161,11 +162,13 @@
     const head = `<span class="navto">➜ Heading to <b>${esc(NAV.name || "#" + NAV.to)}</b></span>`;
     if (!fromId) return `<div class="roads-nav">${head} <span class="roads-hint">· the next jump shows once the companion knows where you are</span>${stop}</div>`;
     if (!gatePairs || !gatePairs.length) return `<div class="roads-nav">${head} <span class="roads-hint">· reading the gates…</span>${stop}</div>`;
-    const r = window.RoadsCore.navigate({ model: M, gates: gatePairs, from: fromId, to: NAV.to, dist });
+    const target = NAV.to || window.RoadsCore.navKey(M, NAV.name);
+    if (!target) return `<div class="roads-nav">${head} <span class="roads-hint">· ${esc(NAV.name || "")} is not a system on our roads or the star map</span>${stop}</div>`;
+    const r = window.RoadsCore.navigate({ model: M, gates: gatePairs, from: fromId, to: target, dist });
     if (r.hops && !r.hops.length) return `<div class="roads-nav">${head} <span class="good">· you are there</span>${stop}</div>`;
     if (!r.hops) {
       const c = r.closest;
-      return `<div class="roads-nav">${head} <span class="roads-hint">· no road from here over our roads and the public gates${c ? `; the closest you can get is <b>${esc(nameOfId(c.id))}</b>, ${c.ly.toFixed(0)} LY short (${c.jumps} jump${c.jumps === 1 ? "" : "s"})` : ""}</span>${stop}</div>`;
+      return `<div class="roads-nav">${head} <span class="roads-hint">· no road from here over our roads and the public gates${c ? `; the closest you can get is <b>${esc(nameOfId(c.id))}</b>${c.ly != null ? `, ${c.ly.toFixed(0)} LY short` : c.edge ? ", where our roads to it begin (they lead out of its group, not in)" : ""} (${c.jumps} jump${c.jumps === 1 ? "" : "s"})` : ""}</span>${stop}</div>`;
     }
     const h = r.hops[0], how = h => h.how === "ours" ? `our ${h.kind}` : `public gate${h.state === "unfueled" ? ", no fuel on the far side" : h.state === "dormant" ? ", dormant on the far side" : ""}${h.fuel ? `, ${h.fuel.jumps} jumps of fuel` : ""}`;
     const chain = [nameOfId(r.hops[0].from)].concat(r.hops.map(x => nameOfId(x.to))).map(esc).join(" → ");
@@ -179,7 +182,7 @@
     if (!me) { el.hidden = !n && !NAV && !hasPlaces(); el.innerHTML = (n ? `<span class="roads-hint">${n} tribe mate${n === 1 ? "" : "s"} on the map (they share their place from the Saints Frontier Companion).</span>` : "") + navLine(null) + placesLine(); return; }
     el.hidden = false;
     el.innerHTML = `<i class="melive"></i>You are in <b>${esc(me.s)}</b> <span class="roads-hint">· ${ago(me.at)} · ${me.share ? "the tribe sees you" : "only you see this"}${n ? ` · ${n} tribe mate${n === 1 ? "" : "s"} shown` : ""}</span>` +
-      (id ? ` <button type="button" class="roads-quiet" data-sf="me">Find me</button>` : ` <span class="roads-hint">· not on the star map yet: copy its link in game (Manage) to chart it</span>`) + navLine(id) + placesLine();
+      (id ? ` <button type="button" class="roads-quiet" data-sf="me">Find me</button>` : ` <span class="roads-hint">· not on the star map yet: copy its link in game (Manage) to chart it</span>`) + navLine(id || window.RoadsCore.navKey(M, me.s)) + placesLine();
   }
   function poiLoad() {
     if (POI) return; POI = { categories: [] };
@@ -213,7 +216,7 @@
   }
   let showGates = true; try { showGates = localStorage.getItem("roads:gates") !== "0"; } catch (e) {}       // the public stargate network (gates.bin)
   // a system's name as the page knows it: ours, then EF-Map's, then the archived Cycle 6 name marked (C6)
-  const nameOfId = id => { for (const [n, k] of M.ids) if (k.id === id) return n; const e = M.ef.byId.get(id); if (e && e.status === "confirmed") return e.name; const old = sf && sf.oldName(id); return old ? old + " (C6)" : "#" + id; };
+  const nameOfId = id => { if (typeof id === "string" && id.startsWith("n:")) return id.slice(2); for (const [n, k] of M.ids) if (k.id === id) return n; const e = M.ef.byId.get(id); if (e && e.status === "confirmed") return e.name; const old = sf && sf.oldName(id); return old ? old + " (C6)" : "#" + id; };
   // has a Saint jumped this gate? (list.gates, recorded under Manage) -> the record, with the state it was found in
   const gateRec = (a, b) => (M.list.gates || []).find(g => (up(g.a) === a && up(g.b) === b) || (up(g.a) === b && up(g.b) === a)) || null;
   const jumped = (a, b) => !!gateRec(a, b);
@@ -289,7 +292,7 @@
     const s = M.systems.get(selected), out = M.roads.filter(r => r.from === selected || (r.twoWay && r.to === selected)), inn = M.roads.filter(r => r.to === selected && !r.twoWay);
     const row = (r, other) => `<li><b>${esc(other)}</b> · ${esc(r.kind)}${r.twoWay ? " · both ways" : ""}${r.online === false ? ' · <span class="bad">offline</span>' : ""}${r.ly != null ? ` · ${r.ly.toFixed(0)} LY` : ""}${r.tooFar ? ` · <span class="bad">beyond its ${RANGE[r.kind]} LY reach: check the name</span>` : ""}${r.name ? ` · <i>${esc(r.name)}</i>` : ""}${r.inferred ? ` · <span class="roads-hint">worked out: ${esc(r.why)}</span>` : ""}${r.seen ? ` · <span class="roads-hint">${r.source === "seen" ? "seen only: " : r.confirmed ? "confirmed: " : ""}jumped on ${r.seen.days || 1} day${(r.seen.days || 1) === 1 ? "" : "s"}, last ${esc(String(r.seen.last || "").slice(0, 10))}${r.seen.by ? " by " + esc(r.seen.by) : ""}</span>` : ""}</li>`;
     const kSel = M.ids.get(selected);
-    el.innerHTML = `<div class="roads-dh">${esc(selected)}${kSel ? ` <button type="button" class="roads-quiet" data-checkfrom="${kSel.id}" title="every catapult or gate jump from this system">Check jumps from here</button> <button type="button" class="roads-quiet" data-planto="${kSel.id}" title="plan a road from the planner's From to this system">Plan a road here</button> <button type="button" class="roads-quiet" data-navto="${kSel.id}" title="the companion tells you every jump on the way">Navigate here</button>${placeBtns(kSel.id)}` : ""}${kSel && kSel.ef ? ` <span class="roads-hint">· its place on the star map comes from EF-Map (${esc(kSel.ef)})</span>` : ""}</div>` +
+    el.innerHTML = `<div class="roads-dh">${esc(selected)}${kSel ? ` <button type="button" class="roads-quiet" data-checkfrom="${kSel.id}" title="every catapult or gate jump from this system">Check jumps from here</button> <button type="button" class="roads-quiet" data-planto="${kSel.id}" title="plan a road from the planner's From to this system">Plan a road here</button> <button type="button" class="roads-quiet" data-navto="${kSel.id}" title="the companion tells you every jump on the way">Navigate here</button>${placeBtns(kSel.id)}` : selected && M.systems.has(selected) ? ` <button type="button" class="roads-quiet" data-navname="${esc(selected)}" title="the companion tells you every jump on the way, over our roads">Navigate here</button>` : ""}${kSel && kSel.ef ? ` <span class="roads-hint">· its place on the star map comes from EF-Map (${esc(kSel.ef)})</span>` : ""}</div>` +
       `${kSel ? poiLines(kSel.id) : ""}${fieldLines(kSel ? kSel.id : 0, selected)}<div class="roads-dcols"><div><h4>Roads out</h4><ul>${out.map(r => row(r, r.from === selected ? r.to : r.from)).join("") || "<li>None: a dead end.</li>"}</ul></div>` +
       `<div><h4>Roads in</h4><ul>${inn.map(r => row(r, r.from)).join("") || "<li>None.</li>"}</ul></div>` +
       `<div><h4>Our nodes here</h4><ul>${s.nodes.map(n => `<li><b>${esc(n.name || short(n.id))}</b>${M.nodeGuess(n.id) ? " · worked out" : ""} · ${n.fuel.quantity.toLocaleString("en-US")} ${esc(fuelName(n))}${M.daysOf(n) == null ? " · " + noDays(n, "not burning") : ` · <span class="${fuelClass(M.daysOf(n))}">${fmtDays(M.daysOf(n))}</span>${fullDays(n) ? ` <span class="roads-hint">(full: ${fmtDays(fullDays(n))})</span>` : ""}`}</li>`).join("") || "<li>None known.</li>"}</ul></div>` +
@@ -312,23 +315,26 @@
     const names = [...M.systems.keys()].sort(), a = $("roads-from"), b = $("roads-to"), va = a.value, vb = b.value;
     const opts = names.map(n => `<option>${esc(n)}</option>`).join("");
     a.innerHTML = opts; b.innerHTML = opts;
-    a.value = names.includes(va) ? va : (M.home || names[0] || ""); b.value = names.includes(vb) ? vb : (names.find(n => n !== a.value) || "");
+    const here = LOC && LOC.me && window.RoadsCore.up(LOC.me.s);   /* where the companion says you are */
+    a.value = names.includes(va) ? va : here && names.includes(here) ? here : (M.home || names[0] || ""); b.value = names.includes(vb) ? vb : (names.find(n => n !== a.value) || "");
     route();
   }
   function route() {
     const from = $("roads-from").value, to = $("roads-to").value, out = $("roads-route");
     if (!from || !to) { out.textContent = ""; return; }
     if (from === to) { out.innerHTML = `<span class="roads-hint">You are there.</span>`; return; }
-    const step = new Map([[from, null]]), q = [from];
-    while (q.length && !step.has(to)) {
-      const k = q.shift();
-      for (const r of M.roads) { if (r.online === false || (r.source === "plan" && r.status !== "built")) continue;   /* a planned road is not a road yet */
-        const n = r.from === k ? r.to : (r.twoWay && r.to === k ? r.from : null);
-        if (n && !step.has(n)) { step.set(n, { via: r, prev: k }); q.push(n); } }
+    /* the companion's navigator (2026-10-20): our roads, the public gates, and systems that have no number yet */
+    const C = window.RoadsCore, a = C.navKey(M, from), b = C.navKey(M, to);
+    const go = b ? ` <button type="button" class="roads-quiet" data-navgo="${esc(to)}" title="the companion tells you every jump on the way, with a card over the game">Navigate with the companion</button>` : "";
+    if (!gatePairs || !gatePairs.length) { navPoll(); out.innerHTML = `<span class="roads-hint">reading the public gates…</span>`; return; }
+    const r = C.navigate({ model: M, gates: gatePairs, from: a, to: b, dist });
+    if (!r.hops) {
+      const c = r.closest;
+      out.innerHTML = `<span class="bad">No road from ${esc(from)} to ${esc(to)}</span> over our roads and the public gates.` + (c ? ` The closest you can get is <b>${esc(nameOfId(c.id))}</b>${c.ly != null ? `, ${c.ly.toFixed(0)} LY short` : c.edge ? ", where our roads to it begin (they lead out of its group, not in)" : ""}, ${c.jumps} jump${c.jumps === 1 ? "" : "s"}.` : "") + go;
+      return;
     }
-    if (!step.has(to)) { out.innerHTML = `<span class="bad">No road from ${esc(from)} to ${esc(to)}.</span> Catapults throw one way: check the roads into ${esc(to)}.`; return; }
-    const hops = []; for (let k = to; step.get(k); k = step.get(k).prev) hops.unshift({ to: k, via: step.get(k).via });
-    out.innerHTML = `<div class="roads-hops"><b>${esc(from)}</b>` + hops.map(h => ` <span class="hop">→ <i>${esc(h.via.kind)}</i> →</span> <b>${esc(h.to)}</b>`).join("") + `</div><div class="roads-hint">${hops.length} jump${hops.length === 1 ? "" : "s"}.</div>`;
+    const how = h => h.how === "ours" ? h.kind : "public gate" + (h.state === "unfueled" ? ", no fuel on the far side" : h.state === "dormant" ? ", dormant" : "");
+    out.innerHTML = `<div class="roads-hops"><b>${esc(from)}</b>` + r.hops.map(h => ` <span class="hop">→ <i>${esc(how(h))}</i> →</span> <b>${esc(nameOfId(h.to))}</b>`).join("") + `</div><div class="roads-hint">${r.hops.length} jump${r.hops.length === 1 ? "" : "s"}${r.crude ? ` · ${r.crude} crude for the public gates` : ""}.${go}</div>`;
   }
 
   // ---------- the star map ----------
@@ -906,6 +912,8 @@
     if (b.dataset.myremove) { storeMine(loadMine().filter(p => p.id !== b.dataset.myremove)); openPlan = null; $("roads-plan").innerHTML = ""; render(lastData); $("plan-status").textContent = "removed from my routes."; return; }
     if (b.dataset.planto) { planTo(+b.dataset.planto); return; }
     if (b.dataset.navto) { navSet(+b.dataset.navto); return; }
+    if (b.dataset.navname) { navSet("n:" + b.dataset.navname); return; }
+    if (b.dataset.navgo) { const k = window.RoadsCore.navKey(M, b.dataset.navgo); if (k) navSet(k).then(() => { const o = $("roads-route"); if (o) o.insertAdjacentHTML("beforeend", `<div class="good">Sent to the companion: it shows the next jump as you fly.</div>`); }); return; }
     if (b.dataset.navstop) { navSet(null); return; }
     if (b.dataset.home) { placesSet({ home: placeOf(+b.dataset.home) }); return; }
     if (b.dataset.mark) { const pl = placeOf(+b.dataset.mark), lab = askLabel("", pl.name); if (lab === null) return; if (lab) pl.label = lab; placesSet({ add: pl }); return; }

@@ -190,10 +190,13 @@
   // ---------- names: ours, then EF-Map's, then the archive's Cycle 6 name marked (C6) ----------
   function namer(M, stars) {
     const byId = new Map(); for (const [n, k] of M.ids) if (!byId.has(k.id) && !k.c6) byId.set(k.id, n);
-    return id => byId.get(id) || (M.ef.byId.get(id) || {}).name || (stars && stars.oldName(id) ? stars.oldName(id) + " (C6)" : "#" + id);
+    return id => typeof id === "string" && id.startsWith("n:") ? id.slice(2) : byId.get(id) || (M.ef.byId.get(id) || {}).name || (stars && stars.oldName(id) ? stars.oldName(id) + " (C6)" : "#" + id);
   }
   // a system's number from any name we know (ours, EF-Map's)
   function idOfName(M, name) { const n = up(name); const k = M.ids.get(n); if (k) return k.id; const e = M.ef.byName.get(n); return e ? e.id : null; }
+  // the navigator's key for a system: its number, or "n:NAME" for a system our roads reach that has no number yet
+  // (2026-10-20: new roads led to systems nobody had copied a link of); null for a name neither knows
+  function navKey(M, name) { const n = up(canonOf.get(up(name)) || name); if (!n) return null; const id = idOfName(M, n); return id || (M.systems.has(n) ? "n:" + n : null); }
 
   // ---------- the navigator: the way over what exists today ----------
   /* What a pilot can fly now: our roads from the chain (online, not past their reach; a catapult throws one way, a gate
@@ -211,7 +214,7 @@
   }
   function navigate(o) {
     const M = o.model, adj = new Map(), push = (a, b, e) => { let l = adj.get(a); if (!l) adj.set(a, l = []); l.push(Object.assign({ to: b }, e)); };
-    const idOf = n => idOfName(M, n);
+    const idOf = n => idOfName(M, n) || (n ? "n:" + up(n) : null);   /* our roads join systems by name: one without a number still counts */
     for (const r of M.roads) {
       if ((r.source !== "chain" && r.source !== "seen") || r.online === false || r.tooFar) continue;   /* "seen" = a road a Saint jumped */
       const a = idOf(r.from), b = idOf(r.to); if (!a || !b || a === b) continue;
@@ -236,10 +239,18 @@
     }
     if (from === to) return { hops: [], crude: 0 };
     if (!prev.has(to)) {
-      let closest = null; if (o.dist) for (const id of best.keys()) { const ly = o.dist(id, to); if (ly != null && (!closest || ly < closest.ly)) closest = { id, ly, jumps: jumps.get(id) }; }
+      let closest = null; if (o.dist && typeof to === "number") for (const id of best.keys()) { if (typeof id !== "number") continue; const ly = o.dist(id, to); if (ly != null && (!closest || ly < closest.ly)) closest = { id, ly, jumps: jumps.get(id) }; }
+      if (!closest && typeof to === "string") {
+        /* no number, so no distance: walk our roads both ways out from the target; the first system on them that we CAN
+           reach is as near as the roads go (the group's roads lead out of it, not in) */
+        const und = new Map(), link = (a, b) => { if (!und.has(a)) und.set(a, []); und.get(a).push(b); };
+        for (const [a, es] of adj) for (const e of es) if (e.how === "ours") { link(a, e.to); link(e.to, a); }
+        const seen = new Set([to]), q = [to];
+        while (q.length && !closest) { const x = q.shift(); for (const y of und.get(x) || []) { if (seen.has(y)) continue; seen.add(y); if (best.has(y)) { closest = { id: y, ly: null, jumps: jumps.get(y), edge: true }; break; } q.push(y); } }
+      }
       return { hops: null, closest, reached: best.size };
     }
-    const hops = []; for (let x = to; x !== from;) { const [p, e] = prev.get(x); hops.unshift({ from: p, to: x, kind: e.kind, how: e.how, state: e.state || "", name: e.name || "", inferred: !!e.inferred, fuel: e.fuel || null, ly: o.dist ? o.dist(p, x) : null }); x = p; }
+    const hops = []; for (let x = to; x !== from;) { const [p, e] = prev.get(x); hops.unshift({ from: p, to: x, kind: e.kind, how: e.how, state: e.state || "", name: e.name || "", inferred: !!e.inferred, fuel: e.fuel || null, ly: o.dist && typeof p === "number" && typeof x === "number" ? o.dist(p, x) : null }); x = p; }
     return { hops, crude: hops.filter(h => h.how === "public").length * 50 };
   }
   /* Where a pilot stands on a route: the hop to fly next, from the system the game says they are in (cur) and the
@@ -254,5 +265,5 @@
     return { i: null, off: true };
   }
 
-  G.RoadsCore = { up, RANGE, readName, mentions, build, parseStars, parseGates, namer, idOfName, navigate, routeStep, hoursLeft };
+  G.RoadsCore = { up, RANGE, readName, mentions, build, parseStars, parseGates, namer, idOfName, navKey, navigate, routeStep, hoursLeft };
 })(typeof window !== "undefined" ? window : self);
