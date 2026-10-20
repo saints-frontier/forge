@@ -16,7 +16,7 @@
     box.innerHTML = (msg ? '<span class="tribe-msg">' + esc(msg) + "</span>" : "") + '<a class="tribe-btn" href="/api/login' + nextPage() + '">✠ Tribe fits · log in with Discord</a>';
     share({ state: q === "denied" ? "denied" : "out", msg: msg });
   }
-  var DOCTRINE = false;      // the site build writes false while the doctrine is off the site (2026-10-19)
+  var DOCTRINE = true;      // the site build writes false while the doctrine is off the site (2026-10-19)
   fetch("/api/me", { credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (me) {
     if (!me || !me.ok) {
       loggedOut(q === "denied" ? "A Saints rank is needed (Squire or above). Ask in Discord." : q === "error" ? "The login did not go through. Try again." : "");
