@@ -961,11 +961,15 @@ button.np-name:hover, button.np-name:focus-visible { color: var(--gold); outline
 .d-lock .d-msg { color: var(--red); }
 .d-login { display: inline-block; margin-top: 12px; padding: 10px 18px; border: 1.5px solid var(--gold); color: var(--gold); text-decoration: none; font: 700 14px var(--mono); letter-spacing: 2px; background: rgba(20,14,12,.75); }
 .d-login:hover, .d-login:focus-visible { background: rgba(217,178,76,.12); }
-.d-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 4px; }
-.d-ship { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
-@media (max-width: 1100px) { .d-ship { grid-template-columns: 1fr; } }
+.d-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 4px; align-items: start; }   /* two ships a row (user 2026-10-20: too much scrolling) */
+@media (max-width: 1100px) { .d-grid { grid-template-columns: 1fr; } }
+.d-ship { display: grid; grid-template-columns: 1fr; gap: 8px; align-items: start; min-width: 0; }
 .d-text { min-width: 0; padding: 0 2px; }
-.d-sec { margin: 8px 0 -6px; padding-bottom: 4px; border-bottom: 1px solid #4a4238; font: 400 28px/1.1 var(--display); color: var(--gold); }
+.d-sec { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; margin: 22px 0 2px; padding: 8px 16px; border: 1px solid var(--gold); border-left: 6px solid var(--gold); background: linear-gradient(90deg, #6a0e15, rgba(58,12,16,.35) 70%, rgba(14,12,11,0)); box-shadow: 0 0 18px rgba(217,178,76,.18); font: 400 38px/1.1 var(--display); color: #f6e7bd; text-shadow: 0 0 12px rgba(217,178,76,.4); }
+.d-sec:first-child { margin-top: 4px; }
+.d-text h2, .d-text .d-role, .d-text .d-motto { display: none; }   /* the card shows them: the text keeps what the card's small print says */
+.d-text h3:first-of-type { margin-top: 2px; }
+.d-sec::before { content: "\2720"; font: 400 26px "Segoe UI Symbol", serif; color: var(--gold); }
 .d-lead { padding: 10px; border: 2px solid var(--gold); background: linear-gradient(135deg, rgba(122,14,20,.35), rgba(14,12,11,.6) 60%); box-shadow: 0 0 0 1px #000, 0 0 34px rgba(217,178,76,.28); }
 .d-lead .d-card { border-color: var(--gold); }
 .d-lead .d-text h2 { font-size: 40px; text-shadow: 0 0 18px rgba(217,178,76,.45); }
