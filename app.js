@@ -917,7 +917,7 @@
     // and never below the pilot's own minimums (a filler whose priority is off is not traded at all)
     for (const n in KEEP_IDS) if (fillers.includes(n)) keepMin[n] = Math.max(keepMin[n] || 0, state.mins[n] || 0);
     // the game's own never-removed modules among the fillers (one Cargo Container) stay whatever the totals say
-    fillers.forEach(f => { const k = D.base_ship.never_removed[f] || 0; if (k && f !== "Capacitor") keepMin[f] = Math.max(keepMin[f] || 0, Math.min(c[f] || 0, k)); });
+    fillers.forEach(f => { const k = D.base_ship.never_removed[f] || 0; if (k && f !== "Capacitor") keepMin[f] = Math.max(keepMin[f] || 0, k); });   /* the game's minimum: a fit missing it (only Fuel Blisters, 2026-10-21) gets it back from the forge */
     fillers.forEach(f => { const k = saintsMin(f); if (k) keepMin[f] = Math.max(keepMin[f] || 0, k); });     /* Saints Doctrine: one Fuel Blister at least */
     // hold and fuel: totals, any mix. A total the fit already holds with its priority unticked needs nothing: those modules are not touched.
     const keepSum = []; for (const k in SUM_IDS) { const min = clampSum(k, state.mins[k]); if (min > 0 && (Object.keys(SUM_PER[k]).some(n => fillers.includes(n)) || sumNow(k) < min)) keepSum.push({ key: k, per: SUM_PER[k], min }); }
