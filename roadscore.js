@@ -151,9 +151,13 @@
       add({ id: null, kind: "Public Gate", name: g.note || "", node: null, days: null, source: "public", from: a, to: b, twoWay: true, online: g.state !== "dormant", status: g.state === "unfueled" ? "progress" : "built", state: g.state || "" }); }
     // roads a Saint has jumped (the Saints Frontier Companion): a chain road between the two systems gets the record (a
     // "worked out" road is then confirmed); a jump no launcher name explains is drawn as a road of its own, "seen"
+    const seenOnce = [];
     for (const x of list.seen || []) { const a = up(x.a), b = up(x.b); if (!a || !b || a === b) continue;
       const hit = roads.find(r => r.source === "chain" && ((r.from === a && r.to === b) || (r.twoWay && r.from === b && r.to === a)));
       if (hit) { hit.seen = x; if (hit.inferred) { hit.inferred = false; hit.confirmed = true; hit.why = ""; } continue; }
+      /* a catapult throw no launcher of ours explains, seen on one day only, is NOT a road (2026-10-22: GES > B6K, 189 LY,
+         one jump by one pilot: another tribe's Heavy Catapult or a respawn read as a throw; nothing in game to use) */
+      if (x.kind !== "gate" && (x.days || 1) < 2) { seenOnce.push(x); continue; }
       fromEf(a); fromEf(b);
       add({ id: null, kind: x.kind === "gate" ? "Player Gate" : "Catapult", name: "", node: null, days: null, source: "seen", from: a, to: b, twoWay: x.kind === "gate", online: true, status: "built", seen: x, why: "jumped by a Saint; no launcher name says so yet" }); }
     const systems = new Map(), sys = n => { if (!systems.has(n)) systems.set(n, { name: n, nodes: [], days: null, guess: false }); return systems.get(n); };
@@ -168,7 +172,7 @@
     let home = up(list.home); if (!systems.has(home)) home = [...systems.keys()].sort()[0] || "";
     const nodeSys = id => (id && info.has(id) && info.get(id).sys) || null, nodeGuess = id => !!(id && info.has(id) && info.get(id).basis === "inferred");
     const ef = { byId: efById, byName: efByName, notes: efNotes, count: efById.size, confirmed: [...efById.values()].filter(e => e.status === "confirmed").length, error: (d.names && d.names.error) || null, used: [...ids.values()].filter(k => k.ef).length };
-    return { list, roads, unplaced, systems, ids, plans, nodeById, nodeSys, nodeGuess, daysOf, home, ef, aliases, canEdit: !!d.canEdit, at: d.at, error: d.error, nodes: d.nodes || [] };
+    return { list, roads, unplaced, seenOnce, systems, ids, plans, nodeById, nodeSys, nodeGuess, daysOf, home, ef, aliases, canEdit: !!d.canEdit, at: d.at, error: d.error, nodes: d.nodes || [] };
   }
 
   // ---------- the stars and the public gates, read from the site's own files ----------

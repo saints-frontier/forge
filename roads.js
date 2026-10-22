@@ -818,7 +818,8 @@
     const long = M.roads.filter(r => r.tooFar);
     const warn = long.length ? `<div class="roads-ugroup"><div class="roads-uh">Names to check</div>` + long.map(r => `<div class="roads-urow"><span><b>${esc(r.from)} → ${esc(r.to)}</b> · ${esc(r.kind)} ${r.name ? `<i>${esc(r.name)}</i>` : ""}<br><span class="roads-hint">${r.ly.toFixed(0)} LY apart, beyond its ${RANGE[r.kind]} LY reach: one of the names is wrong${r.builder ? " · " + esc(r.builder) : ""}.</span></span></div>`).join("") + `</div>` : "";
     const notes = M.ef.notes.length ? `<div class="roads-ugroup"><div class="roads-uh">Numbers to check</div>` + M.ef.notes.map(t => `<div class="roads-urow"><span class="roads-hint">${esc(t)} Ours was copied from the game: tell EF-Map if theirs is wrong.</span></div>`).join("") + `</div>` : "";
-    if (!M.unplaced.length) { el.innerHTML = notes + warn + `<div class="roads-hint">Every launcher and gate read from the chain is on the map.</div>`; return; }
+    const once = (M.seenOnce || []).length ? `<div class="roads-ugroup"><div class="roads-uh">Jumps seen once, not on the map</div>` + M.seenOnce.map(x => `<div class="roads-urow"><span><b>${esc(x.a)} → ${esc(x.b)}</b> · ${esc(x.kind)}<br><span class="roads-hint">One jump on ${esc(String(x.first || "").slice(0, 10))}${x.by ? " by " + esc(x.by) : ""}; no launcher of ours explains it (another tribe's catapult, or a respawn). It becomes a road once it is jumped on a second day.</span></span></div>`).join("") + `</div>` : "";
+    if (!M.unplaced.length) { el.innerHTML = notes + warn + once + `<div class="roads-hint">Every launcher and gate read from the chain is on the map.</div>`; return; }
     // grouped by builder (each builder sees the list of what is theirs to rename) or by Network Node; the choice is kept
     const fuelOf = nid => { const n = M.nodeById.get(nid), d = M.daysOf(n); return n ? ` · <span class="${fuelClass(d)}">${d == null ? noDays(n, "idle") : "fuel " + fmtDays(d)}</span>` : ""; };
     const nodeLabel = nid => { const n = M.nodeById.get(nid), here = M.nodeSys(nid); return `node ${esc((n && n.name) || short(nid))}${here ? " · in " + esc(here) : ""}`; };
@@ -836,7 +837,7 @@
       const byNode = new Map(); for (const u of M.unplaced) { const k = u.node || ""; if (!byNode.has(k)) byNode.set(k, []); byNode.get(k).push(u); }
       body = [...byNode].map(([nid, us]) => `<div class="roads-ugroup"><div class="roads-uh">${esc(us[0].builder || "")} · ${nodeLabel(nid)}${fuelOf(nid)}</div>` + us.map(u => row(u, false)).join("") + `</div>`).join("");
     }
-    el.innerHTML = notes + warn + bar + body;
+    el.innerHTML = notes + warn + once + bar + body;
   }
 
   function stamp(d) {
