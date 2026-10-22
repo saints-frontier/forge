@@ -32,6 +32,7 @@ export async function onRequestPost({ request, env }) {
   if (d.system == null || d.system === "") {
     await env.DOCTRINE.delete(key);
     if (was) { delete shared[s.u]; await env.DOCTRINE.put(SHARED, JSON.stringify(shared)); }
+    MATES = null;
     return json({ ok: true, cleared: true }, 200, cookies);
   }
   const system = String(d.system).trim();
@@ -41,7 +42,22 @@ export async function onRequestPost({ request, env }) {
   const rec = { u: String(s.u), n: clean(s.n, 60), c: clean(d.character, 40), s: system, at: new Date(at).toISOString(), share };
   await env.DOCTRINE.put(key, JSON.stringify(rec), { expirationTtl: TTL });
   if (share !== was) { if (share) shared[s.u] = 1; else delete shared[s.u]; await env.DOCTRINE.put(SHARED, JSON.stringify(shared)); }
+  MATES = null;                                       // this isolate's copy of the shared list is stale now
   return json({ ok: true, system, share }, 200, cookies);
+}
+
+/* the shared records, read once per isolate every 20 s: every Roads page asks every 30 s and each ask used to cost one KV
+   read per sharing pilot (the free plan's 100,000 reads a day; bug squash 2026-10-21). A pilot's own record is always fresh. */
+let MATES = null, MATES_AT = 0;
+async function matesList(env) {
+  if (MATES && Date.now() - MATES_AT < 20000) return MATES;
+  const shared = await sharedIds(env), out = [];
+  for (const id of Object.keys(shared).slice(0, 60)) {
+    const r = await env.DOCTRINE.get(PREFIX + id, "json");
+    if (r && r.share) out.push({ u: String(id), n: r.n, c: r.c, s: r.s, at: r.at });
+  }
+  MATES = out; MATES_AT = Date.now();
+  return out;
 }
 
 export async function onRequestGet({ request, env }) {
@@ -49,15 +65,10 @@ export async function onRequestGet({ request, env }) {
   if (!s || !s.u || key) return json({ ok: false }, 401, cookies);         // the Roads page only: a tribe login, not a key
   if (!env.DOCTRINE) return json({ ok: false, error: "No store is bound." }, 503, cookies);
   const me = await env.DOCTRINE.get(PREFIX + s.u, "json");
-  const shared = await sharedIds(env), mates = [];
-  for (const id of Object.keys(shared).slice(0, 60)) {
-    if (id === String(s.u)) continue;
-    const r = await env.DOCTRINE.get(PREFIX + id, "json");
-    if (r && r.share) mates.push({ n: r.n, c: r.c, s: r.s, at: r.at });
-  }
+  const mates = (await matesList(env)).filter(r => r.u !== String(s.u)).map(r => ({ n: r.n, c: r.c, s: r.s, at: r.at }));
   const h = new Headers({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, no-store" });
   for (const c of cookies) h.append("Set-Cookie", c);
   return new Response(JSON.stringify({ ok: true, me: me ? { n: me.n, c: me.c, s: me.s, at: me.at, share: !!me.share } : null, mates }), { status: 200, headers: h });
 }
 
-export const __test = { NAME, clean };
+export const __test = { NAME, clean, matesList, reset: () => { MATES = null; } };

@@ -166,7 +166,7 @@ function checkList(d) {
   const maps = [["systems", v => SID(v) || (v && typeof v === "object" && SID(v.id) && (v.sure == null || typeof v.sure === "boolean"))]];
   for (const [k, ok] of maps) {
     const m = d[k] == null ? {} : d[k];
-    if (typeof m !== "object" || Array.isArray(m) || Object.keys(m).length > 300) return k + " must be a map.";
+    if (typeof m !== "object" || Array.isArray(m) || Object.keys(m).length > 2000) return k + " must be a map.";   // 2,000 (was 300): the companions add numbers through /api/intel; the same cap there and in tools/roads_local.py
     for (const [id, v] of Object.entries(m)) if (!SYS(id) || !ok(v)) return k + ": bad entry " + String(id).slice(0, 20) + ".";
   }
   if (d.home != null && d.home !== "" && !SYS(d.home)) return "home must be a system name.";

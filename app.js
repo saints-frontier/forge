@@ -749,19 +749,21 @@
       for (let k = 0; k < mods.length; k++) { if (await addModule(mods[k], k < mods.length - 1)) return; }
       setStatus(`No room for ${mods.join(" or ")}, even after rearranging.`, "bad"); return;
     }
-    // less: the smaller module first (fine steps), never one the game keeps
+    // less: the smaller module first (fine steps), never one the game (or the Saints rule) keeps: subModule says why
+    // when it refuses (bug squash 2026-10-21: the tile used to say "removed" over a refused Saints Fuel Blister)
     for (const n of mods.slice().reverse()) {
       const keep = D.base_ship.never_removed[n] || 0;
-      if ((c[n] || 0) > keep) { subModule(n); setStatus(`${n} removed.`, "ok"); return; }
+      if ((c[n] || 0) > keep) { subModule(n); return; }
     }
     setStatus(`Nothing left to remove: the game keeps the last ${mods[0]}.`, "info");
   }
   function subModule(name) {
-    if (busy()) return;
+    if (busy()) return false;
     const idxs = state.placements.map((p, i) => p[0] === name ? i : -1).filter(i => i >= 0);
-    if (!idxs.length) return;
-    if (locked(name)) { setStatus(keptMsg(name), "bad"); return; }
+    if (!idxs.length) return false;
+    if (locked(name)) { setStatus(keptMsg(name), "bad"); return false; }
     state.placements.splice(idxs[idxs.length - 1], 1); state.selected = -1; keepByHand(name); markDirty(); render(); setStatus(`${name} removed.`, "ok");
+    return true;
   }
   // A clean slate is never empty: the modules the game refuses to remove are fitted first.
   async function cleanSlate(keepExterior) {
@@ -819,7 +821,11 @@
     const P = pool = { workers: [], best: startOk ? valueOf(state.placements) : -Infinity, bestPl: state.placements, lastGain: t0, gains: 0, iters: [], done: 0, stopping: false, reason: "", timer: null, t0, K,
                        wBest: [], wLast: [], restarting: [], restarts: 0, fillers, values, keepMin, keepSum };
     const init = { type: "init", hull: D.hulls[state.hull], modules: Object.fromEntries(D.modules.map(m => [m.name, { cells: m.cells }])) };
-    const consider = m => { if (m.value > P.best) { P.best = m.value; P.bestPl = m.placements; P.lastGain = Date.now(); P.gains++; state.placements = m.placements; render(); } };
+    // a gain redraws the page, but at most ~8 times a second: in the first seconds 19 searches report gains faster than
+    // the hull, palette and stats can be drawn (bug squash 2026-10-21; the last gain is always drawn)
+    let drawDue = 0;
+    const drawSoon = () => { if (drawDue) return; drawDue = setTimeout(() => { drawDue = 0; if (pool === P || P.finished) render(); }, 120); };
+    const consider = m => { if (m.value > P.best) { P.best = m.value; P.bestPl = m.placements; P.lastGain = Date.now(); P.gains++; state.placements = m.placements; drawSoon(); } };
     const spawn = i => {
       let w; try { w = new Worker("solver.js?v=52969717"); } catch (e) { return null; }
       const launch = () => { P.wBest[i] = P.best; P.wLast[i] = Date.now(); P.restarting[i] = false;

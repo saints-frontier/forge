@@ -88,7 +88,7 @@
   /* Where the pilot is (user 2026-10-18: the Saints Frontier Companion "tracks my location on the map and highlights it in
      the pilgrim roads"): /api/location gives the pilot's own last system (from the game's Local chat log) and the tribe
      mates who chose to share; asked every 30 s while the page is open and on screen */
-  let LOC = null, locTimer = 0;
+  let LOC = null, locTimer = 0, locPolls = 0;
   function locOf(name) {
     const u = up(name); if (!u || !M) return null;
     const k = M.ids.get(u); if (k) return k.id;
@@ -103,7 +103,7 @@
       const before = JSON.stringify(LOC); LOC = d && d.ok ? d : null;
       if (JSON.stringify(LOC) !== before) { drawStars(); drawLoc(); } else drawLoc();
     }).catch(() => {});
-    navPoll(); placesPoll();
+    navPoll(); if (locPolls++ % 10 === 0) placesPoll();   /* the places change from this page or the companion: read every 5 min, not every 30 s (bug squash 2026-10-21) */
   }
   /* Where the pilot wants to go (user 2026-10-19): /api/nav holds one destination per pilot, set here ("Navigate here")
      or on the companion page; the route over what exists today is worked out here with roadscore.js's navigator
@@ -153,7 +153,7 @@
     /* a system without a number goes by its name ("n:NAME"): the navigator finds it over our roads */
     const body = typeof id === "string" && id.startsWith("n:") ? { to: null, name: id.slice(2).slice(0, 40) } : id ? { to: id, name: String(nameOfId(id)).slice(0, 40) } : { to: null };
     return fetch("/api/nav", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-      .then(r => r.json()).then(d => { if (d && d.ok) { NAV = d.nav; drawLoc(); } else alertNav((d && d.error) || "could not set it"); }).catch(() => alertNav("the site did not answer"));
+      .then(r => r.json()).then(d => { if (d && d.ok) { NAV = d.nav; drawLoc(); return true; } alertNav((d && d.error) || "could not set it"); return false; }).catch(() => { alertNav("the site did not answer"); return false; });   /* true only when the site took it (bug squash 2026-10-21) */
   }
   function alertNav(msg) { const el = $("roads-me"); if (el) { el.hidden = false; el.insertAdjacentHTML("beforeend", ` <span class="bad">Navigation: ${esc(msg)}</span>`); } }
   function navLine(fromId) {
@@ -886,7 +886,7 @@
     $("roads-save-note").textContent = "saving…";
     return fetch("/api/network", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(list) })
       .then(r => r.json().then(x => ({ ok: r.ok, x })))
-      .then(res => { if (!res.ok) { $("roads-save-note").textContent = "not saved: " + ((res.x && res.x.error) || "error"); return; } $("roads-save-note").textContent = what + " saved."; if (M && M.list) Object.assign(M.list, JSON.parse(JSON.stringify(list))); if (lastData && lastData.list) Object.assign(lastData.list, JSON.parse(JSON.stringify(list))); return load(true); })
+      .then(res => { if (!res.ok) { $("roads-save-note").textContent = "not saved: " + ((res.x && res.x.error) || "error"); return; } $("roads-save-note").textContent = what + " saved."; if (M && M.list) Object.assign(M.list, JSON.parse(JSON.stringify(list))); if (lastData && lastData.list) Object.assign(lastData.list, JSON.parse(JSON.stringify(list))); return load(false); })   /* the settings changed, not the chain: no fresh chain read (every status click used to cost one, bug squash 2026-10-21) */
       .catch(() => { $("roads-save-note").textContent = "not saved: the site could not be reached."; });
   }
   const listCopy = () => JSON.parse(JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, gates: M.list.gates || [], plans: (M.list.plans || []).filter(p => !p.draft && !p.mine) }));
@@ -926,7 +926,7 @@
     if (b.dataset.planto) { planTo(+b.dataset.planto); return; }
     if (b.dataset.navto) { navSet(+b.dataset.navto); return; }
     if (b.dataset.navname) { navSet("n:" + b.dataset.navname); return; }
-    if (b.dataset.navgo) { const k = window.RoadsCore.navKey(M, b.dataset.navgo); if (k) navSet(k).then(() => { const o = $("roads-route"); if (o) o.insertAdjacentHTML("beforeend", `<div class="good">Sent to the companion: it shows the next jump as you fly.</div>`); }); return; }
+    if (b.dataset.navgo) { const k = window.RoadsCore.navKey(M, b.dataset.navgo); if (k) navSet(k).then(ok => { const o = $("roads-route"); if (ok && o) o.insertAdjacentHTML("beforeend", `<div class="good">Sent to the companion: it shows the next jump as you fly.</div>`); }); return; }
     if (b.dataset.navstop) { navSet(null); return; }
     if (b.dataset.home) { placesSet({ home: placeOf(+b.dataset.home) }); return; }
     if (b.dataset.mark) { const pl = placeOf(+b.dataset.mark), lab = askLabel("", pl.name); if (lab === null) return; if (lab) pl.label = lab; placesSet({ add: pl }); return; }

@@ -20,6 +20,7 @@ import { ownedIds, getObjects, fuelEfficiency, label, variant } from "./network.
 const WORLD = "0x7be18d6294e533bedd9a5d70a96ce8d9d4b87a7c74188ba65d3fe966bbed9d92";
 const SUI = "https://graphql.testnet.sui.io/graphql", SAINTS = 98000655;
 const SYS = /^[A-Za-z0-9|.\- ]{2,40}$/, ISO = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]{8,12}Z?$/;
+const MAX_SYSTEMS = 2000;   // the Roads list's numbers; the same cap as network.js checkList (a longer list would refuse every later save of the settings page)
 const WORDS = ["TRACE", "SCARCE", "MODEST", "PLENTIFUL", "ABUNDANT"];
 const up = s => String(s == null ? "" : s).toUpperCase().trim();
 const clip = (s, n) => String(s == null ? "" : s).replace(/[<>]/g, "").slice(0, n);
@@ -146,7 +147,7 @@ export async function onRequestPost({ request, env }) {
     for (const l of links) {
       const name = up(l.name), id = +l.id, cur = list.systems[name] != null ? list.systems[name] : Object.entries(list.systems).find(([n]) => up(n) === name);
       const curId = cur == null ? null : typeof cur === "number" ? cur : Array.isArray(cur) ? (typeof cur[1] === "number" ? cur[1] : +cur[1].id) : +cur.id;
-      if (curId == null) { list.systems[name] = { id, sure: true, from: "companion", by }; added.push(name); }
+      if (curId == null) { if (Object.keys(list.systems).length >= MAX_SYSTEMS) return json({ ok: false, error: `the map's list of numbers is full (${MAX_SYSTEMS})` }, 400, cookies); list.systems[name] = { id, sure: true, from: "companion", by }; added.push(name); }
       else if (curId === id) known.push(name); else differ.push({ name, ours: curId, copied: id });
     }
     if (added.length) { list.updated = new Date().toISOString(); await env.DOCTRINE.put("network", JSON.stringify(list)); }
