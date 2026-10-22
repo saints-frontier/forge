@@ -92,8 +92,10 @@ export async function turretById(id) {
 }
 
 // ---- the settings line (a copy of the Move parser in saints_turret::turret, for the preview) ---------------------
-export function parseSettings(desc) {
-  const s = { mode: "war", f: [], e: [], p: [], x: [], found: false };
+// No line (or a line with no mode) = peace since the 2026-10-22 package; `legacy` = a turret still on the first
+// package, where no line meant war.
+export function parseSettings(desc, legacy = false) {
+  const s = { mode: legacy ? "war" : "peace", f: [], e: [], p: [], x: [], found: false };
   const t = String(desc || "").toLowerCase(), at = t.indexOf("[saints");
   if (at < 0) return s;
   s.found = true;

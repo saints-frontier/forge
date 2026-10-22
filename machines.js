@@ -3,12 +3,12 @@
    is a transaction the member signs in EVE Vault; no key is ever held here. The page holds nothing private and is open to
    every pilot (2026-10-17). The package ids and the helper's address are filled in by tools/build_forge_public.py from
    frontier-onchain/deploy/packages.json. */
-import { connect, signAndExecute, simulate, characterOf, turretsOf, installTx, removeTx, runsSaints, parseSettings, suiBalance } from "./saints-chain.js?v=3b61e9ff";
+import { connect, signAndExecute, simulate, characterOf, turretsOf, installTx, removeTx, runsSaints, parseSettings, suiBalance } from "./saints-chain.js?v=77273c83";
 
 // opened by the game with a turret id (the Custom dApp link set to /machines): that is the turret panel
 if (/[?&]itemId=/i.test(location.search)) location.replace("/turret" + location.search);
-const PKG = "0x2c8c37e9dc3658d899f75dde149f798901e17a37fb07c5a01709dc450f970950";
-const OLDER = [];
+const PKG = "0x83630abf3f4ac9dc952f4b5ef6172c650f9c3322b79d7a170fbfb40c98be644a";
+const OLDER = ["0x2c8c37e9dc3658d899f75dde149f798901e17a37fb07c5a01709dc450f970950"];
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const page = $("tab-machines");
@@ -34,7 +34,7 @@ function draw() {
     const act = c === "saints" ? `<button type="button" class="d-btn" data-rm="${i}">Remove</button>`
       : `<button type="button" class="d-btn s-go" data-in="${i}">${{ older: "Update", other: "Replace with Saints", default: "Install" }[c]}</button>`;
     return `<tr><td><b>${esc(t.name || "Turret")}</b><div class="s-id">${esc(t.id.slice(0, 10))}…</div></td><td>${t.online ? "online" : "offline"}</td><td>${code}</td>`
-      + `<td>${describe(parseSettings(t.description))}</td><td>${act}<div class="s-msg" id="s-msg${i}"></div></td></tr>`;
+      + `<td>${describe(parseSettings(t.description, c === "older"))}</td><td>${act}<div class="s-msg" id="s-msg${i}"></div></td></tr>`;
   }).join("") + "</table></div>";
 }
 async function load() {

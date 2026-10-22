@@ -4,10 +4,10 @@
    turret's description in one transaction the owner signs in their wallet; the wallet proves ownership, so the panel
    needs no tribe login. No key is ever held here. The package ids and the helper's address are filled in by
    tools/build_forge_public.py from frontier-onchain/deploy/packages.json (user 2026-10-17: "build it"). */
-import { connect, suiWallets, signAndExecute, simulate, characterOf, turretsOf, turretById, objectIdOf, installTx, describeTx, runsSaints, parseSettings } from "./saints-chain.js?v=3b61e9ff";
+import { connect, suiWallets, signAndExecute, simulate, characterOf, turretsOf, turretById, objectIdOf, installTx, describeTx, runsSaints, parseSettings } from "./saints-chain.js?v=77273c83";
 
-const PKG = "0x2c8c37e9dc3658d899f75dde149f798901e17a37fb07c5a01709dc450f970950";
-const OLDER = [];
+const PKG = "0x83630abf3f4ac9dc952f4b5ef6172c650f9c3322b79d7a170fbfb40c98be644a";
+const OLDER = ["0x2c8c37e9dc3658d899f75dde149f798901e17a37fb07c5a01709dc450f970950"];
 const MAX_LEN = 100;                      // the game's description box takes 100 characters
 const U32 = 4294967295;
 const LISTS = [
@@ -80,7 +80,7 @@ function renderOwn(code) {
   const box = $("t-own"), msg = $("t-msg") ? $("t-msg").outerHTML : '<div class="msg" id="t-msg"></div>';
   let body;
   if (!me) {
-    body = `<div>The owner can switch the mode and edit the lists here. Each change is one small transaction (about 0.002 test SUI) signed in your wallet. Editing the description in the game stays free.</div>`
+    body = `<div>The owner can switch the mode and edit the lists here. Each change is one small transaction (about 0.002 test SUI) signed in your wallet. Editing the description in the game costs a tiny fee from your own wallet too.</div>`
       + `<div class="acts"><button type="button" class="btn go" id="t-connect">Connect wallet</button></div>`;
   } else if (!mine) {
     body = `<div>Your wallet${char && char.name ? " (" + esc(char.name) + ")" : ""} does not own this turret: only its owner can change it.</div>`;
@@ -150,7 +150,7 @@ async function pickList() {
   if (!char || !char.id) { say("No EVE Frontier character belongs to this wallet.", "bad"); return; }
   const list = await turretsOf(char.id);
   say(list.length ? "" : "This character owns no turret.", list.length ? "" : "bad");
-  $("t-picklist").innerHTML = list.map((t, i) => `<button type="button" class="btn pick" data-pick="${i}">${esc(t.name || "Turret")} · ${t.online ? "online" : "offline"} · ${esc(parseSettings(t.description).mode)}</button>`).join("");
+  $("t-picklist").innerHTML = list.map((t, i) => `<button type="button" class="btn pick" data-pick="${i}">${esc(t.name || "Turret")} · ${t.online ? "online" : "offline"} · ${esc(parseSettings(t.description, codeOf(t) === "older").mode)}</button>`).join("");
   pickList.list = list;
 }
 
@@ -161,7 +161,7 @@ async function load() {
   if (!t) { empty("Not a turret", "<p>The game opened this panel for an object that is not a turret on the chain. The Saints code runs on turrets only (storage and gates later).</p>"); diag(); return; }
   turret = t;
   if (mine) mine = { ...mine, ...t };
-  saved = parseSettings(t.description); draft = null;
+  saved = parseSettings(t.description, codeOf(t) === "older"); draft = null;
   $("t-empty").hidden = true; $("t-main").hidden = false;
   render(); diag();
 }
@@ -210,7 +210,7 @@ document.addEventListener("click", async e => {
   if (b.dataset.pick) {
     const t = pickList.list[+b.dataset.pick]; if (!t) return;
     history.replaceState(null, "", "?id=" + t.id);
-    turret = t; mine = t; saved = parseSettings(t.description); draft = null;
+    turret = t; mine = t; saved = parseSettings(t.description, codeOf(t) === "older"); draft = null;
     $("t-empty").hidden = true; $("t-main").hidden = false; render(); diag(); return;
   }
   if (b.id === "t-install") { send(() => installTx(PKG, char.id, mine), "Saints code installed."); return; }
