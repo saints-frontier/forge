@@ -97,7 +97,7 @@ export async function onRequestGet({ request, env }) {
       const R = await roster(env), since = Date.now() - hours * 3600000, list = [];
       for (const k of await recentKills()) {
         const j = k.j, when = (+j.kill_timestamp || 0) * 1000 || Date.parse(k.at);
-        if (when < since) continue;
+        if (when < since || (j.key && j.key.tenant && j.key.tenant !== "stillness")) continue;
         if (String((j.solar_system_id || {}).item_id || "") !== sys) continue;
         list.push({ id: String((j.key || {}).item_id || ""), at: new Date(when).toISOString(), reported: k.at, loss: ((j.loss_type || {})["@variant"]) || "?", killer: person(R, (j.killer_id || {}).item_id), victim: person(R, (j.victim_id || {}).item_id) });
       }
