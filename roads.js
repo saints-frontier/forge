@@ -281,6 +281,9 @@
   const killCache = new Map();
   function decorate() {
     const el = $("roads-detail"); if (el.hidden) return;
+    /* the window opens on the first click of a double-click and may land on the star: for a moment it lets clicks
+       through, so the second click still reaches the map (tribe feedback 2026-10-23: "I can't double-click on a star") */
+    el.classList.add("passthru"); clearTimeout(el._pt); el._pt = setTimeout(() => el.classList.remove("passthru"), 500);
     const k = selected ? M.ids.get(selected) : null, id = k ? k.id : picked; if (!id && !selected) return;
     const e = id ? M.ef.byId.get(id) : null, old = id && sf ? sf.oldName(id) : null, name = selected || (e && e.name) || old || "";
     const facts = [];
