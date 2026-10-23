@@ -7,7 +7,8 @@
    GET  ?q=kills&sys=ID&hours=24  -> killmails in that system (chain, read-only), killer / victim named from the roster
    GET  ?q=nodes&char=ITEM_ID     -> that pilot's Network Nodes with their fuel (chain, read-only)
    GET  ?q=pilot&name=NAME        -> one pilot for the companion's combat view (2026-10-23): tribe from the roster and
-                                    their kills / losses among the last two days' killmails (chain, read-only)
+                                    their kills / losses among the last seven days' killmails (chain, read-only;
+                                    `since` = how far back the read really reached)
    GET  ?q=field                  -> the tribe's field records: system surveys, visited systems
    POST {type: "survey", sys, at, infest, word, transient, umbra, star, planets, belts, state}
         -> the System Map's readings for a system (one write per system per day, or when a reading changes)
@@ -53,16 +54,19 @@ export function byName(R, name) {
   return id ? person(R, id) : null;
 }
 
+const WEEK_AGO = () => Date.now() - 7 * 24 * 3600000;
 /* killmails, newest first: the last few hundred are kept a minute per isolate */
 let KILLS = null, KILLS_AT = 0;
 async function recentKills() {
-  if (KILLS && Date.now() - KILLS_AT < 60000) return KILLS;
+  /* a week of killmails (2026-10-23: ~1,050 = 21 pages of 50, ~3.5 s); capped at 40 pages so a request stays well
+     inside the Functions limits (50 subrequests on the free plan), kept 5 minutes per isolate */
+  if (KILLS && Date.now() - KILLS_AT < 5 * 60000) return KILLS;
   const out = []; let before = null;
-  for (let page = 0; page < 5; page++) {
+  for (let page = 0; page < 40; page++) {
     const d = await gql("query($t:String!,$b:String){ events(filter:{type:$t}, last:50, before:$b) { pageInfo { hasPreviousPage startCursor } nodes { timestamp contents { json } } } }", { t: WORLD + "::killmail::KillmailCreatedEvent", b: before });
     const e = d.events; for (const n of (e.nodes || []).slice().reverse()) out.push({ at: n.timestamp, j: (n.contents || {}).json || {} });
     if (!e.pageInfo.hasPreviousPage) break; before = e.pageInfo.startCursor;
-    if (out.length && Date.now() - Date.parse(out[out.length - 1].at) > 48 * 3600000) break;
+    if (out.length && Date.now() - Date.parse(out[out.length - 1].at) > 7 * 24 * 3600000) break;
   }
   KILLS = out; KILLS_AT = Date.now(); return out;
 }
@@ -127,11 +131,13 @@ export async function onRequestGet({ request, env }) {
       for (const k of await recentKills()) {
         const j = k.j; if (j.key && j.key.tenant && j.key.tenant !== "stillness") continue;
         const when = (+j.kill_timestamp || 0) * 1000 || Date.parse(k.at), sys = String((j.solar_system_id || {}).item_id || "");
+        if (when < WEEK_AGO()) continue;
         const row = { at: new Date(when).toISOString(), sys, sysName: sysName[sys] || "", loss: ((j.loss_type || {})["@variant"]) || "?" };
         if (String((j.killer_id || {}).item_id) === p.id) kills.push(Object.assign(row, { victim: person(R, (j.victim_id || {}).item_id) }));
         else if (String((j.victim_id || {}).item_id) === p.id) losses.push(Object.assign(row, { killer: person(R, (j.killer_id || {}).item_id) }));
       }
-      const all = await recentKills(), since = all.length ? all.map(k => k.at).sort()[0] : null, newest = (a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0);
+      const all = await recentKills(), oldest = all.length ? all.map(k => k.at).sort()[0] : null;
+      const since = oldest && Date.parse(oldest) < WEEK_AGO() ? new Date(WEEK_AGO()).toISOString() : oldest,   /* how far back it really reached, at most a week */ newest = (a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0);
       kills.sort(newest); losses.sort(newest);
       return nocache({ ok: true, pilot: p, since, kills: kills.slice(0, 10), killCount: kills.length, losses: losses.slice(0, 10), lossCount: losses.length }, cookies);
     }
