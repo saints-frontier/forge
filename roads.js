@@ -313,18 +313,29 @@
   // Space: every tile where its system is, seen from above (the star map's own coordinates), then pushed apart until
   // no two tiles overlap. A system without a number sits between the systems it connects to.
   function layoutSpace(M, avail) {
-    if (!sf || !sf.position || !sf.count()) { starsReady().then(x => { if (x && flatLayout === "space" && view === "flat") drawMap(); }); return layoutTree(M, avail); }   /* the star positions load with the 3D map: fetch them, draw again */
+    if (!sf || !sf.position || !sf.count()) { if (!layoutSpace.waiting) { layoutSpace.waiting = true; starsReady().then(x => { layoutSpace.waiting = false; if (x && x.count() && flatLayout === "space" && view === "flat") drawMap(); }); } return layoutTree(M, avail); }   /* the star positions load with the 3D map: fetch them, draw again */
     const names = [...M.systems.keys()], raw = new Map();
     for (const n of names) { const k = M.ids.get(n); const p = k && sf.position(k.id); if (p) raw.set(n, [p[0], p[2]]); }
     const adj = new Map(names.map(n => [n, []])); for (const r of M.roads) if (adj.has(r.from) && adj.has(r.to)) { adj.get(r.from).push(r.to); adj.get(r.to).push(r.from); }
     for (let it = 0; it < 6; it++) for (const n of names) if (!raw.has(n)) { const ns = adj.get(n).filter(m => raw.has(m)); if (ns.length) raw.set(n, [ns.reduce((a, m) => a + raw.get(m)[0], 0) / ns.length + 6, ns.reduce((a, m) => a + raw.get(m)[1], 0) / ns.length + 6]); }
     let i0 = 0; for (const n of names) if (!raw.has(n)) raw.set(n, [i0 * 20, -400 - (i0++) * 10]);
+    /* seen from above as in the first version, flattened top to bottom (user 2026-10-23: "original was the best one. it
+       was just too long towards the bottom"): the width fills the box, the height is held to about 4/5 of the width */
     const xs = [...raw.values()].map(p => p[0]), zs = [...raw.values()].map(p => p[1]), minx = Math.min(...xs), maxx = Math.max(...xs), minz = Math.min(...zs), maxz = Math.max(...zs);
-    const target = Math.max(700, (avail || 900) - PAD * 2 - BW), sc = target / Math.max(1, maxx - minx);
-    const P2 = names.map(n => ({ n, x: (raw.get(n)[0] - minx) * sc, y: (raw.get(n)[1] - minz) * sc }));
-    for (let it = 0; it < 400; it++) { let moved = false;
+    const tw = Math.max(700, (avail || 900) - PAD * 2 - BW), sx = tw / Math.max(1, maxx - minx), sz = Math.min(sx, tw * 0.8 / Math.max(1, maxz - minz));
+    const P2 = names.map(n => ({ n, x: (raw.get(n)[0] - minx) * sx, y: (raw.get(n)[1] - minz) * sz }));
+    /* tiles pushed apart, and every tile pushed off any straight road it would sit on (user 2026-10-23: "make sure no
+       lines are under the tiles") */
+    const at = new Map(P2.map(p => [p.n, p])), segs = [], seen = new Set();
+    for (const r of M.roads) { const k = [r.from, r.to].sort().join("|"); if (r.from !== r.to && at.has(r.from) && at.has(r.to) && !seen.has(k)) { seen.add(k); segs.push([at.get(r.from), at.get(r.to)]); } }
+    const MG = 10, under = (c, a, b) => { const ax = a.x + BW / 2, ay = a.y + BH / 2, bx = b.x + BW / 2, by = b.y + BH / 2;
+      for (let i = 1; i < 40; i++) { const t = i / 40, x = ax + (bx - ax) * t, y = ay + (by - ay) * t; if (x > c.x - MG && x < c.x + BW + MG && y > c.y - MG && y < c.y + BH + MG) return true; } return false; };
+    for (let it = 0; it < 1500; it++) { let moved = false;
       for (let i = 0; i < P2.length; i++) for (let j = i + 1; j < P2.length; j++) { const a = P2[i], b = P2[j], dx = b.x - a.x, dy = b.y - a.y, ox = BW + 22 - Math.abs(dx), oy = BH + 26 - Math.abs(dy);
         if (ox > 0 && oy > 0) { moved = true; if (ox / (BW + 22) < oy / (BH + 26)) { const m = ox / 2 * Math.sign(dx || 1); a.x -= m; b.x += m; } else { const m = oy / 2 * Math.sign(dy || 1); a.y -= m; b.y += m; } } }
+      for (const [a, b] of segs) { const len = Math.hypot(b.x - a.x, b.y - a.y) || 1, nx = -(b.y - a.y) / len, ny = (b.x - a.x) / len;
+        for (const c of P2) { if (c === a || c === b || !under(c, a, b)) continue; moved = true;
+          const side = Math.sign((c.x - a.x) * nx + (c.y - a.y) * ny) || 1; c.x += 6 * side * nx; c.y += 6 * side * ny; } }
       if (!moved) break; }
     const mx = Math.min(...P2.map(p => p.x)), my = Math.min(...P2.map(p => p.y)), pos = new Map();
     for (const p of P2) { const x = PAD + p.x - mx, y = PAD + p.y - my; pos.set(p.n, { x, y, cx: x + BW / 2, cy: y + BH / 2 }); }
@@ -335,7 +346,7 @@
     const avail = box.clientWidth - 14, L = flatLayout === "space" ? layoutSpace(M, avail) : layoutTree(M, avail), groups = new Map();
     for (const r of M.roads) { const k = JSON.stringify([r.from, r.to].sort()); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
     let svg = "";
-    const allP = [...L.pos.values()], top = Math.min(...allP.map(p => p.y)), bottom = Math.max(...allP.map(p => p.y + BH)), lanes = [0, 0]; let vbTop = 0, vbBot = L.h;
+    const allP = [...L.pos.values()], top = Math.min(...allP.map(p => p.y)), bottom = Math.max(...allP.map(p => p.y + BH)), lanes = [0, 0]; let vbTop = 0, vbBot = L.h, under = 0;
     for (const [k, rs] of groups) {
       const [a, b] = JSON.parse(k), pa = L.pos.get(a), pb = L.pos.get(b);
       // per direction: 1 = a working road, -1 = only offline ones (its arrowhead is drawn red), 0 = none
@@ -359,6 +370,8 @@
       if (tp) { const pts = tp[0][0] === pa.cx && Math.abs(tp[0][1] - (pa.y + BH)) < 0.5 ? tp : tp.slice().reverse(); let d = `M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`, cs = null, ce = null;
         for (let i = 1; i < pts.length; i++) { const [x1, y1] = pts[i - 1], [x2, y2] = pts[i], my2 = (y1 + y2) / 2; d += ` C${x1.toFixed(1)} ${my2.toFixed(1)} ${x2.toFixed(1)} ${my2.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`; if (i === 1) cs = [x1, my2]; ce = [x2, my2]; }
         way = { d, s: pts[0], e: pts[pts.length - 1], cs, ce }; }
+      /* Space: always a straight line (user 2026-10-23: "the bends are the most confusing") */
+      if (!way && flatLayout === "space") { way = quad([mx, my]); under += hits(way.pts); }
       if (!way) for (const f of [0, 1, -1, 1.6, -1.6, 2.3, -2.3, 3.2, -3.2, 4.4, -4.4]) { const r = quad([mx - uy * base * f, my + ux * base * f]); if (!hits(r.pts)) { way = r; break; } }
       if (!way) {
         const lane = up => { const k = (lanes[up ? 0 : 1] || 0) + 1, ly = up ? top - 16 - k * 12 : bottom + 16 + k * 12;
@@ -378,13 +391,15 @@
       const s = M.systems.get(name), cls = fuelClass(s.days), isHome = name === M.home, sel = name === selected;
       svg += `<g class="roads-sys${sel ? " sel" : ""}${isHome ? " home" : ""}" data-sys="${esc(name)}" tabindex="0" role="button" aria-label="${esc(name)}">` +
         `<rect x="${p.x}" y="${p.y}" width="${BW}" height="${BH}" rx="3"/>` +
+        (
         `<text class="rn" x="${p.cx}" y="${p.y + 24}" text-anchor="middle">${isHome ? "✠ " : ""}${esc(name)}</text>` +
         (V.colOf ? `<text class="rf" x="${p.cx}" y="${p.y + 45}" text-anchor="middle" fill="${s.nodes.length ? V.colOf(V.nb.get(s.nodes[0].id)) : "var(--dim)"}">${s.nodes.length ? esc([...new Set(s.nodes.map(n => V.nb.get(n.id)).filter(Boolean))].join(", ") || `${s.nodes.length} node${s.nodes.length === 1 ? "" : "s"}, builder not named`) : "no node of ours"}</text></g>`
-          : `<text class="rf ${cls}" x="${p.cx}" y="${p.y + 45}" text-anchor="middle">${s.days == null ? (s.nodes.length ? "node idle" : "no node of ours") : "fuel " + fmtDays(s.days)}</text></g>`);
+          : `<text class="rf ${cls}" x="${p.cx}" y="${p.y + 45}" text-anchor="middle">${s.days == null ? (s.nodes.length ? "node idle" : "no node of ours") : "fuel " + fmtDays(s.days)}</text></g>`));
     }
     // a map a little wider than the pane is drawn smaller (down to 70 %); past that it scrolls sideways
     const k = avail > 0 ? Math.max(.7, Math.min(1, avail / L.w)) : 1;
     box.innerHTML = flatBar(V) + `<svg class="roads-svg" width="${Math.floor(L.w * k)}" height="${Math.ceil((vbBot - vbTop) * k)}" viewBox="0 ${vbTop.toFixed(0)} ${L.w} ${(vbBot - vbTop).toFixed(0)}" role="img" aria-label="Map of the tribe's roads">${svg}</svg>`;
+    box.dataset.under = under;   /* roads drawn under a tile (Space): kept at 0 by the layout */
   }
   function segHitsBox(x1, y1, x2, y2, p) {                    // does the segment pass through the box (with a margin)?
     const m = 6, l = p.x - m, r = p.x + BW + m, t = p.y - m, b = p.y + BH + m;
@@ -505,7 +520,7 @@
   let sf = null, sfLoading = null, view = "stars";
   function starsReady() {
     const box = $("roads-stars"); if (!box) return Promise.resolve(null);
-    if (sf) return Promise.resolve(sf);
+    if (sf) return sfLoading || Promise.resolve(sf);   /* while the stars still load, wait for them (a resolved promise here made the Space layout loop, 2026-10-23) */
     if (!window.Starfield) return Promise.resolve(null);
     if (!sfLoading) {
       sf = window.Starfield(box, { onPick: id => { if (checkClick(id) || planClick(id)) return; const name = [...M.ids].find(([, v]) => v.id === id); selected = name ? name[0] : null; picked = !name && (M.ef.byId.has(id) || poiBy.has(id)) ? id : null; if (sf) sf.mark(null); drawDetail(); },
@@ -577,6 +592,10 @@
     if (M) { if (v === "stars") drawStars(); else drawMap(); }
   }
   try { view = localStorage.getItem("roads:view") === "flat" ? "flat" : "stars"; } catch (e) {}
+  { const qp = new URLSearchParams(location.search);   /* a link can open a view: /map?view=flat&layout=space&mode=build */
+    if (qp.get("view") === "flat" || qp.get("view") === "stars") view = qp.get("view");
+    if (qp.get("layout") === "space" || qp.get("layout") === "tree") flatLayout = qp.get("layout");
+    if (qp.get("mode") === "build" || qp.get("mode") === "route") flatMode = qp.get("mode"); }
 
   // ---------- road plans: one button each, a hop table with a build sheet, the plan drawn on the star map ----------
   // per launcher: Kerogen Tar, Building Foam, Still Kernel, print minutes (data/recipes.json, Build Mode); a gate hop = two gates
