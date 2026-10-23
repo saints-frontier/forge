@@ -232,9 +232,48 @@
     const fuelHtml = (rec, side) => { const f = rec && rec.fuel && rec.fuel[side]; return f && f.jumps != null ? ` · <span class="${f.jumps < 10 ? "warn" : "roads-hint"}">fuel here ${Number(f.jumps).toLocaleString("en-US")}/${Number(f.cap || 0).toLocaleString("en-US")} jumps (${esc(String(f.at || "").slice(0, 10))}${f.by ? ", " + esc(f.by) : ""})</span>${eta(f)}` : ""; };
     return `<h4>Public gates · ${g.length}</h4><ul>${rows.map(r => { const n = nameOfId(r.o), rec = gateRec(me, n); return `<li><b>${esc(n)}</b>${r.d != null ? ` · ${Math.round(r.d).toLocaleString("en-US")} LY` : ""}${rec ? stateHtml(rec) + fuelHtml(rec, me) : (r.d > 365 ? ' · <span class="roads-hint">longer than any gate jumped so far: check it on the game map</span>' : "")}</li>`; }).join("")}</ul><div class="roads-hint">From the game client. Working, unfueled or dormant: only a jump tells. The Saints Frontier Companion records it as you jump; or record it under Manage.</div>`;
   }
+  // the flat map's two modes (2026-10-23, user: "separate our gate infrastructure from public infrastructure ... one for
+  // routing, where it merges all of the known gates and catapults, and one for builders, so we know exactly what
+  // infrastructure is ours and what is not")
+  let flatMode = "route"; try { if (localStorage.getItem("roads:flat") === "build") flatMode = "build"; } catch (e) {}
+  const BUILDER_COLS = ["#ff8a3d", "#5fb3ff", "#c58bff", "#6fd08c", "#ffd27a", "#ff6f91", "#7fe0d4", "#d0a070"];
+  const ours = r => r.source === "chain" || (r.inferred && r.source !== "seen" && r.source !== "public" && r.source !== "plan");
+  function flatView() {
+    if (flatMode === "build") {
+      const roads = M.roads.filter(r => ours(r) && r.status !== "planned"), sys = new Map();
+      for (const r of roads) for (const n of [r.from, r.to]) if (M.systems.has(n)) sys.set(n, M.systems.get(n));
+      for (const [n, v] of M.systems) if (v.nodes && v.nodes.length) sys.set(n, v);
+      if (M.home && M.systems.has(M.home)) sys.set(M.home, M.systems.get(M.home));
+      const builders = [...new Set(roads.map(r => r.builder).filter(Boolean))].sort();
+      const nb = new Map(); for (const r of M.roads) if (r.node && r.builder && !nb.has(r.node)) nb.set(r.node, r.builder);   /* a node's builder = the builder of the launchers it powers */
+      return { roads, systems: sys, builders, nb, colOf: b => b ? BUILDER_COLS[Math.max(0, builders.indexOf(b)) % BUILDER_COLS.length] : "var(--silver)" };
+    }
+    const roads = M.roads.filter(r => r.status !== "planned"), have = new Set(roads.map(r => [r.from, r.to].sort().join("|")));
+    // the client's public gates between two systems already on the map (state unknown until someone jumps them)
+    if (sf && sf.gatesOf) for (const [n, k] of M.ids) { if (!M.systems.has(n)) continue;
+      for (const o of sf.gatesOf(k.id)) { const on = [...M.ids].find(([, v]) => v.id === o); if (!on || !M.systems.has(on[0])) continue; const key = [n, on[0]].sort().join("|"); if (have.has(key)) continue; have.add(key);
+        roads.push({ from: n, to: on[0], kind: "Public Gate", twoWay: true, online: true, status: "built", source: "public", state: "", client: true }); } }
+    return { roads, systems: M.systems };
+  }
+  function flatColor(rs, V) {
+    const r0 = rs[0], pub = rs.every(r => r.kind === "Public Gate");
+    if (rs.every(r => r.online === false)) return "var(--red)";
+    if (V.colOf) return V.colOf(r0.builder);
+    if (pub) { const st = (rs.find(r => r.state) || {}).state || ""; return st === "working" ? "#6fd08c" : st === "unfueled" ? "#f0b74a" : st === "dormant" ? "#e3222c" : "#7d8894"; }
+    return rs.some(r => /Gate/.test(r.kind) && r.kind !== "Public Gate") ? "#f1e9d2" : "#ff8a3d";
+  }
+  function flatBar(V) {
+    const sw = (c, t, d) => `<span><i style="--c:${c}"${d ? ' class="d"' : ""}></i>${t}</span>`;
+    const legend = V.colOf ? V.builders.map(b => sw(V.colOf(b), esc(b))).join("") + sw("var(--red)", "offline") + sw("var(--silver)", "worked out from names", 1)
+      : sw("#f1e9d2", "our gate pair") + sw("#ff8a3d", "our catapult") + sw("#7d8894", "public gate") + sw("#6fd08c", "public, working") + sw("#f0b74a", "public, no fuel far side", 1) + sw("#e3222c", "dormant / offline", 1) + sw("#ff8a3d", "jumped, not named yet", 1);
+    return `<div class="roads-flatbar"><span class="roads-view" role="group" aria-label="Flat map mode"><button type="button" data-flat="route" class="${flatMode === "route" ? "on" : ""}" title="Everything you can travel: our roads, public gates, jumps Saints have made">Routing</button><button type="button" data-flat="build" class="${flatMode === "build" ? "on" : ""}" title="Only the infrastructure the Saints built, by builder">Builders</button></span><span class="roads-flatleg">${legend}</span></div>`;
+  }
   function drawMap() {
-    const box = $("roads-map");
-    if (!M.systems.size) { box.innerHTML = `<div class="roads-empty">No road is on the map yet. ${M.list.builders.length ? "A launcher appears when its name in game carries its systems: see Not on the map." : "No builder is set."}</div>`; return; }
+    const box = $("roads-map"), V = flatView(), M0 = M; M = Object.assign({}, M0, { roads: V.roads, systems: V.systems });
+    try { drawMap1(box, V); } finally { M = M0; }
+  }
+  function drawMap1(box, V) {
+    if (!M.systems.size) { box.innerHTML = flatBar(V) + `<div class="roads-empty">No road is on the map yet. ${M.list.builders.length ? "A launcher appears when its name in game carries its systems: see Not on the map." : "No builder is set."}</div>`; return; }
     const avail = box.clientWidth - 14, L = layout(M, avail), groups = new Map();
     for (const r of M.roads) { const k = JSON.stringify([r.from, r.to].sort()); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
     let svg = "";
@@ -245,7 +284,7 @@
       const ab = dir(a, b), ba = dir(b, a);
       const heavy = rs.some(r => /Heavy/.test(r.kind)), gate = rs.some(r => /Gate/.test(r.kind)), off = rs.every(r => r.online === false), hand = rs.every(r => r.inferred);
       const planned = rs.every(r => r.status === "planned");
-      const col = off ? "var(--red)" : planned ? "var(--silver)" : hand ? "var(--silver)" : gate ? "var(--title)" : "var(--gold)";
+      const col = planned ? "var(--silver)" : flatColor(rs, V), seenOnly = rs.every(r => r.source === "seen"), pubState = (rs.find(r => r.state) || {}).state || "";
       // a straight road, or a bowed one when a third system stands in the way
       const blocked = [...L.pos.entries()].some(([n, p]) => n !== a && n !== b && segHitsBox(pa.cx, pa.cy, pb.cx, pb.cy, p));
       const mx = (pa.cx + pb.cx) / 2, my = (pa.cy + pb.cy) / 2, len = Math.hypot(pb.cx - pa.cx, pb.cy - pa.cy) || 1;
@@ -253,7 +292,7 @@
       const ux = (pb.cx - pa.cx) / len, uy = (pb.cy - pa.cy) / len, bend = blocked ? 2 * (Math.abs(ux) * (BH / 2 + 26) + Math.abs(uy) * (BW / 2 + 26)) : 0;
       const qx = mx - uy * bend, qy = my + ux * bend;
       const [x1, y1] = edgePoint(pa, qx, qy), [x2, y2] = edgePoint(pb, qx, qy);
-      svg += `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)} Q${qx.toFixed(1)} ${qy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="${col}" stroke-width="${heavy ? 4 : 2}"${planned ? ' stroke-dasharray="2 5"' : off || hand ? ' stroke-dasharray="7 6"' : ""} stroke-linecap="round" opacity="${off ? .75 : 1}"/>`;
+      svg += `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)} Q${qx.toFixed(1)} ${qy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="${col}" stroke-width="${heavy ? 4 : 2}"${planned ? ' stroke-dasharray="2 5"' : off || hand || seenOnly || pubState === "unfueled" || pubState === "dormant" ? ' stroke-dasharray="7 6"' : ""} stroke-linecap="round" opacity="${off ? .75 : 1}"/>`;
       if (ab) svg += head(x2, y2, Math.atan2(y2 - qy, x2 - qx), ab < 0 ? "var(--red)" : col);
       if (ba) svg += head(x1, y1, Math.atan2(y1 - qy, x1 - qx), ba < 0 ? "var(--red)" : col);
     }
@@ -262,11 +301,12 @@
       svg += `<g class="roads-sys${sel ? " sel" : ""}${isHome ? " home" : ""}" data-sys="${esc(name)}" tabindex="0" role="button" aria-label="${esc(name)}">` +
         `<rect x="${p.x}" y="${p.y}" width="${BW}" height="${BH}" rx="3"/>` +
         `<text class="rn" x="${p.cx}" y="${p.y + 24}" text-anchor="middle">${isHome ? "✠ " : ""}${esc(name)}</text>` +
-        `<text class="rf ${cls}" x="${p.cx}" y="${p.y + 45}" text-anchor="middle">${s.days == null ? (s.nodes.length ? "node idle" : "no node of ours") : "fuel " + fmtDays(s.days)}</text></g>`;
+        (V.colOf ? `<text class="rf" x="${p.cx}" y="${p.y + 45}" text-anchor="middle" fill="${s.nodes.length ? V.colOf(V.nb.get(s.nodes[0].id)) : "var(--dim)"}">${s.nodes.length ? esc([...new Set(s.nodes.map(n => V.nb.get(n.id)).filter(Boolean))].join(", ") || `${s.nodes.length} node${s.nodes.length === 1 ? "" : "s"}, builder not named`) : "no node of ours"}</text></g>`
+          : `<text class="rf ${cls}" x="${p.cx}" y="${p.y + 45}" text-anchor="middle">${s.days == null ? (s.nodes.length ? "node idle" : "no node of ours") : "fuel " + fmtDays(s.days)}</text></g>`);
     }
     // a map a little wider than the pane is drawn smaller (down to 70 %); past that it scrolls sideways
     const k = avail > 0 ? Math.max(.7, Math.min(1, avail / L.w)) : 1;
-    box.innerHTML = `<svg class="roads-svg" width="${Math.floor(L.w * k)}" height="${Math.ceil(L.h * k)}" viewBox="0 0 ${L.w} ${L.h}" role="img" aria-label="Map of the tribe's roads">${svg}</svg>`;
+    box.innerHTML = flatBar(V) + `<svg class="roads-svg" width="${Math.floor(L.w * k)}" height="${Math.ceil(L.h * k)}" viewBox="0 0 ${L.w} ${L.h}" role="img" aria-label="Map of the tribe's roads">${svg}</svg>`;
   }
   function segHitsBox(x1, y1, x2, y2, p) {                    // does the segment pass through the box (with a margin)?
     const m = 6, l = p.x - m, r = p.x + BW + m, t = p.y - m, b = p.y + BH + m;
@@ -279,7 +319,7 @@
   // star view, with the system's number, old name, charting, distances, kills of the last day and an in-game link
   let detailMini = false;   /* the pilot folded the window: it stays folded for the next system too */
   // where the system window lives: the top of the tool column on a wide screen, under the map when narrower
-  const WIDE = window.matchMedia ? window.matchMedia("(min-width: 1250px)") : { matches: false };
+  const WIDE = window.matchMedia ? window.matchMedia("(min-width: 1800px)") : { matches: false };
   function placeDetail() { const d = $("roads-detail"), side = root.querySelector(".roads-side"), main = root.querySelector(".roads-main"); if (!d || !side || !main) return;
     if (WIDE.matches) { if (d.parentNode !== side) side.insertBefore(d, side.firstChild); } else if (d.parentNode !== main) main.appendChild(d); }
   if (WIDE.addEventListener) WIDE.addEventListener("change", placeDetail);
@@ -1012,6 +1052,7 @@
     if (b.dataset.copylink) { const t = `<a href="showinfo:5//${b.dataset.copylink}">${b.dataset.copyname}</a>`; const done = () => { b.textContent = "Copied: paste it into a chat line"; };
       try { navigator.clipboard.writeText(t).then(done, () => { prompt("Copy this link:", t); }); } catch (err) { prompt("Copy this link:", t); } return; }
     if (b.id === "roads-refresh") { load(true); return; }
+    if (b.dataset.flat) { flatMode = b.dataset.flat === "build" ? "build" : "route"; try { localStorage.setItem("roads:flat", flatMode); } catch (e) {} drawMap(); return; }
     if (b.dataset.view) { setView(b.dataset.view); return; }
     if (b.dataset.sfmissing) { $("sf-missing").classList.toggle("open"); return; }
     if (b.dataset.sf === "layers") { const L = $("sf-layers"); L.hidden = !L.hidden; b.classList.toggle("on", !L.hidden); return; }
