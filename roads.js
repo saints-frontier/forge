@@ -307,7 +307,7 @@
       (rest.length ? `<div class="roads-hint">${rest.length} more node${rest.length === 1 ? "" : "s"} not on the map yet${restLow ? `, the shortest at <span class="${fuelClass(restLow.d)}">${fmtDays(restLow.d)}</span>` : ""}.</div>` : "");
     const low = all.filter(x => x.d != null && x.d < 3);
     $("roads-fuel-n").textContent = low.length ? ` · ${low.length} low` : "";
-    const al = $("roads-alert"); al.hidden = !low.length;
+    const al = $("roads-alert"); al.hidden = true;   /* the Fuel button says how many are low (user 2026-10-23: the page was too busy) */
     if (low.length) al.innerHTML = `⚠ Fuel runs out within three days: ` + low.map(x => `<b>${esc(x.s || "a node not on the map")}</b> ${fmtDays(x.d)}`).join(" · ");
   }
 
@@ -349,9 +349,10 @@
         onPlainWheel: () => { const h = box.querySelector(".sf-hint"); if (!h) return; h.classList.add("flash"); clearTimeout(h._t); h._t = setTimeout(() => h.classList.remove("flash"), 1800); } });   // a plain wheel scrolls the page: light up how to zoom
       if (!sf) return Promise.resolve(null);
       window.__roadsStars = sf;
-      setTimeout(findBox, 0);                                     /* the find box is in the toolbar HTML below */                                      // tests
-      box.insertAdjacentHTML("beforeend", '<div class="sf-hint">drag: turn · shift-drag: move · ctrl + wheel: zoom · click any star</div><div class="sf-missing" id="sf-missing"></div>' +
-        '<div class="sf-find"><input type="search" id="sf-find" placeholder="Find a system: name or number" aria-label="Find a system by name or system number" autocomplete="off" spellcheck="false"></div><div class="sf-poi" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-tools"><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="survey" title="Systems Saints have surveyed with the companion: infestation 1 (green) to 6 (red)" hidden>Survey</button><button type="button" data-sf="me" title="Fly to where you are (from the Saints Frontier Companion)" hidden>Find me</button><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="fit" title="Our network">Our roads</button><button type="button" data-sf="all" title="The whole galaxy">Galaxy</button><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button></div>');
+      setTimeout(findBox, 0);
+      setTimeout(() => { const ul = box.querySelector(".sf-legend ul"); if (ul) ul.insertAdjacentHTML("beforeend", '<li class="sf-l-keys">W A S D fly · Q / E down / up · Shift faster · drag turn · right-drag pan · Ctrl + wheel zoom</li><li><button type="button" class="sf-l-more" data-panel="legend">More about the lines and names ›</button></li>'); }, 0);                                     /* the find box is in the toolbar HTML below */                                      // tests
+      box.insertAdjacentHTML("beforeend", '<div class="sf-hint">hold Ctrl and use the wheel to zoom</div><div class="sf-missing" id="sf-missing"></div>' +
+        '<div class="sf-find"><input type="search" id="sf-find" placeholder="Find a system: name or number" aria-label="Find a system by name or system number" autocomplete="off" spellcheck="false"></div><div class="sf-poi" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-layers" id="sf-layers" hidden><b>Show on the map</b><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="survey" title="Systems Saints have surveyed with the companion: infestation 1 (green) to 6 (red)" hidden>Survey</button><b>View</b><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button><button type="button" data-sf="all" title="The whole galaxy">Whole galaxy</button></div><div class="sf-tools"><button type="button" data-sf="me" title="Fly to where you are (from the Saints Frontier Companion)" hidden>You</button><button type="button" data-sf="fit" title="Back to our roads">Our roads</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="layers" title="What the map shows, and the view">Layers ▾</button></div>');
       sfLoading = sf.load("stars.bin?v=2").then(() => { dist = (a, b) => { const p = sf.position(a), q = sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; }; if (lastData && !draft) { M = build(lastData); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); stamp(lastData); }
         // the public gates come after the stars, never in their way: the button appears once they are in
         sf.showGates(showGates); poiLoad(); locPoll();
@@ -368,7 +369,7 @@
       for (const [name, sys] of M.systems) {
         const k = M.ids.get(name); if (!k || !s.has(k.id)) { missing.push(name); continue; }
         const cls = name === M.home ? "home" : !k.sure || sys.guess ? "inferred" : sys.nodes.length ? "ours" : "far";
-        systems.push({ id: k.id, name, cls, sub: sys.days == null ? (sys.nodes.length ? "node idle" : "") : "fuel " + fmtDays(sys.days), subColor: sys.days == null ? "#8a8378" : sys.days < 3 ? "#e3222c" : sys.days < 14 ? "#e0a84a" : "#7ec98b" });
+        systems.push({ id: k.id, name, cls, subWarn: sys.days != null && sys.days < 3, sub: sys.days == null ? (sys.nodes.length ? "node idle" : "") : "fuel " + fmtDays(sys.days), subColor: sys.days == null ? "#8a8378" : sys.days < 3 ? "#e3222c" : sys.days < 14 ? "#e0a84a" : "#7ec98b" });
       }
       // a system with a number but no road yet (a landmark, a destination to come) is still pinned on the star map
       for (const [name, k] of M.ids) if (!M.systems.has(name) && s.has(k.id)) systems.push({ id: k.id, name, cls: k.sure ? "far" : "inferred", sub: "" });
@@ -379,7 +380,7 @@
       const placed = new Set(systems.map(x => x.id)); let chartedN = 0, waitingN = 0;
       for (const [id, e] of M.ef.byId) { if (!s.has(id) || placed.has(id)) continue; const ok = e.status === "confirmed"; if (ok) chartedN++; else waitingN++;
         if (showCharted && !chartOn) systems.push(ok ? { id, name: e.name, cls: "charted", sub: "" } : { id, name: "uncharted", cls: "uncharted", sub: "" }); }
-      if (LOC) { const mk = (r, cls, label) => { const id = locOf(r.s); if (!id || !s.has(id)) return; const i = systems.findIndex(x => x.id === id); const o = { id, name: label, cls, sub: r.s + " · " + ago(r.at), subColor: cls === "me" ? "#5fe3ff" : "#8fe0b0" }; if (i >= 0) systems.splice(i, 1, o); else systems.push(o); placed.add(id); };
+      if (LOC) { const mk = (r, cls, label) => { const id = locOf(r.s); if (!id || !s.has(id)) return; const i = systems.findIndex(x => x.id === id); const o = { id, name: label, cls, subWarn: true, sub: r.s + " · " + ago(r.at), subColor: cls === "me" ? "#5fe3ff" : "#8fe0b0" }; if (i >= 0) systems.splice(i, 1, o); else systems.push(o); placed.add(id); };
         for (const m of LOC.mates) mk(m, "mate", m.n || m.c || "a Saint"); if (LOC.me) mk(LOC.me, "me", "\u25B2 You"); }
       for (const [pl, isHome] of (PLACES.home ? [[PLACES.home, true]] : []).concat(PLACES.marks.map(m => [m, false]))) {
         const id = pl.to; if (!s.has(id)) continue; const note = (isHome ? "your home" : "bookmark") + (pl.label ? ": " + pl.label : ""), i = systems.findIndex(x => x.id === id);
@@ -393,12 +394,15 @@
         for (const [id] of c.items) { if (!s.has(id) || placed.has(id)) continue; placed.add(id); systems.push({ id, name: `${c.label} · ${nameOfId(id).replace(/ \(C6\)$/, "")}`, cls: "poi", color: c.color, sub: "" }); } }
       const cb = $("roads-stars").querySelector('[data-sf="charted"]'); if (cb) { cb.hidden = !(chartedN + waitingN); cb.textContent = `Charted · ${chartedN.toLocaleString("en-US")}`; cb.classList.toggle("on", showCharted); }
       const roads = [];
-      for (const r of M.roads) { const a = M.ids.get(r.from), b = M.ids.get(r.to); if (a && b) roads.push({ a: a.id, b: b.id, kind: r.kind, twoWay: r.twoWay, online: r.online, source: r.inferred ? "inferred" : r.source, status: r.status || "built" }); }
+      for (const r of M.roads) { const a = M.ids.get(r.from), b = M.ids.get(r.to); if (a && b) roads.push({ a: a.id, b: b.id, kind: r.kind, twoWay: r.twoWay, online: r.online, source: r.inferred ? "inferred" : r.source, status: r.status || "built", state: r.state || "" }); }
       s.setScene({ systems, roads }); if (!drawStars.fitted) { if (location.search.indexOf("sf=all") >= 0) s.fitAll(); else s.fit(); drawStars.fitted = true; }
       const sel = selected && M.ids.get(selected); s.select(sel ? sel.id : null);
       const al = (M.aliases || []).filter(x => x[2]).map(x => `${esc(x[0])} = ${esc(x[1])}`);
-      $("sf-missing").innerHTML = (missing.length ? `<b>${missing.length} system${missing.length === 1 ? "" : "s"} without a number:</b> ${missing.map(esc).join(", ")} · to put one on the star map, copy its link in game (drag the system into a chat line, select it, right-click › Copy selected with formatting) with the companion's "Save system links" switch on${M.canEdit ? ", or paste it under Manage" : ""}` : "")
-        + (al.length ? `${missing.length ? "<br>" : ""}<span class="roads-hint">read as the same system: ${al.join(", ")}</span>` : "");
+      const mi = $("sf-missing"), wasOpen = mi.classList.contains("open");
+      mi.innerHTML = missing.length || al.length ? `<button type="button" class="sf-chip" data-sfmissing="1">${missing.length ? `${missing.length} not on the star map` : "names read as one"}</button><div class="sf-chipbox">`
+        + (missing.length ? `<b>No number yet:</b> ${missing.map(esc).join(", ")}. To put one on the star map, copy its link in game (drag the system into a chat line, select it, right-click › Copy selected with formatting) with the companion's "Save system links" switch on${M.canEdit ? ", or paste it under Manage" : ""}.` : "")
+        + (al.length ? `${missing.length ? "<br>" : ""}<span class="roads-hint">read as the same system: ${al.join(", ")}</span>` : "") + "</div>" : "";
+      mi.classList.toggle("open", wasOpen && !!(missing.length || al.length));
     });
   }
   function setView(v) {
@@ -958,6 +962,8 @@
     }
     if (b.id === "roads-refresh") { load(true); return; }
     if (b.dataset.view) { setView(b.dataset.view); return; }
+    if (b.dataset.sfmissing) { $("sf-missing").classList.toggle("open"); return; }
+    if (b.dataset.sf === "layers") { const L = $("sf-layers"); L.hidden = !L.hidden; b.classList.toggle("on", !L.hidden); return; }
     if (b.dataset.sf === "gates") { showGates = !showGates; try { localStorage.setItem("roads:gates", showGates ? "1" : "0"); } catch (e) {} if (sf) sf.showGates(showGates); b.classList.toggle("on", showGates); drawDetail(); return; }
     if (b.dataset.sf === "charted") { showCharted = !showCharted; try { localStorage.setItem("roads:charted", showCharted ? "1" : "0"); } catch (e) {} if (!showCharted) { picked = null; if (sf) sf.mark(null); } drawStars(); drawDetail(); return; }
     if (b.dataset.sf === "poi") { openPoiBox(!poiBox); return; }

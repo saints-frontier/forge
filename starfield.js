@@ -13,7 +13,15 @@
 (function () {
   "use strict";
   const LY_FOV = 50 * Math.PI / 180;
-  const COLORS = { me: "#5fe3ff", mate: "#8fe0b0", home: "#e3222c", ours: "#d9b24c", inferred: "#b8b3a8", far: "#8a8378", plan: "#9a9389", charted: "#8d98a3", uncharted: "#737d86", road: "#d9b24c", planned: "#b8b3a8", off: "#e3222c", gate: "#f1e9d2", hand: "#b8b3a8", pub: "#7d8894" };
+  const COLORS = { me: "#5fe3ff", mate: "#8fe0b0", home: "#e3222c", ours: "#d9b24c", inferred: "#b8b3a8", far: "#8a8378", plan: "#9a9389", charted: "#8d98a3", uncharted: "#737d86", road: "#d9b24c", planned: "#b8b3a8", off: "#e3222c", gate: "#f1e9d2", hand: "#b8b3a8", pub: "#7d8894", cat: "#ff8a3d", pubOk: "#6fd08c", pubFuel: "#f0b74a", pubDead: "#e3222c" };
+  /* the line grammar (2026-10-23, user: "those arching lines are confusing ... only straight lines ... the color coding
+     should be better"): every road is a straight line; the colour says WHAT it is, the dash says how sure, the arrows
+     say which way. Shown in the legend over the map. */
+  const LEGEND = [
+    ["gate", "solid", "Our gate pair (both ways)"], ["cat", "arrow", "Our catapult (one way)"],
+    ["pub", "thin", "Public stargate, state unknown"], ["pubOk", "solid", "Public stargate, working"],
+    ["pubFuel", "dash", "Public stargate, no fuel far side"], ["pubDead", "dash", "Public stargate, dormant"],
+    ["planned", "dot", "Planned road"], ["off", "dash", "Ours, offline"]];
 
   function Starfield(container, opts) {
     opts = opts || {};
@@ -111,32 +119,61 @@
       const L = [], M = [], polys = [];
       const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
       const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], len = a => Math.hypot(a[0], a[1], a[2]), norm = a => { const l = len(a) || 1; return mul(a, 1 / l); };
-      const pairSeen = new Map();
+      const pairSeen = new Map(), pairCount = new Map();
+      for (const r of scene.roads) { const k = [r.a, r.b].sort().join("|"); pairCount.set(k, (pairCount.get(k) || 0) + 1); }
       for (const r of scene.roads) {
         const A = P(r.a), B = P(r.b), d = sub(B, A), dist = len(d);
         const key = [r.a, r.b].sort().join("|"), nth = pairSeen.get(key) || 0; pairSeen.set(key, nth + 1);
-        const catapult = /Catapult/.test(r.kind || "");
-        // the bow lies in the plane of the road and the galaxy's up: fixed in space, never facing the camera;
-        // the second road of a pair bows the other way
-        // (the side is taken from the pair's canonical direction, so the return road, whose d points the other way,
-        // does not land on the same side by accident)
-        let side = norm(cross(r.a < r.b ? d : mul(d, -1), [0, 1, 0])); if (len(side) < 1e-6) side = [1, 0, 0];
-        const bow = catapult ? mul(side, (nth % 2 ? -1 : 1) * Math.max(4, dist * 0.18)) : [0, 0, 0];
-        const C = add(mul(add(A, B), 0.5), bow);
-        const segs = catapult ? 28 : 1, pts = [];
-        for (let i = 0; i <= segs; i++) { const t = i / segs, u = 1 - t; pts.push(add(add(mul(A, u * u), mul(C, 2 * u * t)), mul(B, t * t))); }
-        const col = r.online === false ? COLORS.off : r.kind === "Public Gate" ? COLORS.pub : r.status === "planned" ? COLORS.planned : r.source === "inferred" ? COLORS.hand : /Gate/.test(r.kind || "") ? COLORS.gate : COLORS.road;   // a public gate someone has jumped: grey, straight, both ways
-        polys.push({ road: r, pts, col, heavy: /Heavy/.test(r.kind || ""), dash: r.status === "planned" ? [2, 5] : r.status === "progress" || r.online === false || r.source === "inferred" ? [7, 6] : [], alpha: r.status === "planned" ? 0.6 : 0.95 });
+        const kind = r.kind || "", pub = kind === "Public Gate", cat = /Catapult/.test(kind), heavy = /Heavy/.test(kind);
+        let col, dash = [], alpha = 0.95;
+        if (r.status === "planned") { col = COLORS.planned; dash = [2, 5]; alpha = 0.7; }
+        else if (pub) { const st = r.state || (r.online === false ? "dormant" : r.status === "progress" ? "unfueled" : "");
+          col = st === "dormant" ? COLORS.pubDead : st === "unfueled" ? COLORS.pubFuel : st === "working" ? COLORS.pubOk : COLORS.pub; if (st === "dormant" || st === "unfueled") dash = [6, 5]; }
+        else if (r.online === false) { col = COLORS.off; dash = [7, 6]; }
+        else { col = cat ? COLORS.cat : COLORS.gate; if (r.source === "inferred" || r.status === "progress" || r.source === "seen") dash = [7, 5]; }
+        /* a pair of roads between the same two systems (there and back): each is moved 3 px to its own left on screen */
+        polys.push({ road: r, pts: [A, B], col, dash, alpha, cat, pub, heavy, shift: pairCount.get(key) > 1 ? 3 : 0 });
       }
       for (const s of scene.systems) { const p = P(s.id), col = s.color || COLORS[s.cls] || COLORS.far, minor = s.cls === "charted" || s.cls === "uncharted" || s.cls === "poi", size = s.cls === "home" || s.cls === "me" ? 9 : s.cls === "ours" ? 7 : s.cls === "uncharted" ? 2 : minor ? 2.6 : 5; M.push(...p, ...rgba(col, minor ? 0.07 : 0.16), size * 4.5); M.push(...p, ...rgba(col, minor ? 0.75 : 0.95), size); }
       marks = new Float32Array(M); markCount = M.length / 8; polylines = polys;
       gl.bindBuffer(gl.ARRAY_BUFFER, markBuf); gl.bufferData(gl.ARRAY_BUFFER, marks, gl.STATIC_DRAW);
       dirty = true; schedule();
     }
+    // ---------- smooth camera moves (2026-10-23): fitTo / look / double-click glide there in ~0.45 s ----------
+    let fly = null;
+    function flyTo(target, dist) { fly = { t0: performance.now(), from: cam.target.slice(), fromD: cam.dist, to: target.slice(), toD: dist == null ? cam.dist : dist }; tick(); }
+    function flyStep(now) { if (!fly) return false; const t = Math.min(1, (now - fly.t0) / 450), e = 1 - Math.pow(1 - t, 3);
+      for (let i = 0; i < 3; i++) cam.target[i] = fly.from[i] + (fly.to[i] - fly.from[i]) * e;
+      cam.dist = Math.exp(Math.log(fly.fromD) + (Math.log(fly.toD) - Math.log(fly.fromD)) * e); if (t >= 1) fly = null; return true; }
+    // WASD moves the camera over the galaxy's plane (W = where the camera looks), Q down, E up; Shift = faster.
+    // Keys count while the pointer is over the map or the map has the focus, and never while typing in a box.
+    const keys = new Set(), vel = [0, 0, 0]; let over = false, lastT = 0, loopOn = false;
+    const typing = () => { const a = document.activeElement; return a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.tagName === "SELECT" || a.isContentEditable); };
+    const MOVE = { KeyW: 1, KeyA: 1, KeyS: 1, KeyD: 1, KeyQ: 1, KeyE: 1 };
+    function onKey(e) { if (!MOVE[e.code] || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.type === "keyup") { keys.delete(e.code); return; }
+      if (typing() || !(over || document.activeElement === ov)) return;
+      e.preventDefault(); keys.add(e.code); tick(); }
+    window.addEventListener("keydown", onKey); window.addEventListener("keyup", onKey); window.addEventListener("blur", () => keys.clear());
+    function tick() { if (loopOn) return; loopOn = true; lastT = performance.now(); requestAnimationFrame(loop); }
+    function loop(now) {
+      const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now; let moving = flyStep(now);
+      const f = [-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw)], r = [Math.cos(cam.yaw), 0, -Math.sin(cam.yaw)];
+      const want = [0, 0, 0], sp = cam.dist * (keys.has("ShiftLeft") || keys.has("ShiftRight") || keys.shift ? 2.6 : 0.9);
+      const ax = (keys.has("KeyD") ? 1 : 0) - (keys.has("KeyA") ? 1 : 0), az = (keys.has("KeyW") ? 1 : 0) - (keys.has("KeyS") ? 1 : 0), ay = (keys.has("KeyE") ? 1 : 0) - (keys.has("KeyQ") ? 1 : 0);
+      for (let i = 0; i < 3; i++) want[i] = (r[i] * ax + f[i] * az) * sp; want[1] += ay * sp;
+      const k = 1 - Math.exp(-dt * 9);
+      for (let i = 0; i < 3; i++) { vel[i] += (want[i] - vel[i]) * k; cam.target[i] += vel[i] * dt; }
+      const still = Math.hypot(vel[0], vel[1], vel[2]) < cam.dist * 0.002 && !keys.size;
+      if (still) { vel[0] = vel[1] = vel[2] = 0; } else moving = true;
+      if (moving) { dirty = true; render(); }
+      if (moving || keys.size) requestAnimationFrame(loop); else loopOn = false;
+    }
+    window.addEventListener("keydown", e => { if (e.key === "Shift") keys.shift = true; }); window.addEventListener("keyup", e => { if (e.key === "Shift") keys.shift = false; });
     function fitTo(idList) {
       const ps = idList.map(P).filter(Boolean); if (!ps.length) return;
       const c = [0, 1, 2].map(k => ps.reduce((a, p) => a + p[k], 0) / ps.length), r = Math.max(8, ...ps.map(p => Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2])));
-      cam.target = c; cam.dist = Math.max(40, r / Math.tan(LY_FOV / 2) * 1.35 + 20); dirty = true; schedule();
+      flyTo(c, Math.max(40, r / Math.tan(LY_FOV / 2) * 1.35 + 20));
     }
     function fit() {
       // the network = the home, every system with a node of ours and both ends of every road that is not a plan;
@@ -202,19 +239,26 @@
             ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.strokeStyle = "#aab3bc"; ctx.lineWidth = 1.4; ctx.globalAlpha = 0.85; ctx.stroke(); ctx.globalAlpha = 1;
             ctx.beginPath(); ctx.arc(b[0], b[1], 3, 0, Math.PI * 2); ctx.fillStyle = "#aab3bc"; ctx.fill(); } }
       }
-      // the roads: arcs and lines projected point by point, then the arrowheads (both ends of a two-way road)
+      // the roads: straight lines (a pair moved apart on screen), arrows on one-way roads, a dot mid-line on gate pairs
+      const k0 = zoomK();
       for (const pl of polylines) {
-        const q = pl.pts.map(project); if (q.some(x => !x)) continue;
-        ctx.beginPath(); q.forEach((x, i) => i ? ctx.lineTo(x[0], x[1]) : ctx.moveTo(x[0], x[1]));
-        ctx.setLineDash(pl.dash); ctx.globalAlpha = pl.alpha; ctx.strokeStyle = pl.col; ctx.lineWidth = pl.heavy ? 3 : 1.6;
-        ctx.shadowColor = pl.col; ctx.shadowBlur = pl.dash.length ? 0 : 6; ctx.stroke(); ctx.shadowBlur = 0; ctx.setLineDash([]); ctx.globalAlpha = 1;
-      }
-      for (const pl of polylines) {
-        const r = pl.road, last = pl.pts.length - 1;
-        const head = (i0, i1, col) => { const a = project(pl.pts[i0]), b = project(pl.pts[i1]); if (!a || !b) return; const ang = Math.atan2(b[1] - a[1], b[0] - a[0]); const s = pl.heavy ? 11 : 8;
-          ctx.beginPath(); ctx.moveTo(b[0], b[1]); ctx.lineTo(b[0] - s * Math.cos(ang - 0.42), b[1] - s * Math.sin(ang - 0.42)); ctx.lineTo(b[0] - s * Math.cos(ang + 0.42), b[1] - s * Math.sin(ang + 0.42)); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
-        const col = r.online === false ? COLORS.off : pl.col;
-        head(last - 1, last, col); if (r.twoWay) head(1, 0, col);
+        let a = project(pl.pts[0]), b = project(pl.pts[1]); if (!a || !b) continue;
+        let dx = b[0] - a[0], dy = b[1] - a[1]; const L = Math.hypot(dx, dy); if (L < 2) continue; dx /= L; dy /= L;
+        if (pl.shift) { const ox = -dy * pl.shift, oy = dx * pl.shift; a = [a[0] + ox, a[1] + oy]; b = [b[0] + ox, b[1] + oy]; }
+        const w = pl.pub ? 1.6 : pl.heavy ? 3.2 : 2.3;
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+        ctx.setLineDash(pl.dash); ctx.globalAlpha = pl.alpha; ctx.strokeStyle = pl.col; ctx.lineWidth = w;
+        ctx.shadowColor = pl.col; ctx.shadowBlur = pl.dash.length || pl.pub ? 0 : 7; ctx.stroke(); ctx.shadowBlur = 0; ctx.setLineDash([]);
+        const ring = 10 * Math.max(k0, 0.6);
+        const head = (p, ux, uy, s) => { ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0] - s * (ux * Math.cos(0.45) - uy * Math.sin(0.45)), p[1] - s * (uy * Math.cos(0.45) + ux * Math.sin(0.45)));
+          ctx.lineTo(p[0] - s * (ux * Math.cos(-0.45) - uy * Math.sin(-0.45)), p[1] - s * (uy * Math.cos(-0.45) + ux * Math.sin(-0.45))); ctx.closePath(); ctx.fillStyle = pl.col; ctx.fill(); };
+        const s = pl.heavy ? 11 : 8;
+        if (!pl.road.twoWay) {
+          if (L > ring * 2 + 6) head([b[0] - dx * ring, b[1] - dy * ring], dx, dy, s);                     // the arrowhead stops at the target's ring
+          if (L > 120) { const m = [(a[0] + b[0]) / 2 + dx * 4, (a[1] + b[1]) / 2 + dy * 4]; head(m, dx, dy, s - 1); }   // and one mid-line on a long road
+        } else if (L > 30) { const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], d = pl.pub ? 2.5 : 3.5;
+          ctx.beginPath(); ctx.moveTo(m[0], m[1] - d); ctx.lineTo(m[0] + d, m[1]); ctx.lineTo(m[0], m[1] + d); ctx.lineTo(m[0] - d, m[1]); ctx.closePath(); ctx.fillStyle = pl.col; ctx.fill(); }
+        ctx.globalAlpha = 1;
       }
       // Check a jump: the interference sphere of the tested jump (a circle of the sphere's radius at its centre) and
       // the legal (green) and blocked (red) targets, plus the aimed-at system in gold
@@ -248,7 +292,7 @@
         if ((plan && !labelPlans && !hot) || (unch && !hot)) continue;   // an uncharted mark is named only under the pointer
         const label = (s.cls === "home" ? "✠ " : "") + (s.name || String(s.id)) + (o.more ? `  +${o.more}` : "");
         ctx.font = charted ? `600 12.5px ${display}` : `700 13.5px ${display}`;
-        const x = p[0] + R + 6, y = p[1] - (s.sub && !far ? 4 : 0), wdt = ctx.measureText(label).width, showSub = !!s.sub && !far;
+        const x = p[0] + R + 6, y = p[1] - (s.sub && !far ? 4 : 0), wdt = ctx.measureText(label).width, showSub = !!s.sub && !far && (hot || !!s.subWarn);
         const box = [x - 3, y - 9, x + wdt + 3, y + (showSub ? 22 : 9)];
         if (!hot && hit(box)) continue;
         boxes.push(box);
@@ -256,6 +300,19 @@
         ctx.fillStyle = "rgba(7,7,10,.75)"; ctx.fillText(label, x + 1, y + 1); ctx.fillStyle = s.cls === "home" ? "#ffd27a" : poi || s.cls === "me" || s.cls === "mate" ? col : charted ? "#aab3bc" : "#f1e9d2"; ctx.fillText(label, x, y);
         if (showSub) { ctx.font = `600 11px ${mono}`; ctx.fillStyle = s.subColor || "#b8b3a8"; ctx.fillText(s.sub, x, y + 14); }
       }
+      // the hover card (2026-10-23): what the system under the pointer is, its roads and public gates
+      if (hovered != null && ptr && !drag) { const sys = scene.systems.find(x => x.id === hovered); const p = project(P(hovered));
+        if (sys && p) { const out = scene.roads.filter(r => r.a === hovered && r.kind !== "Public Gate").length, inn = scene.roads.filter(r => r.b === hovered && r.kind !== "Public Gate" && !r.twoWay).length, pg = (gateAdj.get(hovered) || []).length;
+          const what = { home: "Home", ours: "On our roads", inferred: "On our roads (worked out)", me: "You are here", mate: "A tribe mate", charted: "Charted", uncharted: "Uncharted", poi: "Point of interest", plan: "On a plan", far: "Marked" }[sys.cls] || "";
+          const lines = [[sys.name || String(sys.id), "#f1e9d2", `700 13px ${display}`], [what, COLORS[sys.cls] || "#b8b3a8", `600 11px ${mono}`]];
+          if (sys.sub) lines.push([sys.sub, sys.subColor || "#b8b3a8", `600 11px ${mono}`]);
+          if (out || inn) lines.push([`our roads: ${out} out${inn ? ` · ${inn} in` : ""}`, COLORS.gate, `600 11px ${mono}`]);
+          lines.push([pg ? `public stargates: ${pg}` : "no public stargate", pg ? "#aab3bc" : "#737d86", `600 11px ${mono}`]);
+          let W = 0; for (const l of lines) { ctx.font = l[2]; W = Math.max(W, ctx.measureText(l[0]).width); }
+          const H = lines.length * 16 + 10; let x = ptr[0] + 16, y = ptr[1] + 14; if (x + W + 20 > w) x = ptr[0] - W - 30; if (y + H > h) y = ptr[1] - H - 10;
+          ctx.fillStyle = "rgba(9,8,12,.92)"; ctx.fillRect(x, y, W + 20, H); ctx.strokeStyle = "rgba(217,178,76,.55)"; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, W + 19, H - 1);
+          ctx.fillStyle = COLORS[sys.cls] || COLORS.gate; ctx.fillRect(x, y, 3, H);
+          ctx.textBaseline = "top"; lines.forEach((l, i) => { ctx.font = l[2]; ctx.fillStyle = l[1]; ctx.fillText(l[0], x + 11, y + 6 + i * 16); }); ctx.textBaseline = "middle"; } }
       // a star picked from the background (no ring of its own): a dashed ring and its label
       if (marked) { const p = project(P(marked.id)); if (p) { ctx.beginPath(); ctx.arc(p[0], p[1], 7, 0, Math.PI * 2); ctx.strokeStyle = "#f1e9d2"; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
         ctx.font = `600 12.5px ${display}`; ctx.fillStyle = "rgba(7,7,10,.8)"; ctx.fillText(marked.label, p[0] + 14, p[1] + 1); ctx.fillStyle = "#f1e9d2"; ctx.fillText(marked.label, p[0] + 13, p[1]); } }
@@ -271,15 +328,23 @@
       dirty = true; schedule();
     }
     const ro = new ResizeObserver(resize); ro.observe(container); resize();
+    // the legend (always on the map, folds to one line on a click)
+    const leg = document.createElement("div"); leg.className = "sf-legend";
+    leg.innerHTML = '<button type="button" class="sf-legend-t">Legend</button><ul>' + LEGEND.map(([c, st, t]) => `<li><i class="sf-l-${st}" style="--c:${COLORS[c]}"></i>${t}</li>`).join("") + "</ul>";
+    leg.querySelector("button").addEventListener("click", () => { leg.classList.toggle("shut"); try { localStorage.setItem("roads:legend", leg.classList.contains("shut") ? "shut" : "open"); } catch (e) {} });
+    leg.classList.add("shut"); try { if (localStorage.getItem("roads:legend") === "open") leg.classList.remove("shut"); } catch (e) {}
+    container.appendChild(leg);
 
     // ---------- input: drag orbits, shift/right drag pans, wheel zooms, click picks ----------
-    let drag = null;
+    let drag = null, ptr = null;
+    ov.tabIndex = 0; ov.setAttribute("aria-label", "Star map: drag to turn, WASD to move, Q / E down / up, Ctrl + wheel to zoom");
+    ov.addEventListener("pointerenter", () => { over = true; }); ov.addEventListener("pointerleave", () => { over = false; ptr = null; if (hovered != null) { hovered = null; dirty = true; schedule(); } });
     const pickAt = (x, y) => { let best = null, bd = 14; for (const s of scene.systems) { const p = project(P(s.id)); if (!p) continue; const d = Math.hypot(p[0] - x, p[1] - y); if (d < bd) { bd = d; best = s.id; } } return best; };
     // any star at all, for a click that hit no ring: the nearest one within 9 px
     const pickStar = (x, y) => { let best = null, bd = 9; for (let i = 0; i < n; i++) { const p = project([pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]]); if (!p) continue; const d = Math.hypot(p[0] - x, p[1] - y); if (d < bd) { bd = d; best = ids[i]; } } return best; };
-    ov.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY, moved: false, pan: e.button === 2 || e.shiftKey, id: e.pointerId }; ov.setPointerCapture(e.pointerId); e.preventDefault(); });
+    ov.addEventListener("pointerdown", e => { ov.focus({ preventScroll: true }); fly = null; drag = { x: e.clientX, y: e.clientY, moved: false, pan: e.button === 2 || e.shiftKey, id: e.pointerId }; ov.setPointerCapture(e.pointerId); e.preventDefault(); });
     ov.addEventListener("pointermove", e => {
-      if (!drag) { const id = pickAt(e.offsetX, e.offsetY); if (id !== hovered) { hovered = id; ov.classList.toggle("over", !!id); /* pointer over a system (cursor rules: roads.css; tools/make_cursors.py) */ dirty = true; schedule(); if (opts.onHover) opts.onHover(id); } return; }
+      ptr = [e.offsetX, e.offsetY]; if (!drag) { const id = pickAt(e.offsetX, e.offsetY); if (hovered != null) { dirty = true; schedule(); } if (id !== hovered) { hovered = id; ov.classList.toggle("over", !!id); /* pointer over a system (cursor rules: roads.css; tools/make_cursors.py) */ dirty = true; schedule(); if (opts.onHover) opts.onHover(id); } return; }
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) { drag.moved = true; ov.classList.add("drag"); } /* the closed gauntlet while the map is dragged */ drag.x = e.clientX; drag.y = e.clientY;
       if (drag.pan) { mat(); const s = 2 * Math.tan(LY_FOV / 2) * cam.dist / h;   // light-years per pixel at the target: the map follows the pointer
         const right = norm3(cross3(norm3([Math.sin(cam.yaw), 0, Math.cos(cam.yaw)]), [0, 1, 0])), up = [0, 1, 0];
@@ -294,7 +359,7 @@
     // map swallowed page scrolls and ended up at galaxy scale). A trackpad pinch arrives as ctrl + wheel with small steps.
     const zoomBy = f => { cam.dist = Math.max(15, Math.min(30000, cam.dist * f)); dirty = true; schedule(); };
     ov.addEventListener("wheel", e => { if (!(e.ctrlKey || e.metaKey)) { if (opts.onPlainWheel) opts.onPlainWheel(); return; } e.preventDefault(); zoomBy(Math.exp(Math.max(-1, Math.min(1, e.deltaY / 100)) * 0.14)); }, { passive: false });
-    ov.addEventListener("dblclick", e => { const id = pickAt(e.offsetX, e.offsetY) || pickStar(e.offsetX, e.offsetY); /* any star, ringed or not (user 2026-10-18) */ if (id) { cam.target = P(id); cam.dist = Math.max(30, Math.min(cam.dist, 160)); dirty = true; schedule(); } });
+    ov.addEventListener("dblclick", e => { const id = pickAt(e.offsetX, e.offsetY) || pickStar(e.offsetX, e.offsetY); /* any star, ringed or not (user 2026-10-18) */ if (id) flyTo(P(id), Math.max(30, Math.min(cam.dist, 160))); });
 
     return {
       load, setScene, fit, fitTo, fitAll, project, has: id => byId.has(id), position: P, oldName: id => { const i = byId.get(id); return names && i != null ? names[i] : null; },
@@ -309,13 +374,13 @@
         for (let k = 0; k < n; k++) { if (k === i) continue; const dx = pos[k * 3] - x, dy = pos[k * 3 + 1] - y, dz = pos[k * 3 + 2] - z, d2 = dx * dx + dy * dy + dz * dz; if (d2 <= r2) out.push([ids[k], Math.sqrt(d2)]); }
         return out.sort((a, b) => a[1] - b[1]); },
       sphere(s) { sphereOf = s && byId.has(s.a) && byId.has(s.b) ? { a: s.a, b: s.b } : null; dirty = true; schedule(); },
-      look(id, dist) { const p = P(id); if (p) { cam.target = p; if (dist) cam.dist = dist; dirty = true; schedule(); } },
+      look(id, dist) { const p = P(id); if (p) flyTo(p, dist || cam.dist); },
       view(pitchDeg) { cam.pitch = pitchDeg * Math.PI / 180; dirty = true; schedule(); },
       zoom(f) { zoomBy(f); },
       count: () => n,
       loadGates, gatesOf: id => (gateAdj.get(id) || []).slice(), gateCount: () => gatePairs,
       showGates(on) { gatesOn = !!on; dirty = true; schedule(); },
-      destroy() { ro.disconnect(); if (raf) cancelAnimationFrame(raf); gl3.remove(); ov.remove(); }
+      destroy() { ro.disconnect(); if (raf) cancelAnimationFrame(raf); window.removeEventListener("keydown", onKey); window.removeEventListener("keyup", onKey); gl3.remove(); ov.remove(); leg.remove(); }
     };
   }
   window.Starfield = Starfield;
