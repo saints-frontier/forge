@@ -784,6 +784,25 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
   .roads-side .roads-panel { max-width: 100%; overflow-x: auto; }
 }
 
+/* the tool column centred on the map (2026-10-23); the location line runs across both columns above them */
+@media (min-width: 1250px) {
+  #roads-app > .roads-me, #roads-app > .roads-alert { grid-column: 1 / -1; }
+  #roads-app:not([hidden]) { align-items: center; }
+  #roads-app .roads-main { align-self: start; }
+  #roads-app .roads-side { align-self: center; }
+  #roads-app.panel-open .roads-side { align-self: start; }
+}
+
+/* the controls card (2026-10-23, user: "add all the controls somewhere so people would see what everything does ...
+   visible, but not taking too much space"): key caps in two columns at the foot of the tool column */
+.roads-keys { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; padding: 8px 10px 9px; border: 1px solid rgba(217,178,76,.22);
+  background: rgba(9,8,12,.55); font: 10.5px/1.3 var(--mono); color: var(--silver); }
+.roads-keys b { grid-column: 1 / -1; font: 600 10px var(--mono); letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); }
+.roads-keys span { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; min-width: 0; }
+.roads-keys kbd { display: inline-block; min-width: 15px; padding: 1px 4px; text-align: center; font: 600 9.5px var(--mono); color: var(--title);
+  background: linear-gradient(#24202a, #141218); border: 1px solid rgba(217,178,76,.4); border-bottom-width: 2px; border-radius: 3px; }
+@media (max-width: 1249px) { .roads-keys { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
+
 /* SITES (/sites): every kind of site in one table, client information only (user 2026-10-20) */
 .sites-on .topctl, .sites-on .tier { display: none; }
 .sites-page { padding: 8px 0 20px; }
@@ -1286,9 +1305,9 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
   <h2 class="gtitle">Map <span class="roads-wip">alpha test · under construction</span></h2>
   <div class="roads-gate" id="roads-gate">The roads are for the tribe only.</div>
   <div id="roads-app" hidden>
-    <div class="roads-main">
     <div class="roads-alert" id="roads-alert" hidden></div>
     <div class="roads-me" id="roads-me" hidden></div>
+    <div class="roads-main">
     <div class="roads-stars" id="roads-stars" hidden></div>
     <div class="roads-mapwrap" id="roads-map"></div>
     <div class="roads-detail" id="roads-detail" hidden></div>
@@ -1306,6 +1325,17 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       <button type="button" class="roads-quiet" id="roads-refresh" title="Read the chain again">↻</button>
     </div>
     <div class="roads-savenote" id="roads-save-note"></div>
+    <div class="roads-keys" aria-label="Star map controls">
+      <b>Star map controls</b>
+      <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> fly</span>
+      <span><kbd>Q</kbd><kbd>E</kbd> down · up</span>
+      <span><kbd>Shift</kbd> faster</span>
+      <span><kbd>wheel</kbd> zoom</span>
+      <span><kbd>drag</kbd> turn</span>
+      <span><kbd>right-drag</kbd> pan</span>
+      <span><kbd>click</kbd> a star: info</span>
+      <span><kbd>double-click</kbd> fly to it</span>
+    </div>
     <section class="pane roads-panel" id="roads-p-route" hidden>
       <div class="roads-route">
         <label>From <select id="roads-from" aria-label="From system"></select></label>
@@ -1648,5 +1678,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=68bc4175"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=3c62769f"></script><script src="quarry-data.js?v=e737f3b3"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=3f3511a1"></script><script src="sites.js?v=209dd811"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=faeb2aad"></script><script src="starfield.js?v=5ecb96dd"></script><script src="roadscore.js?v=b3ddd1e5"></script><script src="roads.js?v=6e1ebaed"></script><script type="module" src="machines.js?v=9cb8a800"></script>
+<script src="lodge-data.js?v=68bc4175"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=3c62769f"></script><script src="quarry-data.js?v=e737f3b3"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=3f3511a1"></script><script src="sites.js?v=209dd811"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=faeb2aad"></script><script src="starfield.js?v=43faaf67"></script><script src="roadscore.js?v=b3ddd1e5"></script><script src="roads.js?v=16515de7"></script><script type="module" src="machines.js?v=9cb8a800"></script>
 </body></html>

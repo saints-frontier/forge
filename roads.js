@@ -337,6 +337,10 @@
     out.innerHTML = `<div class="roads-hops"><b>${esc(from)}</b>` + r.hops.map(h => ` <span class="hop">→ <i>${esc(how(h))}</i> →</span> <b>${esc(nameOfId(h.to))}</b>`).join("") + `</div><div class="roads-hint">${r.hops.length} jump${r.hops.length === 1 ? "" : "s"}${r.crude ? ` · ${r.crude} crude for the public gates` : ""}.${go}</div>`;
   }
 
+  // the tool column sits centred beside the map while no panel is open, and level with the map's top while one is
+  // (user 2026-10-23: "let's center them with the map")
+  new MutationObserver(() => { const app = $("roads-app"); if (app) app.classList.toggle("panel-open", !!root.querySelector(".roads-panel:not([hidden])")); })
+    .observe(root, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
   // ---------- the star map ----------
   let sf = null, sfLoading = null, view = "stars";
   function starsReady() {
@@ -350,8 +354,8 @@
       if (!sf) return Promise.resolve(null);
       window.__roadsStars = sf;
       setTimeout(findBox, 0);
-      setTimeout(() => { const ul = box.querySelector(".sf-legend ul"); if (ul) ul.insertAdjacentHTML("beforeend", '<li class="sf-l-keys">W A S D fly · Q / E down / up · Shift faster · drag turn · right-drag pan · Ctrl + wheel zoom</li><li><button type="button" class="sf-l-more" data-panel="legend">More about the lines and names ›</button></li>'); }, 0);                                     /* the find box is in the toolbar HTML below */                                      // tests
-      box.insertAdjacentHTML("beforeend", '<div class="sf-hint">hold Ctrl and use the wheel to zoom</div><div class="sf-missing" id="sf-missing"></div>' +
+      setTimeout(() => { const ul = box.querySelector(".sf-legend ul"); if (ul) ul.insertAdjacentHTML("beforeend", '<li><button type="button" class="sf-l-more" data-panel="legend">More about the lines and names ›</button></li>'); }, 0);                                     /* the find box is in the toolbar HTML below */                                      // tests
+      box.insertAdjacentHTML("beforeend", '<div class="sf-hint"></div><div class="sf-missing" id="sf-missing"></div>' +
         '<div class="sf-find"><input type="search" id="sf-find" placeholder="Find a system: name or number" aria-label="Find a system by name or system number" autocomplete="off" spellcheck="false"></div><div class="sf-poi" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-layers" id="sf-layers" hidden><b>Show on the map</b><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="survey" title="Systems Saints have surveyed with the companion: infestation 1 (green) to 6 (red)" hidden>Survey</button><b>View</b><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button><button type="button" data-sf="all" title="The whole galaxy">Whole galaxy</button></div><div class="sf-tools"><button type="button" data-sf="me" title="Fly to where you are (from the Saints Frontier Companion)" hidden>You</button><button type="button" data-sf="fit" title="Back to our roads">Our roads</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="layers" title="What the map shows, and the view">Layers ▾</button></div>');
       sfLoading = sf.load("stars.bin?v=2").then(() => { dist = (a, b) => { const p = sf.position(a), q = sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; }; if (lastData && !draft) { M = build(lastData); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); stamp(lastData); }
         // the public gates come after the stars, never in their way: the button appears once they are in

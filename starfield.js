@@ -337,7 +337,7 @@
 
     // ---------- input: drag orbits, shift/right drag pans, wheel zooms, click picks ----------
     let drag = null, ptr = null;
-    ov.tabIndex = 0; ov.setAttribute("aria-label", "Star map: drag to turn, WASD to move, Q / E down / up, Ctrl + wheel to zoom");
+    ov.tabIndex = 0; ov.setAttribute("aria-label", "Star map: drag to turn, WASD to move, Q / E down / up, wheel to zoom");
     ov.addEventListener("pointerenter", () => { over = true; }); ov.addEventListener("pointerleave", () => { over = false; ptr = null; if (hovered != null) { hovered = null; dirty = true; schedule(); } });
     const pickAt = (x, y) => { let best = null, bd = 14; for (const s of scene.systems) { const p = project(P(s.id)); if (!p) continue; const d = Math.hypot(p[0] - x, p[1] - y); if (d < bd) { bd = d; best = s.id; } } return best; };
     // any star at all, for a click that hit no ring: the nearest one within 9 px
@@ -358,7 +358,7 @@
     // The wheel zooms only with Ctrl (or Cmd) held, as in the Forge: a plain wheel scrolls the page (user 2026-10-12: the
     // map swallowed page scrolls and ended up at galaxy scale). A trackpad pinch arrives as ctrl + wheel with small steps.
     const zoomBy = f => { cam.dist = Math.max(15, Math.min(30000, cam.dist * f)); dirty = true; schedule(); };
-    ov.addEventListener("wheel", e => { if (!(e.ctrlKey || e.metaKey)) { if (opts.onPlainWheel) opts.onPlainWheel(); return; } e.preventDefault(); zoomBy(Math.exp(Math.max(-1, Math.min(1, e.deltaY / 100)) * 0.14)); }, { passive: false });
+    ov.addEventListener("wheel", e => { /* a plain wheel zooms again (user 2026-10-23: "zoom without control, just regular mouse scroll") */ e.preventDefault(); zoomBy(Math.exp(Math.max(-1, Math.min(1, e.deltaY / 100)) * 0.14)); }, { passive: false });
     ov.addEventListener("dblclick", e => { const id = pickAt(e.offsetX, e.offsetY) || pickStar(e.offsetX, e.offsetY); /* any star, ringed or not (user 2026-10-18) */ if (id) flyTo(P(id), Math.max(30, Math.min(cam.dist, 160))); });
 
     return {
