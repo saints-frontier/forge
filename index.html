@@ -803,11 +803,11 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 
 /* the system window on the star map (2026-10-23): docked top-right over the map, scrolls on its own, closes with x */
 .roads-main { position: relative; }
-.roads-main.stars-view .roads-detail:not([hidden]) { position: absolute; top: 40px; right: 10px; z-index: 6; width: min(400px, calc(100% - 20px));
+.roads-main.detail-overlay .roads-detail:not([hidden]) { position: absolute; top: 40px; right: 10px; z-index: 6; width: min(400px, calc(100% - 20px));
   max-height: calc(clamp(320px, 62vh, 640px) - 90px); overflow: auto; margin: 0; padding: 12px 14px 14px; border: 1px solid rgba(217,178,76,.55);
   background: rgba(10,9,13,.94); box-shadow: 0 10px 34px rgba(0,0,0,.6); backdrop-filter: blur(3px); }
-@media (min-width: 1250px) { .roads-main.stars-view .roads-detail:not([hidden]) { max-height: calc(clamp(460px, 76vh, 920px) - 90px); } }
-.roads-main.stars-view .roads-detail .roads-dcols { grid-template-columns: 1fr; }
+@media (min-width: 1250px) { .roads-main.detail-overlay .roads-detail:not([hidden]) { max-height: calc(clamp(460px, 76vh, 920px) - 90px); } }
+.roads-main.detail-overlay .roads-detail .roads-dcols { grid-template-columns: 1fr; }
 .roads-detail { position: relative; }
 .roads-detail .roads-dclose { position: absolute; top: 6px; right: 8px; padding: 0 7px; font-size: 18px; line-height: 1.2; letter-spacing: 0; background: none; border: 0; color: var(--silver); cursor: pointer; clip-path: none; }
 .roads-detail .roads-dclose:hover { color: var(--gold); }
@@ -821,13 +821,19 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-detail.passthru { pointer-events: none; }   /* the half second after the system window opens (see decorate) */
 
 /* the system window: at most 45 % of the map wide, docked away from the star, foldable (2026-10-23, tribe feedback) */
-.roads-main.stars-view .roads-detail:not([hidden]) { width: min(400px, 45%); min-width: 260px; }
-.roads-main.stars-view .roads-detail.dock-left:not([hidden]) { right: auto; left: 10px; }
+.roads-main.detail-overlay .roads-detail:not([hidden]) { width: min(400px, 45%); min-width: 260px; }
+.roads-main.detail-overlay .roads-detail.dock-left:not([hidden]) { right: auto; left: 10px; }
 .roads-detail .roads-dmin { right: 34px; font-size: 16px; }
 .roads-detail.mini > :not(.roads-dclose):not(.roads-dh) { display: none !important; }
-.roads-main.stars-view .roads-detail.mini:not([hidden]) { padding-bottom: 8px; }
+.roads-main.detail-overlay .roads-detail.mini:not([hidden]) { padding-bottom: 8px; }
 .roads-detail .roads-dh { padding-right: 62px; }
 .roads-detail.mini .roads-dh > * { display: none !important; }
+
+/* the system window beside the map (2026-10-23, user: "move the star information window out of the map to the side"):
+   at the top of the tool column on a wide screen, right under the map when narrower (placeDetail in roads.js) */
+.roads-side > .roads-detail:not([hidden]) { margin: 0; padding: 12px 14px 14px; border: 1px solid rgba(217,178,76,.55); background: rgba(10,9,13,.94);
+  max-height: 58vh; overflow: auto; }
+.roads-side > .roads-detail .roads-dcols { grid-template-columns: 1fr; }
 
 /* SITES (/sites): every kind of site in one table, client information only (user 2026-10-20) */
 .sites-on .topctl, .sites-on .tier { display: none; }
@@ -1704,5 +1710,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=68bc4175"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=3c62769f"></script><script src="quarry-data.js?v=e737f3b3"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=3f3511a1"></script><script src="sites.js?v=209dd811"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=faeb2aad"></script><script src="starfield.js?v=43faaf67"></script><script src="roadscore.js?v=b3ddd1e5"></script><script src="roads.js?v=1881e921"></script><script type="module" src="machines.js?v=9cb8a800"></script>
+<script src="lodge-data.js?v=68bc4175"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=3c62769f"></script><script src="quarry-data.js?v=e737f3b3"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=3f3511a1"></script><script src="sites.js?v=209dd811"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=faeb2aad"></script><script src="starfield.js?v=43faaf67"></script><script src="roadscore.js?v=b3ddd1e5"></script><script src="roads.js?v=2ef86976"></script><script type="module" src="machines.js?v=9cb8a800"></script>
 </body></html>

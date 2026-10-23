@@ -278,13 +278,18 @@
   // in a window that is easy to view and somewhere visible"): the detail, docked on the map's top-right corner in the
   // star view, with the system's number, old name, charting, distances, kills of the last day and an in-game link
   let detailMini = false;   /* the pilot folded the window: it stays folded for the next system too */
-  function drawDetail() { drawDetail0(); decorate(); const d = $("roads-detail"); d.classList.toggle("mini", detailMini && !d.hidden); const mb = d.querySelector("[data-mindetail]"); if (mb && detailMini) { mb.textContent = "+"; mb.title = "Open the window"; } }
+  // where the system window lives: the top of the tool column on a wide screen, under the map when narrower
+  const WIDE = window.matchMedia ? window.matchMedia("(min-width: 1250px)") : { matches: false };
+  function placeDetail() { const d = $("roads-detail"), side = root.querySelector(".roads-side"), main = root.querySelector(".roads-main"); if (!d || !side || !main) return;
+    if (WIDE.matches) { if (d.parentNode !== side) side.insertBefore(d, side.firstChild); } else if (d.parentNode !== main) main.appendChild(d); }
+  if (WIDE.addEventListener) WIDE.addEventListener("change", placeDetail);
+  function drawDetail() { placeDetail(); drawDetail0(); decorate(); const d = $("roads-detail"); d.classList.toggle("mini", detailMini && !d.hidden); const mb = d.querySelector("[data-mindetail]"); if (mb && detailMini) { mb.textContent = "+"; mb.title = "Open the window"; } }
   const killCache = new Map();
   function decorate() {
     const el = $("roads-detail"); if (el.hidden) return;
     /* the window opens on the first click of a double-click and may land on the star: for a moment it lets clicks
        through, so the second click still reaches the map (tribe feedback 2026-10-23: "I can't double-click on a star") */
-    el.classList.add("passthru"); clearTimeout(el._pt); el._pt = setTimeout(() => el.classList.remove("passthru"), 500);
+    /* (retired with the window's move beside the map: it never covers a star now) */
     const k = selected ? M.ids.get(selected) : null, id = k ? k.id : picked; if (!id && !selected) return;
     const e = id ? M.ef.byId.get(id) : null, old = id && sf ? sf.oldName(id) : null, name = selected || (e && e.name) || old || "";
     const facts = [];
