@@ -277,7 +277,8 @@
   // the system window (2026-10-23, user: "as much information about the system as possible when we double-click on it,
   // in a window that is easy to view and somewhere visible"): the detail, docked on the map's top-right corner in the
   // star view, with the system's number, old name, charting, distances, kills of the last day and an in-game link
-  function drawDetail() { drawDetail0(); decorate(); }
+  let detailMini = false;   /* the pilot folded the window: it stays folded for the next system too */
+  function drawDetail() { drawDetail0(); decorate(); const d = $("roads-detail"); d.classList.toggle("mini", detailMini && !d.hidden); const mb = d.querySelector("[data-mindetail]"); if (mb && detailMini) { mb.textContent = "+"; mb.title = "Open the window"; } }
   const killCache = new Map();
   function decorate() {
     const el = $("roads-detail"); if (el.hidden) return;
@@ -293,7 +294,10 @@
     if (id && meId === id) facts.push('<span class="ok">you are here</span>');
     else if (id && meId && dist) { const d = dist(meId, id); if (d != null) facts.push(`${Math.round(d).toLocaleString("en-US")} LY from you`); }
     if (id && h && h.id !== id && dist) { const d = dist(h.id, id); if (d != null) facts.push(`${Math.round(d).toLocaleString("en-US")} LY from ${esc(M.home)}`); }
-    el.insertAdjacentHTML("afterbegin", '<button type="button" class="roads-dclose" data-closedetail="1" title="Close" aria-label="Close">×</button>');
+    el.insertAdjacentHTML("afterbegin", '<button type="button" class="roads-dclose" data-closedetail="1" title="Close" aria-label="Close">×</button><button type="button" class="roads-dclose roads-dmin" data-mindetail="1" title="Fold to the title bar" aria-label="Fold">–</button>');
+    /* dock on the side away from the star, so the window never sits on it (tribe feedback 2026-10-23: on a narrower
+       page the window covered the star even after a double-click centred it) */
+    if (id && sf) { const box = $("roads-stars"), p = sf.project(sf.position(id)); el.classList.toggle("dock-left", !!(p && box && p[0] > box.clientWidth / 2 + 4)); }
     const dh = el.querySelector(".roads-dh"); if (!dh) return;
     dh.insertAdjacentHTML("afterend", `<div class="roads-dfacts">${facts.join(" · ")}${id ? ` <button type="button" class="roads-quiet" data-copylink="${id}" data-copyname="${esc(name || "system")}" title="A link to paste into a chat line in game">Copy in-game link</button>` : ""}</div>` + (id ? `<div class="roads-dkills" id="roads-dkills">kills here in the last day: reading the chain…</div>` : ""));
     if (id) loadKills(id);
@@ -998,6 +1002,7 @@
       $("chart-paste-note").textContent = `${found.size} charted: ${[...found.keys()].join(", ")}`; $("chart-paste").value = "";
       save(l, "Charted systems"); return;
     }
+    if (b.dataset.mindetail) { const d = $("roads-detail"); d.classList.toggle("mini"); detailMini = d.classList.contains("mini"); b.textContent = detailMini ? "+" : "–"; b.title = detailMini ? "Open the window" : "Fold to the title bar"; return; }
     if (b.dataset.closedetail) { selected = null; picked = null; if (sf) { sf.select(null); sf.mark(null); } drawDetail(); drawMap(); return; }
     if (b.dataset.copylink) { const t = `<a href="showinfo:5//${b.dataset.copylink}">${b.dataset.copyname}</a>`; const done = () => { b.textContent = "Copied: paste it into a chat line"; };
       try { navigator.clipboard.writeText(t).then(done, () => { prompt("Copy this link:", t); }); } catch (err) { prompt("Copy this link:", t); } return; }
