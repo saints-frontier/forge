@@ -6,6 +6,8 @@
                                     every character's name, tribe and address; tribe short names from the World API)
    GET  ?q=kills&sys=ID&hours=24  -> killmails in that system (chain, read-only), killer / victim named from the roster
    GET  ?q=nodes&char=ITEM_ID     -> that pilot's Network Nodes with their fuel (chain, read-only)
+   GET  ?q=pilot&name=NAME        -> one pilot for the companion's combat view (2026-10-23): tribe from the roster and
+                                    their kills / losses among the last two days' killmails (chain, read-only)
    GET  ?q=field                  -> the tribe's field records: system surveys, visited systems
    POST {type: "survey", sys, at, infest, word, transient, umbra, star, planets, belts, state}
         -> the System Map's readings for a system (one write per system per day, or when a reading changes)
@@ -65,6 +67,15 @@ async function recentKills() {
   KILLS = out; KILLS_AT = Date.now(); return out;
 }
 
+/* system number -> the name the Map knows (the Roads list's numbers), for the pilot view */
+let SYSNAMES = null, SYSNAMES_AT = 0;
+async function systemNames(env) {
+  if (SYSNAMES && Date.now() - SYSNAMES_AT < 10 * 60000) return SYSNAMES;
+  const list = await kvJson(env, "network", {}), out = {};
+  for (const [name, v] of Object.entries((list && list.systems) || {})) if (v && v.id) out[String(v.id)] = name;
+  SYSNAMES = out; SYSNAMES_AT = Date.now(); return out;
+}
+
 /* a pilot's Network Nodes with fuel: the character's OwnerCaps -> the nodes among them */
 async function nodesOf(address) {
   const objs = await getObjects(await ownedIds(address));
@@ -109,9 +120,24 @@ export async function onRequestGet({ request, env }) {
       if (!c) return nocache({ ok: true, nodes: [], note: "this pilot is not in the roster yet (it is refreshed hourly)" }, cookies);
       return nocache({ ok: true, pilot: person(R, char), nodes: await nodesOf(c[2]) }, cookies);
     }
+    if (q === "pilot") {
+      const R = await roster(env), p = byName(R, clip(u.searchParams.get("name"), 60));
+      if (!p) return nocache({ ok: true, unknown: true, rosterAt: R.at || 0 }, cookies);
+      const sysName = await systemNames(env), kills = [], losses = [];
+      for (const k of await recentKills()) {
+        const j = k.j; if (j.key && j.key.tenant && j.key.tenant !== "stillness") continue;
+        const when = (+j.kill_timestamp || 0) * 1000 || Date.parse(k.at), sys = String((j.solar_system_id || {}).item_id || "");
+        const row = { at: new Date(when).toISOString(), sys, sysName: sysName[sys] || "", loss: ((j.loss_type || {})["@variant"]) || "?" };
+        if (String((j.killer_id || {}).item_id) === p.id) kills.push(Object.assign(row, { victim: person(R, (j.victim_id || {}).item_id) }));
+        else if (String((j.victim_id || {}).item_id) === p.id) losses.push(Object.assign(row, { killer: person(R, (j.killer_id || {}).item_id) }));
+      }
+      const all = await recentKills(), since = all.length ? all.map(k => k.at).sort()[0] : null, newest = (a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0);
+      kills.sort(newest); losses.sort(newest);
+      return nocache({ ok: true, pilot: p, since, kills: kills.slice(0, 10), killCount: kills.length, losses: losses.slice(0, 10), lossCount: losses.length }, cookies);
+    }
     if (q === "field") return nocache(Object.assign({ ok: true }, await kvJson(env, "field", {})), cookies);
   } catch (e) { return json({ ok: false, error: "the chain did not answer" }, 502, cookies); }
-  return json({ ok: false, error: "ask q=who, kills, nodes or field" }, 400, cookies);
+  return json({ ok: false, error: "ask q=who, kills, nodes, pilot or field" }, 400, cookies);
 }
 
 /* the field records' updates, pure (tested): each returns the new object, or null when nothing changes */
