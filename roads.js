@@ -274,7 +274,37 @@
     return false;
   }
 
-  function drawDetail() {
+  // the system window (2026-10-23, user: "as much information about the system as possible when we double-click on it,
+  // in a window that is easy to view and somewhere visible"): the detail, docked on the map's top-right corner in the
+  // star view, with the system's number, old name, charting, distances, kills of the last day and an in-game link
+  function drawDetail() { drawDetail0(); decorate(); }
+  const killCache = new Map();
+  function decorate() {
+    const el = $("roads-detail"); if (el.hidden) return;
+    const k = selected ? M.ids.get(selected) : null, id = k ? k.id : picked; if (!id && !selected) return;
+    const e = id ? M.ef.byId.get(id) : null, old = id && sf ? sf.oldName(id) : null, name = selected || (e && e.name) || old || "";
+    const facts = [];
+    if (id) facts.push(`system <b>${id}</b>`); if (old && old !== name) facts.push(`Cycle 6 name ${esc(old)}`);
+    if (e) facts.push(e.status === "confirmed" ? "charted on EF-Map" : e.status === "conflict" ? "name disputed on EF-Map" : "reported once on EF-Map");
+    const h = M.ids.get(M.home), meId = LOC && LOC.me ? locOf(LOC.me.s) : null;
+    if (id && meId === id) facts.push('<span class="ok">you are here</span>');
+    else if (id && meId && dist) { const d = dist(meId, id); if (d != null) facts.push(`${Math.round(d).toLocaleString("en-US")} LY from you`); }
+    if (id && h && h.id !== id && dist) { const d = dist(h.id, id); if (d != null) facts.push(`${Math.round(d).toLocaleString("en-US")} LY from ${esc(M.home)}`); }
+    el.insertAdjacentHTML("afterbegin", '<button type="button" class="roads-dclose" data-closedetail="1" title="Close" aria-label="Close">×</button>');
+    const dh = el.querySelector(".roads-dh"); if (!dh) return;
+    dh.insertAdjacentHTML("afterend", `<div class="roads-dfacts">${facts.join(" · ")}${id ? ` <button type="button" class="roads-quiet" data-copylink="${id}" data-copyname="${esc(name || "system")}" title="A link to paste into a chat line in game">Copy in-game link</button>` : ""}</div>` + (id ? `<div class="roads-dkills" id="roads-dkills">kills here in the last day: reading the chain…</div>` : ""));
+    if (id) loadKills(id);
+  }
+  async function loadKills(id) {
+    const show = d => { const box = $("roads-dkills"); if (!box) return;
+      if (!d || !d.ok) { box.textContent = "kills here: could not be read just now"; return; }
+      const ks = d.kills || []; if (!ks.length) { box.innerHTML = `<span class="ok">no kills here in the last day</span>`; return; }
+      const who = p => p ? esc(p.name || "?") + (p.tag ? ` [${esc(p.tag)}]` : "") : "?";
+      box.innerHTML = `<h4>Kills here, last day · ${ks.length}</h4><ul>` + ks.slice(0, 6).map(x => `<li><span class="bad">${ago(x.at)}</span> · ${who(x.killer)} killed ${who(x.victim)}${x.loss && x.loss !== "?" ? ` (${esc(String(x.loss).toLowerCase())})` : ""}</li>`).join("") + (ks.length > 6 ? `<li>… ${ks.length - 6} more</li>` : "") + "</ul>"; };
+    const c = killCache.get(id); if (c && Date.now() - c.t < 120000) { show(c.d); return; }
+    try { const r = await fetch(`/api/intel?q=kills&sys=${id}&hours=24`, { credentials: "same-origin", cache: "no-store" }); const d = r.ok ? await r.json() : null; killCache.set(id, { t: Date.now(), d }); show(d); } catch (err) { show(null); }
+  }
+  function drawDetail0() {
     const el = $("roads-detail");
     if (!selected && picked) {                               // a star that is not on our roads: charted, reported once, or nothing known
       const e = M.ef.byId.get(picked), h = M.ids.get(M.home), ly = dist && h ? dist(h.id, picked) : null, old = sf && sf.oldName(picked);
@@ -411,6 +441,7 @@
   }
   function setView(v) {
     view = v; $("roads-stars").hidden = v !== "stars"; $("roads-map").hidden = v !== "flat";
+    const mainEl = root.querySelector(".roads-main"); if (mainEl) mainEl.classList.toggle("stars-view", v === "stars");
     root.querySelectorAll(".roads-view button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
     try { localStorage.setItem("roads:view", v); } catch (e) {}
     if (M) { if (v === "stars") drawStars(); else drawMap(); }
@@ -964,6 +995,9 @@
       $("chart-paste-note").textContent = `${found.size} charted: ${[...found.keys()].join(", ")}`; $("chart-paste").value = "";
       save(l, "Charted systems"); return;
     }
+    if (b.dataset.closedetail) { selected = null; picked = null; if (sf) { sf.select(null); sf.mark(null); } drawDetail(); drawMap(); return; }
+    if (b.dataset.copylink) { const t = `<a href="showinfo:5//${b.dataset.copylink}">${b.dataset.copyname}</a>`; const done = () => { b.textContent = "Copied: paste it into a chat line"; };
+      try { navigator.clipboard.writeText(t).then(done, () => { prompt("Copy this link:", t); }); } catch (err) { prompt("Copy this link:", t); } return; }
     if (b.id === "roads-refresh") { load(true); return; }
     if (b.dataset.view) { setView(b.dataset.view); return; }
     if (b.dataset.sfmissing) { $("sf-missing").classList.toggle("open"); return; }
