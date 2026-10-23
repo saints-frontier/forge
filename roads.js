@@ -319,7 +319,7 @@
   // star view, with the system's number, old name, charting, distances, kills of the last day and an in-game link
   let detailMini = false;   /* the pilot folded the window: it stays folded for the next system too */
   // where the system window lives: the top of the tool column on a wide screen, under the map when narrower
-  const WIDE = window.matchMedia ? window.matchMedia("(min-width: 1800px)") : { matches: false };
+  const WIDE = window.matchMedia ? window.matchMedia("(min-width: 1250px)") : { matches: false };
   function placeDetail() { const d = $("roads-detail"), side = root.querySelector(".roads-side"), main = root.querySelector(".roads-main"); if (!d || !side || !main) return;
     if (WIDE.matches) { if (d.parentNode !== side) side.insertBefore(d, side.firstChild); } else if (d.parentNode !== main) main.appendChild(d); }
   if (WIDE.addEventListener) WIDE.addEventListener("change", placeDetail);

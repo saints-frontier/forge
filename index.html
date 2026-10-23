@@ -770,7 +770,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 /* tools beside the map (2026-10-23, user: "move some of the tools to the side away from the map"): on a wide screen the
    map fills the left and the tools with their panels sit in a column on the right; narrower, they stay under the map */
 .roads-main, .roads-side { display: grid; gap: 10px; align-content: start; min-width: 0; }
-@media (min-width: 1800px) {
+@media (min-width: 1250px) {
   #roads-app:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
   .roads-main .roads-stars { height: clamp(460px, 76vh, 920px); }
   .roads-side { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; padding-right: 2px; }
@@ -785,7 +785,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 }
 
 /* the tool column centred on the map (2026-10-23); the location line runs across both columns above them */
-@media (min-width: 1800px) {
+@media (min-width: 1250px) {
   #roads-app > .roads-me, #roads-app > .roads-alert { grid-column: 1 / -1; }
   /* pinned to the top again (user 2026-10-23: centring slid it all the way down) */
   #roads-app:not([hidden]) { align-items: start; }
@@ -799,14 +799,14 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-keys span { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; min-width: 0; }
 .roads-keys kbd { display: inline-block; min-width: 15px; padding: 1px 4px; text-align: center; font: 600 9.5px var(--mono); color: var(--title);
   background: linear-gradient(#24202a, #141218); border: 1px solid rgba(217,178,76,.4); border-bottom-width: 2px; border-radius: 3px; }
-@media (max-width: 1799px) { .roads-keys { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
+@media (max-width: 1249px) { .roads-keys { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
 
 /* the system window on the star map (2026-10-23): docked top-right over the map, scrolls on its own, closes with x */
 .roads-main { position: relative; }
 .roads-main.detail-overlay .roads-detail:not([hidden]) { position: absolute; top: 40px; right: 10px; z-index: 6; width: min(400px, calc(100% - 20px));
   max-height: calc(clamp(320px, 62vh, 640px) - 90px); overflow: auto; margin: 0; padding: 12px 14px 14px; border: 1px solid rgba(217,178,76,.55);
   background: rgba(10,9,13,.94); box-shadow: 0 10px 34px rgba(0,0,0,.6); backdrop-filter: blur(3px); }
-@media (min-width: 1800px) { .roads-main.detail-overlay .roads-detail:not([hidden]) { max-height: calc(clamp(460px, 76vh, 920px) - 90px); } }
+@media (min-width: 1250px) { .roads-main.detail-overlay .roads-detail:not([hidden]) { max-height: calc(clamp(460px, 76vh, 920px) - 90px); } }
 .roads-main.detail-overlay .roads-detail .roads-dcols { grid-template-columns: 1fr; }
 .roads-detail { position: relative; }
 .roads-detail .roads-dclose { position: absolute; top: 6px; right: 8px; padding: 0 7px; font-size: 18px; line-height: 1.2; letter-spacing: 0; background: none; border: 0; color: var(--silver); cursor: pointer; clip-path: none; }
@@ -1721,5 +1721,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=68bc4175"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=3c62769f"></script><script src="quarry-data.js?v=e737f3b3"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=3f3511a1"></script><script src="sites.js?v=209dd811"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=faeb2aad"></script><script src="starfield.js?v=43faaf67"></script><script src="roadscore.js?v=b3ddd1e5"></script><script src="roads.js?v=8cc53771"></script><script type="module" src="machines.js?v=9cb8a800"></script>
+<script src="lodge-data.js?v=68bc4175"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=3c62769f"></script><script src="quarry-data.js?v=e737f3b3"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=3f3511a1"></script><script src="sites.js?v=209dd811"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=faeb2aad"></script><script src="starfield.js?v=43faaf67"></script><script src="roadscore.js?v=b3ddd1e5"></script><script src="roads.js?v=0b913e1d"></script><script type="module" src="machines.js?v=9cb8a800"></script>
 </body></html>
