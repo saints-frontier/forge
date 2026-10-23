@@ -74,7 +74,7 @@
     return [p.cx + dx * k, p.cy + dy * k];
   }
   const head = (x, y, ang, col) => { const a = 9, w = 4.5, c = Math.cos(ang), s = Math.sin(ang);
-    return `<polygon points="${x},${y} ${x - a * c + w * s},${y - a * s - w * c} ${x - a * c - w * s},${y - a * s + w * c}" fill="${col}"/>`; };
+    return `<polygon points="${x},${y} ${x - a * c + w * s},${y - a * s - w * c} ${x - a * c - w * s},${y - a * s + w * c}" fill="${col}" stroke="#07070a" stroke-width="1.2" stroke-linejoin="round"/>`; };   /* a dark rim: the direction stands out on the line and the tiles (tribe feedback 2026-10-23) */
 
   let M = null, selected = null, picked = null;             // picked: a charted system clicked on the star map (not one of ours)
   let unplacedBy = "builder"; try { unplacedBy = localStorage.getItem("roads:unplacedBy") === "node" ? "node" : "builder"; } catch (e) {}   // how Not on the map is grouped
@@ -258,7 +258,7 @@
   function flatColor(rs, V) {
     const r0 = rs[0], pub = rs.every(r => r.kind === "Public Gate");
     if (rs.every(r => r.online === false)) return "var(--red)";
-    if (V.colOf) return V.colOf(r0.builder);
+    if (V.colOf) return new Set(rs.map(r => r.builder)).size > 1 ? "var(--silver)" : V.colOf(r0.builder);   /* two builders on one road: a neutral line, the arrowheads say whose throw goes which way */
     if (pub) { const st = (rs.find(r => r.state) || {}).state || ""; return st === "working" ? "#6fd08c" : st === "unfueled" ? "#f0b74a" : st === "dormant" ? "#e3222c" : "#7d8894"; }
     return rs.some(r => /Gate/.test(r.kind) && r.kind !== "Public Gate") ? "#f1e9d2" : "#ff8a3d";
   }
@@ -266,17 +266,76 @@
     const sw = (c, t, d) => `<span><i style="--c:${c}"${d ? ' class="d"' : ""}></i>${t}</span>`;
     const legend = V.colOf ? V.builders.map(b => sw(V.colOf(b), esc(b))).join("") + sw("var(--red)", "offline") + sw("var(--silver)", "worked out from names", 1)
       : sw("#f1e9d2", "our gate pair") + sw("#ff8a3d", "our catapult") + sw("#7d8894", "public gate") + sw("#6fd08c", "public, working") + sw("#f0b74a", "public, no fuel far side", 1) + sw("#e3222c", "dormant / offline", 1) + sw("#ff8a3d", "jumped, not named yet", 1);
-    return `<div class="roads-flatbar"><span class="roads-view" role="group" aria-label="Flat map mode"><button type="button" data-flat="route" class="${flatMode === "route" ? "on" : ""}" title="Everything you can travel: our roads, public gates, jumps Saints have made">Routing</button><button type="button" data-flat="build" class="${flatMode === "build" ? "on" : ""}" title="Only the infrastructure the Saints built, by builder">Builders</button></span><span class="roads-flatleg">${legend}</span></div>`;
+    return `<div class="roads-flatbar"><span class="roads-view" role="group" aria-label="Flat map mode"><button type="button" data-flat="route" class="${flatMode === "route" ? "on" : ""}" title="Everything you can travel: our roads, public gates, jumps Saints have made">Routing</button><button type="button" data-flat="build" class="${flatMode === "build" ? "on" : ""}" title="Only the infrastructure the Saints built, by builder">Builders</button></span><span class="roads-view" role="group" aria-label="Flat map layout"><button type="button" data-flatlayout="tree" class="${flatLayout === "tree" ? "on" : ""}" title="Home on top, one row per jump">Tree</button><button type="button" data-flatlayout="space" class="${flatLayout === "space" ? "on" : ""}" title="Where the systems are in space, seen from above">Space</button></span><span class="roads-flatleg">${legend}</span></div>`;
   }
   function drawMap() {
     const box = $("roads-map"), V = flatView(), M0 = M; M = Object.assign({}, M0, { roads: V.roads, systems: V.systems });
     try { drawMap1(box, V); } finally { M = M0; }
   }
+
+  // ---------- the flat map's two layouts (2026-10-23) ----------
+  let flatLayout = "tree"; try { if (localStorage.getItem("roads:flatlayout") === "space") flatLayout = "space"; } catch (e) {}
+  // Tree: home on top, each row one jump further. Within a row the systems are ordered to keep lines from crossing
+  // (each moves toward the average place of its neighbours, a few sweeps down and up); a road skipping rows gets a
+  // waypoint in every row it passes, so it runs down the gaps and never behind a tile. Networks not joined to home
+  // stand beside the main tree.
+  function layoutTree(M, avail) {
+    const names = [...M.systems.keys()], adj = new Map(names.map(n => [n, new Set()]));
+    for (const r of M.roads) if (adj.has(r.from) && adj.has(r.to) && r.from !== r.to) { adj.get(r.from).add(r.to); adj.get(r.to).add(r.from); }
+    const layer = new Map(), comps = [];
+    const starts = [M.home].concat(names.filter(n => n !== M.home).sort((a, b) => adj.get(b).size - adj.get(a).size || a.localeCompare(b)));
+    for (const st of starts) { if (!st || !adj.has(st) || layer.has(st)) continue; const comp = [st]; layer.set(st, 0); const q = [st];
+      while (q.length) { const k = q.shift(); for (const n of [...adj.get(k)].sort()) if (!layer.has(n)) { layer.set(n, layer.get(k) + 1); comp.push(n); q.push(n); } }
+      comps.push(comp); }
+    const pairs = new Map(); for (const r of M.roads) if (adj.has(r.from) && adj.has(r.to) && r.from !== r.to) { const k = [r.from, r.to].sort(); pairs.set(JSON.stringify(k), k); }
+    const DW = 18, GX = 26, GYT = 58, pos = new Map(), paths = new Map(); let x0 = PAD, H = 0;
+    for (const comp of comps) {
+      const inComp = new Set(comp), rows = [], up = new Map(), down = new Map(), link = (a, b) => { (down.get(a) || down.set(a, []).get(a)).push(b); (up.get(b) || up.set(b, []).get(b)).push(a); };
+      for (const n of comp) (rows[layer.get(n)] = rows[layer.get(n)] || []).push(n);
+      const chains = [];
+      for (const [k, [p, q]] of pairs) { if (!inComp.has(p)) continue; let u = p, v = q; if (layer.get(u) > layer.get(v)) [u, v] = [v, u];
+        const lu = layer.get(u), lv = layer.get(v); if (lu === lv) continue; const ch = [u];
+        for (let l = lu + 1; l < lv; l++) { const d = "~" + k + "~" + l; rows[l].push(d); ch.push(d); }
+        ch.push(v); for (let i = 1; i < ch.length; i++) link(ch[i - 1], ch[i]); chains.push([k, ch]); }
+      const order = new Map(); rows.forEach(r => r.forEach((n, i) => order.set(n, i)));
+      const sweep = (r, nb) => { const val = n => { const ns = nb.get(n) || []; return ns.length ? ns.reduce((a, m) => a + order.get(m), 0) / ns.length : order.get(n); };
+        r.sort((a, b) => val(a) - val(b) || order.get(a) - order.get(b)); r.forEach((n, i) => order.set(n, i)); };
+      for (let it = 0; it < 8; it++) { for (let l = 1; l < rows.length; l++) sweep(rows[l], up); for (let l = rows.length - 2; l >= 0; l--) sweep(rows[l], down); }
+      const wOf = n => n[0] === "~" ? DW : BW, rowW = rows.map(r => r.reduce((a, n) => a + wOf(n), 0) + Math.max(0, r.length - 1) * GX), W = Math.max(...rowW);
+      const P2 = new Map();
+      rows.forEach((r, l) => { let x = x0 + (W - rowW[l]) / 2; const y = PAD + l * (BH + GYT);
+        for (const n of r) { const w = wOf(n); P2.set(n, { x, y, cx: x + w / 2, cy: y + BH / 2 }); if (n[0] !== "~") pos.set(n, { x, y, cx: x + BW / 2, cy: y + BH / 2 }); x += w + GX; } });
+      for (const [k, ch] of chains) paths.set(k, ch.map((n, i) => { const p = P2.get(n); return i === 0 ? [p.cx, p.y + BH] : i === ch.length - 1 ? [p.cx, p.y] : [p.cx, p.cy]; }));
+      x0 += W + 70; H = Math.max(H, PAD * 2 + rows.length * BH + (rows.length - 1) * GYT);
+    }
+    return { pos, w: Math.max(x0 - 70 + PAD, 200), h: H, paths };
+  }
+  // Space: every tile where its system is, seen from above (the star map's own coordinates), then pushed apart until
+  // no two tiles overlap. A system without a number sits between the systems it connects to.
+  function layoutSpace(M, avail) {
+    if (!sf || !sf.position || !sf.count()) { starsReady().then(x => { if (x && flatLayout === "space" && view === "flat") drawMap(); }); return layoutTree(M, avail); }   /* the star positions load with the 3D map: fetch them, draw again */
+    const names = [...M.systems.keys()], raw = new Map();
+    for (const n of names) { const k = M.ids.get(n); const p = k && sf.position(k.id); if (p) raw.set(n, [p[0], p[2]]); }
+    const adj = new Map(names.map(n => [n, []])); for (const r of M.roads) if (adj.has(r.from) && adj.has(r.to)) { adj.get(r.from).push(r.to); adj.get(r.to).push(r.from); }
+    for (let it = 0; it < 6; it++) for (const n of names) if (!raw.has(n)) { const ns = adj.get(n).filter(m => raw.has(m)); if (ns.length) raw.set(n, [ns.reduce((a, m) => a + raw.get(m)[0], 0) / ns.length + 6, ns.reduce((a, m) => a + raw.get(m)[1], 0) / ns.length + 6]); }
+    let i0 = 0; for (const n of names) if (!raw.has(n)) raw.set(n, [i0 * 20, -400 - (i0++) * 10]);
+    const xs = [...raw.values()].map(p => p[0]), zs = [...raw.values()].map(p => p[1]), minx = Math.min(...xs), maxx = Math.max(...xs), minz = Math.min(...zs), maxz = Math.max(...zs);
+    const target = Math.max(700, (avail || 900) - PAD * 2 - BW), sc = target / Math.max(1, maxx - minx);
+    const P2 = names.map(n => ({ n, x: (raw.get(n)[0] - minx) * sc, y: (raw.get(n)[1] - minz) * sc }));
+    for (let it = 0; it < 400; it++) { let moved = false;
+      for (let i = 0; i < P2.length; i++) for (let j = i + 1; j < P2.length; j++) { const a = P2[i], b = P2[j], dx = b.x - a.x, dy = b.y - a.y, ox = BW + 22 - Math.abs(dx), oy = BH + 26 - Math.abs(dy);
+        if (ox > 0 && oy > 0) { moved = true; if (ox / (BW + 22) < oy / (BH + 26)) { const m = ox / 2 * Math.sign(dx || 1); a.x -= m; b.x += m; } else { const m = oy / 2 * Math.sign(dy || 1); a.y -= m; b.y += m; } } }
+      if (!moved) break; }
+    const mx = Math.min(...P2.map(p => p.x)), my = Math.min(...P2.map(p => p.y)), pos = new Map();
+    for (const p of P2) { const x = PAD + p.x - mx, y = PAD + p.y - my; pos.set(p.n, { x, y, cx: x + BW / 2, cy: y + BH / 2 }); }
+    return { pos, w: PAD * 2 + Math.max(...P2.map(p => p.x)) - mx + BW, h: PAD * 2 + Math.max(...P2.map(p => p.y)) - my + BH, paths: new Map() };
+  }
   function drawMap1(box, V) {
     if (!M.systems.size) { box.innerHTML = flatBar(V) + `<div class="roads-empty">No road is on the map yet. ${M.list.builders.length ? "A launcher appears when its name in game carries its systems: see Not on the map." : "No builder is set."}</div>`; return; }
-    const avail = box.clientWidth - 14, L = layout(M, avail), groups = new Map();
+    const avail = box.clientWidth - 14, L = flatLayout === "space" ? layoutSpace(M, avail) : layoutTree(M, avail), groups = new Map();
     for (const r of M.roads) { const k = JSON.stringify([r.from, r.to].sort()); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
     let svg = "";
+    const allP = [...L.pos.values()], top = Math.min(...allP.map(p => p.y)), bottom = Math.max(...allP.map(p => p.y + BH)), lanes = [0, 0]; let vbTop = 0, vbBot = L.h;
     for (const [k, rs] of groups) {
       const [a, b] = JSON.parse(k), pa = L.pos.get(a), pb = L.pos.get(b);
       // per direction: 1 = a working road, -1 = only offline ones (its arrowhead is drawn red), 0 = none
@@ -285,16 +344,35 @@
       const heavy = rs.some(r => /Heavy/.test(r.kind)), gate = rs.some(r => /Gate/.test(r.kind)), off = rs.every(r => r.online === false), hand = rs.every(r => r.inferred);
       const planned = rs.every(r => r.status === "planned");
       const col = planned ? "var(--silver)" : flatColor(rs, V), seenOnly = rs.every(r => r.source === "seen"), pubState = (rs.find(r => r.state) || {}).state || "";
-      // a straight road, or a bowed one when a third system stands in the way
-      const blocked = [...L.pos.entries()].some(([n, p]) => n !== a && n !== b && segHitsBox(pa.cx, pa.cy, pb.cx, pb.cy, p));
+      // the road's way between the tiles (2026-10-23, tribe feedback: a long road "arcs behind other system tiles"):
+      // the gentlest curve, either side, that clears every tile; when none does, round the outside of the map in a
+      // lane of its own above or below all the tiles
+      const others = [...L.pos.entries()].filter(([n]) => n !== a && n !== b).map(([, p]) => p);
+      const hits = pts => others.reduce((h, p) => h + (pts.some(([x, y]) => x > p.x - 7 && x < p.x + BW + 7 && y > p.y - 7 && y < p.y + BH + 7) ? 1 : 0), 0);
       const mx = (pa.cx + pb.cx) / 2, my = (pa.cy + pb.cy) / 2, len = Math.hypot(pb.cx - pa.cx, pb.cy - pa.cy) || 1;
-      // the bow clears a box whichever way the road runs: wide for a road running down, low for one running across
-      const ux = (pb.cx - pa.cx) / len, uy = (pb.cy - pa.cy) / len, bend = blocked ? 2 * (Math.abs(ux) * (BH / 2 + 26) + Math.abs(uy) * (BW / 2 + 26)) : 0;
-      const qx = mx - uy * bend, qy = my + ux * bend;
-      const [x1, y1] = edgePoint(pa, qx, qy), [x2, y2] = edgePoint(pb, qx, qy);
-      svg += `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)} Q${qx.toFixed(1)} ${qy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="${col}" stroke-width="${heavy ? 4 : 2}"${planned ? ' stroke-dasharray="2 5"' : off || hand || seenOnly || pubState === "unfueled" || pubState === "dormant" ? ' stroke-dasharray="7 6"' : ""} stroke-linecap="round" opacity="${off ? .75 : 1}"/>`;
-      if (ab) svg += head(x2, y2, Math.atan2(y2 - qy, x2 - qx), ab < 0 ? "var(--red)" : col);
-      if (ba) svg += head(x1, y1, Math.atan2(y1 - qy, x1 - qx), ba < 0 ? "var(--red)" : col);
+      const ux = (pb.cx - pa.cx) / len, uy = (pb.cy - pa.cy) / len, base = Math.abs(ux) * (BH / 2 + 26) + Math.abs(uy) * (BW / 2 + 26);
+      const quad = q => { const [x1, y1] = edgePoint(pa, q[0], q[1]), [x2, y2] = edgePoint(pb, q[0], q[1]), pts = [];
+        for (let i = 1; i < 30; i++) { const t = i / 30, u = 1 - t; pts.push([u * u * x1 + 2 * u * t * q[0] + t * t * x2, u * u * y1 + 2 * u * t * q[1] + t * t * y2]); }
+        return { d: `M${x1.toFixed(1)} ${y1.toFixed(1)} Q${q[0].toFixed(1)} ${q[1].toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`, s: [x1, y1], e: [x2, y2], cs: q, ce: q, pts }; };
+      let way = null;
+      const tp = L.paths && L.paths.get(k);
+      if (tp) { const pts = tp[0][0] === pa.cx && Math.abs(tp[0][1] - (pa.y + BH)) < 0.5 ? tp : tp.slice().reverse(); let d = `M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`, cs = null, ce = null;
+        for (let i = 1; i < pts.length; i++) { const [x1, y1] = pts[i - 1], [x2, y2] = pts[i], my2 = (y1 + y2) / 2; d += ` C${x1.toFixed(1)} ${my2.toFixed(1)} ${x2.toFixed(1)} ${my2.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`; if (i === 1) cs = [x1, my2]; ce = [x2, my2]; }
+        way = { d, s: pts[0], e: pts[pts.length - 1], cs, ce }; }
+      if (!way) for (const f of [0, 1, -1, 1.6, -1.6, 2.3, -2.3, 3.2, -3.2, 4.4, -4.4]) { const r = quad([mx - uy * base * f, my + ux * base * f]); if (!hits(r.pts)) { way = r; break; } }
+      if (!way) {
+        const lane = up => { const k = (lanes[up ? 0 : 1] || 0) + 1, ly = up ? top - 16 - k * 12 : bottom + 16 + k * 12;
+          const s0 = [pa.cx, up ? pa.y : pa.y + BH], e0 = [pb.cx, up ? pb.y : pb.y + BH], pts = [];
+          for (let i = 1; i < 30; i++) { const t = i / 30, u = 1 - t; pts.push([u * u * u * s0[0] + 3 * u * u * t * s0[0] + 3 * u * t * t * e0[0] + t * t * t * e0[0], u * u * u * s0[1] + 3 * u * u * t * ly + 3 * u * t * t * ly + t * t * t * e0[1]]); }
+          return { d: `M${s0[0].toFixed(1)} ${s0[1].toFixed(1)} C${s0[0].toFixed(1)} ${ly.toFixed(1)} ${e0[0].toFixed(1)} ${ly.toFixed(1)} ${e0[0].toFixed(1)} ${e0[1].toFixed(1)}`, s: s0, e: e0, cs: [s0[0], ly], ce: [e0[0], ly], pts, up, ly }; };
+        const U = lane(true), Dn = lane(false); way = hits(U.pts) <= hits(Dn.pts) ? U : Dn;
+        lanes[way.up ? 0 : 1] = (lanes[way.up ? 0 : 1] || 0) + 1; vbTop = Math.min(vbTop, way.ly - 8); vbBot = Math.max(vbBot, way.ly + 8);
+      }
+      const [x1, y1] = way.s, [x2, y2] = way.e;
+      svg += `<path d="${way.d}" fill="none" stroke="${col}" stroke-width="${heavy ? 4 : 2}"${planned ? ' stroke-dasharray="2 5"' : off || hand || seenOnly || pubState === "unfueled" || pubState === "dormant" ? ' stroke-dasharray="7 6"' : ""} stroke-linecap="round" opacity="${off ? .75 : 1}"/>`;
+      const dirCol = (f, t) => { if (!V.colOf) return col; const r = rs.find(r => r.from === f && r.to === t) || rs.find(r => r.twoWay); return r ? V.colOf(r.builder) : col; };
+      if (ab) svg += head(x2, y2, Math.atan2(y2 - way.ce[1], x2 - way.ce[0]), ab < 0 ? "var(--red)" : dirCol(a, b));
+      if (ba) svg += head(x1, y1, Math.atan2(y1 - way.cs[1], x1 - way.cs[0]), ba < 0 ? "var(--red)" : dirCol(b, a));
     }
     for (const [name, p] of L.pos) {
       const s = M.systems.get(name), cls = fuelClass(s.days), isHome = name === M.home, sel = name === selected;
@@ -306,7 +384,7 @@
     }
     // a map a little wider than the pane is drawn smaller (down to 70 %); past that it scrolls sideways
     const k = avail > 0 ? Math.max(.7, Math.min(1, avail / L.w)) : 1;
-    box.innerHTML = flatBar(V) + `<svg class="roads-svg" width="${Math.floor(L.w * k)}" height="${Math.ceil(L.h * k)}" viewBox="0 0 ${L.w} ${L.h}" role="img" aria-label="Map of the tribe's roads">${svg}</svg>`;
+    box.innerHTML = flatBar(V) + `<svg class="roads-svg" width="${Math.floor(L.w * k)}" height="${Math.ceil((vbBot - vbTop) * k)}" viewBox="0 ${vbTop.toFixed(0)} ${L.w} ${(vbBot - vbTop).toFixed(0)}" role="img" aria-label="Map of the tribe's roads">${svg}</svg>`;
   }
   function segHitsBox(x1, y1, x2, y2, p) {                    // does the segment pass through the box (with a margin)?
     const m = 6, l = p.x - m, r = p.x + BW + m, t = p.y - m, b = p.y + BH + m;
@@ -1052,6 +1130,7 @@
     if (b.dataset.copylink) { const t = `<a href="showinfo:5//${b.dataset.copylink}">${b.dataset.copyname}</a>`; const done = () => { b.textContent = "Copied: paste it into a chat line"; };
       try { navigator.clipboard.writeText(t).then(done, () => { prompt("Copy this link:", t); }); } catch (err) { prompt("Copy this link:", t); } return; }
     if (b.id === "roads-refresh") { load(true); return; }
+    if (b.dataset.flatlayout) { flatLayout = b.dataset.flatlayout === "space" ? "space" : "tree"; try { localStorage.setItem("roads:flatlayout", flatLayout); } catch (e) {} drawMap(); return; }
     if (b.dataset.flat) { flatMode = b.dataset.flat === "build" ? "build" : "route"; try { localStorage.setItem("roads:flat", flatMode); } catch (e) {} drawMap(); return; }
     if (b.dataset.view) { setView(b.dataset.view); return; }
     if (b.dataset.sfmissing) { $("sf-missing").classList.toggle("open"); return; }
