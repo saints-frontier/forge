@@ -35,7 +35,12 @@
 
   const { RANGE, readName } = window.RoadsCore;            /* the model and the name reader live in roadscore.js (shared with the companion) */
   let dist = null;                                            // (idA, idB) -> light-years, once the stars are loaded
-  const build = d => window.RoadsCore.build(d, dist);
+  /* old Cycle 6 names (user 2026-10-24: "a little bit confusing. I need a button that will turn that off and back on"):
+     off by default; a system with no Cycle 7 name then shows as its number (#30012345) everywhere on the page */
+  let oldNames = (() => { try { return localStorage.getItem("roads:oldnames") === "1"; } catch (e) { return false; } })();
+  const noOld = d => !d || !d.list || !d.list.plans ? d : Object.assign({}, d, { list: Object.assign({}, d.list, { plans: d.list.plans.map(p => Object.assign({}, p, { hops: (p.hops || []).map(h => Object.assign({}, h, { fromName: undefined, toName: undefined })) })) }) });
+  const build = d => { const m = window.RoadsCore.build(oldNames ? d : noOld(d), dist); if (!oldNames && d && d.list && m.list) m.list = Object.assign({}, m.list, { plans: d.list.plans || [] }); return m; };   /* saves keep the stored plan names */
+  const oldOf = id => oldNames && sf && sf.oldName ? sf.oldName(id) : null;
 
   // ---------- layout: columns by hops from home, one band per connected group ----------
   const BW = 156, BH = 60, GY = 40, PAD = 22;
@@ -217,7 +222,7 @@
   }
   let showGates = true; try { showGates = localStorage.getItem("roads:gates") !== "0"; } catch (e) {}       // the public stargate network (gates.bin)
   // a system's name as the page knows it: ours, then EF-Map's, then the archived Cycle 6 name marked (C6)
-  const nameOfId = id => { if (typeof id === "string" && id.startsWith("n:")) return id.slice(2); for (const [n, k] of M.ids) if (k.id === id) return n; const e = M.ef.byId.get(id); if (e && e.status === "confirmed") return e.name; const old = sf && sf.oldName(id); return old ? old + " (C6)" : "#" + id; };
+  const nameOfId = id => { if (typeof id === "string" && id.startsWith("n:")) return id.slice(2); for (const [n, k] of M.ids) if (k.id === id) return n; const e = M.ef.byId.get(id); if (e && e.status === "confirmed") return e.name; const old = oldOf(id); return old ? old + " (C6)" : "#" + id; };
   // has a Saint jumped this gate? (list.gates, recorded under Manage) -> the record, with the state it was found in
   const gateRec = (a, b) => (M.list.gates || []).find(g => (up(g.a) === a && up(g.b) === b) || (up(g.a) === b && up(g.b) === a)) || null;
   const jumped = (a, b) => !!gateRec(a, b);
@@ -425,7 +430,7 @@
        through, so the second click still reaches the map (tribe feedback 2026-10-23: "I can't double-click on a star") */
     /* (retired with the window's move beside the map: it never covers a star now) */
     const k = selected ? M.ids.get(selected) : null, id = k ? k.id : picked; if (!id && !selected) return;
-    const e = id ? M.ef.byId.get(id) : null, old = id && sf ? sf.oldName(id) : null, name = selected || (e && e.name) || old || "";
+    const e = id ? M.ef.byId.get(id) : null, old = id ? oldOf(id) : null, name = selected || (e && e.name) || old || "";
     const facts = [];
     if (id) facts.push(`system <b>${id}</b>`); if (old && old !== name) facts.push(`Cycle 6 name ${esc(old)}`);
     if (e) facts.push(e.status === "confirmed" ? "charted on EF-Map" : e.status === "conflict" ? "name disputed on EF-Map" : "reported once on EF-Map");
@@ -453,7 +458,7 @@
   function drawDetail0() {
     const el = $("roads-detail");
     if (!selected && picked) {                               // a star that is not on our roads: charted, reported once, or nothing known
-      const e = M.ef.byId.get(picked), h = M.ids.get(M.home), ly = dist && h ? dist(h.id, picked) : null, old = sf && sf.oldName(picked);
+      const e = M.ef.byId.get(picked), h = M.ids.get(M.home), ly = dist && h ? dist(h.id, picked) : null, old = oldOf(picked);
       let near = null; if (dist) for (const name of M.systems.keys()) { const k = M.ids.get(name); if (!k) continue; const d = dist(k.id, picked); if (d != null && (!near || d < near.d)) near = { name, d }; }
       const reach = near ? (near.d <= RANGE["Mini Catapult"] ? "a Mini Catapult reaches it" : near.d <= RANGE["Heavy Catapult"] ? "a Heavy Catapult reaches it" : "beyond one catapult throw") : "";
       const where = (near ? ` Nearest of ours: ${esc(near.name)}, ${Math.round(near.d).toLocaleString("en-US")} LY (${reach}).` : "") + (ly != null && (!near || near.name !== M.home) ? ` ${Math.round(ly).toLocaleString("en-US")} LY from ${esc(M.home)}.` : "");
@@ -532,7 +537,7 @@
       setTimeout(findBox, 0);
       setTimeout(() => { const ul = box.querySelector(".sf-legend ul"); if (ul) ul.insertAdjacentHTML("beforeend", '<li><button type="button" class="sf-l-more" data-panel="legend">More about the lines and names ›</button></li>'); }, 0);                                     /* the find box is in the toolbar HTML below */                                      // tests
       box.insertAdjacentHTML("beforeend", '<div class="sf-hint"></div><div class="sf-missing" id="sf-missing"></div>' +
-        '<div class="sf-find"><input type="search" id="sf-find" placeholder="Find a system: name or number" aria-label="Find a system by name or system number" autocomplete="off" spellcheck="false"></div><div class="sf-poi" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-layers" id="sf-layers" hidden><b>Show on the map</b><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="survey" title="Systems Saints have surveyed with the companion: infestation 1 (green) to 6 (red)" hidden>Survey</button><b>View</b><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button><button type="button" data-sf="all" title="The whole galaxy">Whole galaxy</button></div><div class="sf-tools"><button type="button" data-sf="me" title="Fly to where you are (from the Saints Frontier Companion)" hidden>You</button><button type="button" data-sf="fit" title="Back to our roads">Our roads</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="layers" title="What the map shows, and the view">Layers ▾</button></div>');
+        '<div class="sf-find"><input type="search" id="sf-find" placeholder="Find a system: name or number" aria-label="Find a system by name or system number" autocomplete="off" spellcheck="false"></div><div class="sf-poi" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-layers" id="sf-layers" hidden><b>Show on the map</b><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="survey" title="Systems Saints have surveyed with the companion: infestation 1 (green) to 6 (red)" hidden>Survey</button><button type="button" data-sf="oldnames"' + (oldNames ? ' class="on"' : '') + ' title="Off: a system nobody has named this cycle shows as its number. On: as its old Cycle 6 name, marked (C6)">Old Cycle 6 names</button><b>View</b><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button><button type="button" data-sf="all" title="The whole galaxy">Whole galaxy</button></div><div class="sf-tools"><button type="button" data-sf="me" title="Fly to where you are (from the Saints Frontier Companion)" hidden>You</button><button type="button" data-sf="fit" title="Back to our roads">Our roads</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="layers" title="What the map shows, and the view">Layers ▾</button></div>');
       sfLoading = sf.load("stars.bin?v=2").then(() => { dist = (a, b) => { const p = sf.position(a), q = sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; }; if (lastData && !draft) { M = build(lastData); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); stamp(lastData); }
         // the public gates come after the stars, never in their way: the button appears once they are in
         sf.showGates(showGates); poiLoad(); locPoll();
@@ -713,7 +718,7 @@
     if (/^[0-9]{8}$/.test(q)) { const id = +q; if (!idx.some(r => r.id === id) && sf && sf.has(id)) out.push({ id, name: nameOfId(id), tag: "by number", rank: 3, s: 0 }); }
     out.sort((x, y) => x.s - y.s || x.rank - y.rank || x.name.localeCompare(y.name));
     for (const r of out) seen.add(r.id);
-    if (sf && sf.searchOld && q.length >= 2 && out.length < limit) for (const r of sf.searchOld(q, limit)) if (!seen.has(r.id)) { seen.add(r.id); out.push({ id: r.id, name: r.name + " (C6)", tag: "uncharted · Cycle 6 name", rank: 4, s: 3 }); }
+    if (oldNames && sf && sf.searchOld && q.length >= 2 && out.length < limit) for (const r of sf.searchOld(q, limit)) if (!seen.has(r.id)) { seen.add(r.id); out.push({ id: r.id, name: r.name + " (C6)", tag: "uncharted · Cycle 6 name", rank: 4, s: 3 }); }
     return out.slice(0, limit);
   }
   const sysId = id => +($(id).dataset.id || 0);
@@ -892,7 +897,7 @@
     return !e ? "unknown" : e.status === "confirmed" ? "charted" : e.status === "conflict" ? "disputed" : "reported";
   }
   function chartName(id) {
-    const e = M.ef.byId.get(id), old = sf && sf.oldName(id);
+    const e = M.ef.byId.get(id), old = oldOf(id);
     return e && e.status !== "confirmed" ? e.name + " (reported)" : old ? old + " (C6)" : String(id);
   }
   const lyBetween = (a, b) => { const p = sf && sf.position(a), q = sf && sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : 0; };
@@ -1163,6 +1168,7 @@
     if (b.dataset.sf === "gates") { showGates = !showGates; try { localStorage.setItem("roads:gates", showGates ? "1" : "0"); } catch (e) {} if (sf) sf.showGates(showGates); b.classList.toggle("on", showGates); drawDetail(); return; }
     if (b.dataset.sf === "charted") { showCharted = !showCharted; try { localStorage.setItem("roads:charted", showCharted ? "1" : "0"); } catch (e) {} if (!showCharted) { picked = null; if (sf) sf.mark(null); } drawStars(); drawDetail(); return; }
     if (b.dataset.sf === "poi") { openPoiBox(!poiBox); return; }
+    if (b.dataset.sf === "oldnames") { oldNames = !oldNames; try { localStorage.setItem("roads:oldnames", oldNames ? "1" : "0"); } catch (e) {} b.classList.toggle("on", oldNames); if (lastData) render(lastData); else { drawStars(); drawDetail(); } return; }
     if (b.dataset.sf === "survey") { surveyOn = !surveyOn; try { localStorage.setItem("roads:survey", surveyOn ? "1" : "0"); } catch (e) {} drawStars(); drawSurveyBtn(); return; }
     if (b.dataset.sf === "me" && sf && LOC && LOC.me) { const id = locOf(LOC.me.s); if (id) { const name = [...M.ids].find(([, v]) => v.id === id); selected = name ? name[0] : null; picked = name ? null : id; sf.look(id, 300); if (!name) sf.mark(null); drawStars(); drawDetail(); } return; }
     if (b.dataset.poiclose) { openPoiBox(false); return; }
