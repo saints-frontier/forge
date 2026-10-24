@@ -20,6 +20,7 @@
 /companion/ /companion 301
 /sites/ /sites 301
 /npcs/ /npcs 301
+/lore/ /lore 301
 /guide-creche/ /guide-creche 301
 /guide-starter-ship/ /guide-starter-ship 301
 /guide-fuel/ /guide-fuel 301
@@ -41,6 +42,7 @@
 /companion / 200
 /sites / 200
 /npcs / 200
+/lore / 200
 /guide-creche / 200
 /guide-starter-ship / 200
 /guide-fuel / 200
