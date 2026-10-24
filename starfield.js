@@ -207,7 +207,7 @@
     // ---------- drawing ----------
     function render() {
       raf = 0; if (!dirty) return; dirty = false;
-      mat();
+      mat(); if (comp) comp.firstChild.style.transform = `rotate(${cam.yaw}rad)`;
       gl.viewport(0, 0, gl3.width, gl3.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
       if (n) {
         gl.useProgram(starProg); gl.uniformMatrix4fv(uloc(starProg, "uVP"), false, VP); gl.uniform1f(uloc(starProg, "uDpr"), dpr); gl.uniform1f(uloc(starProg, "uFade"), cam.dist * 1.4); const dim = Math.max(0.32, Math.min(1, 2500 / cam.dist)); gl.uniform1f(uloc(starProg, "uScale"), 0.75 + 0.25 * dim); gl.uniform1f(uloc(starProg, "uDim"), dim * starDim);
@@ -336,6 +336,14 @@
     leg.querySelector("button").addEventListener("click", () => { leg.classList.toggle("shut"); try { localStorage.setItem("roads:legend", leg.classList.contains("shut") ? "shut" : "open"); } catch (e) {} });
     leg.classList.add("shut"); try { if (localStorage.getItem("roads:legend") === "open") leg.classList.remove("shut"); } catch (e) {}
     container.appendChild(leg);
+    /* the compass (user 2026-10-23: "in the game you have one"): as the game's Map draws it, a ring whose orange chevron
+       is north and white ticks east / south / west, turning with the camera only (the game's own shots: chevron at the
+       camera's yaw, no tilt). North = the game's +Z, the same camera fit that proved the mirror. A click faces north. */
+    const comp = document.createElement("button"); comp.type = "button"; comp.className = "sf-compass"; comp.title = "Compass: the orange mark is north. Click to face north.";
+    comp.innerHTML = '<svg viewBox="-30 -30 60 60" aria-hidden="true"><circle r="21" class="ring"/><path class="north" d="M-5 -21 L0 -26.5 L5 -21"/><path class="tick" d="M21 0 H26 M0 21 V26 M-21 0 H-26"/><text y="-9.5">N</text></svg>';
+    comp.addEventListener("click", () => { const y0 = ((cam.yaw + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI, t0 = performance.now();
+      const step = now => { const t = Math.min(1, (now - t0) / 400); cam.yaw = y0 * Math.pow(1 - t, 3); dirty = true; schedule(); if (t < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); });
+    container.appendChild(comp);
 
     // ---------- input: drag orbits, shift/right drag pans, wheel zooms, click picks ----------
     let drag = null, ptr = null;

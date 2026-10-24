@@ -849,6 +849,15 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-sys .rnc { font-size: 12px; }   /* the Space layout: name chips, fuel colour in the name (2026-10-23) */
 .roads-sys .rnc.warn, .roads-sys .rnc.bad { fill: currentColor; }
 
+/* the compass (2026-10-23): ring + orange north chevron like the game's Map; turns with the camera */
+.roads-stars .sf-compass { position: absolute; right: 10px; bottom: 44px; z-index: 3; width: 58px; height: 58px; padding: 0; border: 0; background: none; cursor: pointer; }
+.roads-stars .sf-compass svg { width: 100%; height: 100%; overflow: visible; }
+.roads-stars .sf-compass .ring { fill: rgba(7,7,10,.45); stroke: rgba(150,150,150,.28); stroke-width: 4.5; }
+.roads-stars .sf-compass .north { fill: none; stroke: #ff5a14; stroke-width: 3; stroke-linejoin: miter; }
+.roads-stars .sf-compass .tick { stroke: #f1e9d2; stroke-width: 2.6; }
+.roads-stars .sf-compass text { fill: #ff7a3a; font: 700 9px var(--mono); text-anchor: middle; }
+.roads-stars .sf-compass:hover .ring { stroke: rgba(217,178,76,.6); }
+
 /* SITES (/sites): every kind of site in one table, client information only (user 2026-10-20) */
 .sites-on .topctl, .sites-on .tier { display: none; }
 .sites-page { padding: 8px 0 20px; }
@@ -1724,5 +1733,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=68bc4175"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=3c62769f"></script><script src="quarry-data.js?v=e737f3b3"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=3f3511a1"></script><script src="sites.js?v=209dd811"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=faeb2aad"></script><script src="starfield.js?v=7ff11052"></script><script src="roadscore.js?v=b3ddd1e5"></script><script src="roads.js?v=f6de46ad"></script><script type="module" src="machines.js?v=9cb8a800"></script>
+<script src="lodge-data.js?v=68bc4175"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=3c62769f"></script><script src="quarry-data.js?v=e737f3b3"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=3f3511a1"></script><script src="sites.js?v=209dd811"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=faeb2aad"></script><script src="starfield.js?v=794e495c"></script><script src="roadscore.js?v=b3ddd1e5"></script><script src="roads.js?v=f6de46ad"></script><script type="module" src="machines.js?v=9cb8a800"></script>
 </body></html>
