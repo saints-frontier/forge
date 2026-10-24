@@ -197,7 +197,7 @@
   function poiLines(id) {
     const l = poiBy.get(id); if (!l) return "";
     return `<div class="roads-poilines">` + l.map(({ c, x }) => { let more = "";
-      if (c.key === "longhaul" && x) { const [o, ly] = x.split(":"); more = ` Its other end: <b>${esc(nameOfId(+o))}</b>, ${(+ly).toLocaleString("en-US")} LY.`; }
+      if (c.key === "longhaul" && x) { const [o, ly] = x.split(":"); more = ` Its other end: <button type="button" class="roads-quiet" data-poigo="${+o}" title="fly to the other end">${esc(nameOfId(+o))}</button>, ${(+ly).toLocaleString("en-US")} LY.`; }
       if (c.key === "kills" && x) more = ` ${(+x).toLocaleString("en-US")} killmail${+x === 1 ? "" : "s"} here.`;
       return `<div><i class="poikey" style="--c:${esc(c.color)}"></i><b>${esc(c.label)}</b> · ${esc(c.note)}${more}</div>`; }).join("") + `</div>`;
   }
@@ -574,6 +574,10 @@
       const cb = $("roads-stars").querySelector('[data-sf="charted"]'); if (cb) { cb.hidden = !(chartedN + waitingN); cb.textContent = `Charted · ${chartedN.toLocaleString("en-US")}`; cb.classList.toggle("on", showCharted); }
       const roads = [];
       for (const r of M.roads) { const a = M.ids.get(r.from), b = M.ids.get(r.to); if (a && b) roads.push({ a: a.id, b: b.id, kind: r.kind, twoWay: r.twoWay, online: r.online, source: r.inferred ? "inferred" : r.source, status: r.status || "built", state: r.state || "" }); }
+      /* long-haul stargate pairs (2026-10-23; the POI layer's own pairs): drawn as lines between the
+         two ends while the Long-haul gate category is ticked; never jumped, so nothing routes over them */
+      if (POI && poiOn && poiOn.has("longhaul")) { const c = POI.categories.find(x => x.key === "longhaul");
+        if (c) for (const [id, x] of c.items) { const b = parseInt(String(x), 10); if (b > id) roads.push({ a: id, b, kind: "Long-haul Gate", twoWay: true, online: true, source: "client", status: "built", state: "" }); } }
       s.setScene({ systems, roads }); if (!drawStars.fitted) { if (location.search.indexOf("sf=all") >= 0) s.fitAll(); else s.fit(); drawStars.fitted = true; }
       const sel = selected && M.ids.get(selected); s.select(sel ? sel.id : null);
       const al = (M.aliases || []).filter(x => x[2]).map(x => `${esc(x[0])} = ${esc(x[1])}`);
@@ -595,7 +599,8 @@
   { const qp = new URLSearchParams(location.search);   /* a link can open a view: /map?view=flat&layout=space&mode=build */
     if (qp.get("view") === "flat" || qp.get("view") === "stars") view = qp.get("view");
     if (qp.get("layout") === "space" || qp.get("layout") === "tree") flatLayout = qp.get("layout");
-    if (qp.get("mode") === "build" || qp.get("mode") === "route") flatMode = qp.get("mode"); }
+    if (qp.get("mode") === "build" || qp.get("mode") === "route") flatMode = qp.get("mode");
+    if (qp.get("poi")) poiOn = new Set(qp.get("poi").split(",").filter(Boolean)); }   /* ?poi=longhaul ticks POI layers */
 
   // ---------- road plans: one button each, a hop table with a build sheet, the plan drawn on the star map ----------
   // per launcher: Kerogen Tar, Building Foam, Still Kernel, print minutes (data/recipes.json, Build Mode); a gate hop = two gates

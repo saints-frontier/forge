@@ -13,7 +13,7 @@
 (function () {
   "use strict";
   const LY_FOV = 50 * Math.PI / 180;
-  const COLORS = { me: "#5fe3ff", mate: "#8fe0b0", home: "#e3222c", ours: "#d9b24c", inferred: "#b8b3a8", far: "#8a8378", plan: "#9a9389", charted: "#8d98a3", uncharted: "#737d86", road: "#d9b24c", planned: "#b8b3a8", off: "#e3222c", gate: "#f1e9d2", hand: "#b8b3a8", pub: "#7d8894", cat: "#ff8a3d", pubOk: "#6fd08c", pubFuel: "#f0b74a", pubDead: "#e3222c" };
+  const COLORS = { me: "#5fe3ff", mate: "#8fe0b0", home: "#e3222c", ours: "#d9b24c", inferred: "#b8b3a8", far: "#8a8378", plan: "#9a9389", charted: "#8d98a3", uncharted: "#737d86", road: "#d9b24c", planned: "#b8b3a8", off: "#e3222c", gate: "#f1e9d2", hand: "#b8b3a8", pub: "#7d8894", cat: "#ff8a3d", longhaul: "#ff5fa2", pubOk: "#6fd08c", pubFuel: "#f0b74a", pubDead: "#e3222c" };
   /* the line grammar (2026-10-23, user: "those arching lines are confusing ... only straight lines ... the color coding
      should be better"): every road is a straight line; the colour says WHAT it is, the dash says how sure, the arrows
      say which way. Shown in the legend over the map. */
@@ -21,7 +21,8 @@
     ["gate", "solid", "Our gate pair (both ways)"], ["cat", "arrow", "Our catapult (one way)"],
     ["pub", "thin", "Public stargate, state unknown"], ["pubOk", "solid", "Public stargate, working"],
     ["pubFuel", "dash", "Public stargate, no fuel far side"], ["pubDead", "dash", "Public stargate, dormant"],
-    ["planned", "dot", "Planned road"], ["off", "dash", "Ours, offline"]];
+    ["planned", "dot", "Planned road"], ["off", "dash", "Ours, offline"],
+    ["longhaul", "dash", "Long-haul stargate pair (POI layer, never jumped)"]];
 
   function Starfield(container, opts) {
     opts = opts || {};
@@ -127,6 +128,7 @@
         const kind = r.kind || "", pub = kind === "Public Gate", cat = /Catapult/.test(kind), heavy = /Heavy/.test(kind);
         let col, dash = [], alpha = 0.95;
         if (r.status === "planned") { col = COLORS.planned; dash = [2, 5]; alpha = 0.7; }
+        else if (kind === "Long-haul Gate") { col = COLORS.longhaul; dash = [10, 6]; alpha = 0.8; }   /* the client's 64M stargate pairs, shown with the POI layer */
         else if (pub) { const st = r.state || (r.online === false ? "dormant" : r.status === "progress" ? "unfueled" : "");
           col = st === "dormant" ? COLORS.pubDead : st === "unfueled" ? COLORS.pubFuel : st === "working" ? COLORS.pubOk : COLORS.pub; if (st === "dormant" || st === "unfueled") dash = [6, 5]; }
         else if (r.online === false) { col = COLORS.off; dash = [7, 6]; }
@@ -179,7 +181,7 @@
       // the network = the home, every system with a node of ours and both ends of every road that is not a plan;
       // far pins (a landmark, a plan's waypoints) do not drag the first view out to the whole galaxy
       const net = new Set(scene.systems.filter(s => s.cls === "home" || s.cls === "ours" || s.cls === "inferred").map(s => s.id));
-      for (const r of scene.roads) if (r.status !== "planned") { net.add(r.a); net.add(r.b); }
+      for (const r of scene.roads) if (r.status !== "planned" && r.kind !== "Long-haul Gate") { net.add(r.a); net.add(r.b); }
       const ids = net.size ? [...net] : scene.systems.map(s => s.id);
       if (!ids.length) { fitAll(); return; }
       fitTo(ids); cam.pitch = 0.35;
@@ -302,7 +304,7 @@
       }
       // the hover card (2026-10-23): what the system under the pointer is, its roads and public gates
       if (hovered != null && ptr && !drag) { const sys = scene.systems.find(x => x.id === hovered); const p = project(P(hovered));
-        if (sys && p) { const out = scene.roads.filter(r => r.a === hovered && r.kind !== "Public Gate").length, inn = scene.roads.filter(r => r.b === hovered && r.kind !== "Public Gate" && !r.twoWay).length, pg = (gateAdj.get(hovered) || []).length;
+        if (sys && p) { const out = scene.roads.filter(r => r.a === hovered && r.kind !== "Public Gate" && r.kind !== "Long-haul Gate").length, inn = scene.roads.filter(r => r.b === hovered && r.kind !== "Public Gate" && r.kind !== "Long-haul Gate" && !r.twoWay).length, pg = (gateAdj.get(hovered) || []).length;
           const what = { home: "Home", ours: "On our roads", inferred: "On our roads (worked out)", me: "You are here", mate: "A tribe mate", charted: "Charted", uncharted: "Uncharted", poi: "Point of interest", plan: "On a plan", far: "Marked" }[sys.cls] || "";
           const lines = [[sys.name || String(sys.id), "#f1e9d2", `700 13px ${display}`], [what, COLORS[sys.cls] || "#b8b3a8", `600 11px ${mono}`]];
           if (sys.sub) lines.push([sys.sub, sys.subColor || "#b8b3a8", `600 11px ${mono}`]);
