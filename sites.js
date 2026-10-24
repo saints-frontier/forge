@@ -19,7 +19,7 @@
   D.sites.forEach(function (s) { s.spawns = s.spawns || {}; });
 
   var COLS = { name: 1, design: 1, belt: 1, galaxy: 1, systems: 1, resource: 1, npc: 1, threat: 1, event: 1, fixed: 1 };
-  var state = { sort: "name", dir: 1, q: "", open: {}, gallery: false };
+  var state = { sort: "name", dir: 1, q: "", open: {} };
   try { var sv = JSON.parse(localStorage.getItem("sites:raw") || "{}"); if (sv.sort && COLS[sv.sort]) { state.sort = sv.sort; state.dir = sv.dir === -1 ? -1 : 1; } } catch (e) {}
   var keep = function () { try { localStorage.setItem("sites:raw", JSON.stringify({ sort: state.sort, dir: state.dir })); } catch (e) {} };
 
@@ -136,8 +136,9 @@
     $("st-count").textContent = q ? list.length + " of " + D.sites.length : D.sites.length + " kinds of site";
     var ths = document.querySelectorAll("#st-table th[data-sort]");
     for (var i = 0; i < ths.length; i++) { var k = ths[i].getAttribute("data-sort"); ths[i].setAttribute("aria-sort", k === state.sort ? (state.dir > 0 ? "ascending" : "descending") : "none"); }
-    var gb = $("st-galbtn"), gs = $("st-gallery");
-    if (gb && gs) { gb.hidden = !LY.gallery.length; gb.setAttribute("aria-expanded", state.gallery); gb.textContent = (state.gallery ? "Hide" : "Show") + " all named structures" + DOT + LY.gallery.length; gs.hidden = !state.gallery; if (state.gallery && !gs.innerHTML) gs.innerHTML = gallery(); }
+    var gs = $("st-gallery"), gh = $("st-galhead");   /* always shown (user 2026-10-24: "lets not hide named structures") */
+    if (gs && !gs.innerHTML && LY.gallery.length) { gs.innerHTML = gallery(); if (gh) gh.textContent = "Named structures" + DOT + LY.gallery.length; }
+    if (gh) gh.hidden = !LY.gallery.length;
   }
   function init() {
     if (!$("st-body")) return;
@@ -149,8 +150,7 @@
     });
     $("st-body").addEventListener("click", function (e) { var b = e.target.closest("button[data-open]"); if (!b) return; var n = b.getAttribute("data-open"); state.open[n] = !state.open[n]; draw(); });
     $("st-find").addEventListener("input", function () { state.q = this.value; draw(); });
-    if ($("st-galbtn")) $("st-galbtn").addEventListener("click", function () { state.gallery = !state.gallery; draw(); if (state.gallery) $("st-gallery").scrollIntoView({ behavior: "smooth", block: "start" }); });
-    try { var qs = new URLSearchParams(location.search), want = qs.get("site"); if (want) D.sites.forEach(function (x) { if (norm(x.name) === norm(want)) state.open[x.name] = true; }); if (qs.get("structures")) state.gallery = true; } catch (e) {}   /* /sites?site=Outer%20Vestiges opens that site */
+    try { var qs = new URLSearchParams(location.search), want = qs.get("site"); if (want) D.sites.forEach(function (x) { if (norm(x.name) === norm(want)) state.open[x.name] = true; }); if (qs.get("structures")) setTimeout(function () { var g = $("st-galhead"); if (g) g.scrollIntoView(); }, 50); } catch (e) {}   /* /sites?site=Outer%20Vestiges opens that site */
     var p = String(D.generated).split("-");
     $("st-foot").textContent = D.sites.length + " kinds of site" + DOT + "client build " + D.build + DOT + "data of " + (+p[2]) + " " + MON[+p[1] - 1] + " " + p[0];
     draw();
