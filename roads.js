@@ -199,6 +199,7 @@
     return `<div class="roads-poilines">` + l.map(({ c, x }) => { let more = "";
       if (c.key === "longhaul" && x) { const [o, ly] = x.split(":"); more = ` Its other end: <button type="button" class="roads-quiet" data-poigo="${+o}" title="fly to the other end">${esc(nameOfId(+o))}</button>, ${(+ly).toLocaleString("en-US")} LY.`; }
       if (c.key === "kills" && x) more = ` ${(+x).toLocaleString("en-US")} killmail${+x === 1 ? "" : "s"} here.`;
+      else if (x && c.key !== "longhaul") more = ` ${esc(x)} from home.`;   /* the lore layers carry the way from home (2026-10-24) */
       return `<div><i class="poikey" style="--c:${esc(c.color)}"></i><b>${esc(c.label)}</b> · ${esc(c.note)}${more}</div>`; }).join("") + `</div>`;
   }
   function drawPoi() {
