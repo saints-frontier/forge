@@ -12,7 +12,7 @@
   var DOT = " \u00b7 ", DASH = "\u2014";
   D.sites.forEach(function (s) { s.spawns = s.spawns || {}; });
 
-  var COLS = { name: 1, design: 1, belt: 1, resource: 1, npc: 1, threat: 1, event: 1, fixed: 1 };
+  var COLS = { name: 1, design: 1, belt: 1, galaxy: 1, systems: 1, resource: 1, npc: 1, threat: 1, event: 1, fixed: 1 };
   var state = { sort: "name", dir: 1, q: "", open: {} };
   try { var sv = JSON.parse(localStorage.getItem("sites:raw") || "{}"); if (sv.sort && COLS[sv.sort]) { state.sort = sv.sort; state.dir = sv.dir === -1 ? -1 : 1; } } catch (e) {}
   var keep = function () { try { localStorage.setItem("sites:raw", JSON.stringify({ sort: state.sort, dir: state.dir })); } catch (e) {} };
@@ -24,6 +24,8 @@
     name: function (s) { return s.name.toLowerCase(); },
     design: function (s) { return (s.design || "").toLowerCase(); },
     belt: function (s) { return s.belt || "~"; },
+    galaxy: function (s) { return s.galaxy || 0; },
+    systems: function (s) { return s.systems || 0; },
     resource: function (s) { return s.spawns.resource || 0; },
     npc: function (s) { return s.spawns.npc || 0; },
     threat: function (s) { return s.spawns.threat || 0; },
@@ -39,17 +41,19 @@
       + '<th scope="row">' + (hasText ? '<button type="button" class="st-name" data-open="' + esc(s.name) + '" aria-expanded="' + open + '">' + esc(s.name) + '<span class="st-i">' + (open ? "\u2212" : "+") + "</span></button>" : '<span class="st-name plain">' + esc(s.name) + "</span>") + "</th>"
       + '<td class="st-design">' + esc(s.design || DASH) + "</td>"
       + "<td>" + esc(s.belt || DASH) + "</td>"
+      + '<td class="num">' + (s.galaxy ? s.galaxy.toLocaleString("en-US") : DASH) + "</td>"
+      + '<td class="num">' + (s.systems ? s.systems.toLocaleString("en-US") : DASH) + "</td>"
       + '<td class="num">' + num(s.spawns.resource) + "</td>"
       + '<td class="num">' + num(s.spawns.npc) + "</td>"
       + '<td class="num">' + num(s.spawns.threat) + "</td>"
       + '<td class="num">' + num(s.spawns.event) + "</td>"
       + "<td>" + (s.fixed.length ? s.fixed.map(esc).join("<br>") : DASH) + "</td></tr>";
-    if (open && hasText) h += '<tr class="st-text"><td colspan="8"><blockquote>' + esc(s.game) + "</blockquote></td></tr>";
+    if (open && hasText) h += '<tr class="st-text"><td colspan="10"><blockquote>' + esc(s.game) + "</blockquote></td></tr>";
     return h;
   }
   function draw() {
     var q = norm(state.q), list = D.sites.filter(function (s) { return matches(s, q); }).sort(cmp);
-    $("st-body").innerHTML = list.length ? list.map(row).join("") : '<tr><td colspan="8" class="st-empty">No site by that name. Check the spelling, or type just one word of it.</td></tr>';
+    $("st-body").innerHTML = list.length ? list.map(row).join("") : '<tr><td colspan="10" class="st-empty">No site by that name. Check the spelling, or type just one word of it.</td></tr>';
     $("st-count").textContent = q ? list.length + " of " + D.sites.length : D.sites.length + " kinds of site";
     var ths = document.querySelectorAll("#st-table th[data-sort]");
     for (var i = 0; i < ths.length; i++) { var k = ths[i].getAttribute("data-sort"); ths[i].setAttribute("aria-sort", k === state.sort ? (state.dir > 0 ? "ascending" : "descending") : "none"); }
