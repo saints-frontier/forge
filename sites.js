@@ -94,13 +94,14 @@
     }
     return '<figure class="ly-fig"><img src="' + RENDERS + esc(x.img) + '" alt="' + esc(x.name) + ', the game\'s render" loading="lazy"><figcaption><b>' + esc(x.name) + "</b>" + lines.join("") + "</figcaption></figure>";
   }
+  var span = function (r) { return r[0] === r[1] ? String(r[0]) : r[0] + RANGE + r[1]; };
   var LEGEND = '<div class="ly-legend"><span><i class="k event"></i>event spawner (loot cans, events)</span><span><i class="k res"></i>resource spawner</span><span><i class="k threat"></i>threat / NPC spawner</span><span><i class="k can"></i>fixed container</span><span><i class="k dock"></i>dock / fuel point</span><span><i class="k term"></i>Terminal</span><span><i class="k mega"></i>landmark</span><span><i class="k entry"></i>entry beacon</span></div>';
   function detail(s) {
     var b = BELT[s.name], h = "";
     if (s.game) h += "<blockquote>" + esc(s.game) + "</blockquote>";
     if (b) {
       var named = LY.gallery.filter(function (x) { return x.belts.indexOf(s.name) >= 0; });
-      h += '<p class="ly-note">Each ' + esc(s.name) + " rolls " + b.nb[0] + RANGE + b.nb[1] + " ruin layouts and " + b.nn[0] + RANGE + b.nn[1] + " natural layouts from the cards below, so two of them with the same name hold different things. Where each layout sits around the entry beacon is decided by the server; distances inside a layout are the game's.</p>";
+      h += '<p class="ly-note">Each ' + esc(s.name) + " rolls " + span(b.nb) + " ruin layout" + (b.nb[1] === 1 ? "" : "s") + " and " + span(b.nn) + " natural layout" + (b.nn[1] === 1 ? "" : "s") + " from the cards below, so two of them with the same name hold different things. Where each layout sits around the entry beacon is decided by the server; distances inside a layout are the game's.</p>";
       if (named.length) h += '<h4 class="ly-h">Named structures you can meet here' + DOT + named.length + '</h4><div class="ly-gal">' + named.map(function (x) { return figure(x, false); }).join("") + "</div>";
       var ruins = b.sites.filter(function (r) { return r.kind === "ruin"; }), nat = b.sites.filter(function (r) { return r.kind !== "ruin"; });
       if (ruins.length || nat.length) h += LEGEND;
