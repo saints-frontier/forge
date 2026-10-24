@@ -38,9 +38,7 @@
   function row(s) {
     var open = !!state.open[s.name], hasText = !!s.game;
     var h = "<tr>"
-      + '<th scope="row">' + (hasText ? '<button type="button" class="st-name" data-open="' + esc(s.name) + '" aria-expanded="' + open + '">' + esc(s.name) + '<span class="st-i">' + (open ? "\u2212" : "+") + "</span></button>" : '<span class="st-name plain">' + esc(s.name) + "</span>") + "</th>"
-      + '<td class="st-design">' + esc(s.design || DASH) + "</td>"
-      + "<td>" + esc(s.belt || DASH) + "</td>"
+      + '<th scope="row">' + (hasText ? '<button type="button" class="st-name" data-open="' + esc(s.name) + '" aria-expanded="' + open + '">' + esc(s.name) + '<span class="st-i">' + (open ? "\u2212" : "+") + "</span></button>" : '<span class="st-name plain">' + esc(s.name) + "</span>") + '<span class="st-sub">' + esc(s.design || "") + (s.belt ? DOT + esc(s.belt) : "") + "</span></th>"
       + '<td class="num">' + (s.galaxy ? s.galaxy.toLocaleString("en-US") : DASH) + "</td>"
       + '<td class="num">' + (s.systems ? s.systems.toLocaleString("en-US") : DASH) + "</td>"
       + '<td class="num">' + num(s.spawns.resource) + "</td>"
@@ -48,12 +46,12 @@
       + '<td class="num">' + num(s.spawns.threat) + "</td>"
       + '<td class="num">' + num(s.spawns.event) + "</td>"
       + "<td>" + (s.fixed.length ? s.fixed.map(esc).join("<br>") : DASH) + "</td></tr>";
-    if (open && hasText) h += '<tr class="st-text"><td colspan="10"><blockquote>' + esc(s.game) + "</blockquote></td></tr>";
+    if (open && hasText) h += '<tr class="st-text"><td colspan="8"><blockquote>' + esc(s.game) + "</blockquote></td></tr>";
     return h;
   }
   function draw() {
     var q = norm(state.q), list = D.sites.filter(function (s) { return matches(s, q); }).sort(cmp);
-    $("st-body").innerHTML = list.length ? list.map(row).join("") : '<tr><td colspan="10" class="st-empty">No site by that name. Check the spelling, or type just one word of it.</td></tr>';
+    $("st-body").innerHTML = list.length ? list.map(row).join("") : '<tr><td colspan="8" class="st-empty">No site by that name. Check the spelling, or type just one word of it.</td></tr>';
     $("st-count").textContent = q ? list.length + " of " + D.sites.length : D.sites.length + " kinds of site";
     var ths = document.querySelectorAll("#st-table th[data-sort]");
     for (var i = 0; i < ths.length; i++) { var k = ths[i].getAttribute("data-sort"); ths[i].setAttribute("aria-sort", k === state.sort ? (state.dir > 0 ? "ascending" : "descending") : "none"); }
