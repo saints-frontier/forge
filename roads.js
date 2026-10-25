@@ -45,13 +45,14 @@
      that someone was there this cycle: a Saint's companion visit, a kill on the chain (the POI kill list), a name
      players agree on at EF-Map, a name one player reported. One ring per system, coloured by the strongest proof. */
   let reachOn = (() => { try { return localStorage.getItem("roads:reach") === "1"; } catch (e) { return false; } })();
-  const REACH = [["visit", "Saints were there", "#ffd27a"], ["kill", "kills on the chain", "#ff4b4b"], ["named", "named by more than one player", "#8fd0ff"], ["once", "named by one player only", "#5d7f9e"]];
+  const REACH = [["built", "built there (a structure named after the system)", "#c58bff"], ["visit", "Saints were there", "#ffd27a"], ["kill", "kills on the chain", "#ff4b4b"], ["named", "named by more than one player", "#8fd0ff"], ["once", "named by one player only", "#5d7f9e"]];
   /* which kinds of proof are shown (user 2026-10-25: "filter them whether they're reported once or ... more than once"):
      a system with several kinds stays while any of its ticked kinds is on, coloured by the strongest ticked one */
-  let reachKinds = (() => { try { const v = JSON.parse(localStorage.getItem("roads:reachkinds") || "null"); if (Array.isArray(v)) return new Set(v); } catch (e) {} return new Set(REACH.map(x => x[0])); })();
+  let reachKinds = (() => { try { const v = JSON.parse(localStorage.getItem("roads:reachkinds2") || "null"); if (Array.isArray(v)) return new Set(v); } catch (e) {} return new Set(REACH.map(x => x[0])); })();
   function reachSet(s) {
     const by = new Map(), add = (id, kind, what) => { if (!id || !s.has(id)) return; const r = by.get(id) || { id, kinds: new Set(), what: [] }; r.kinds.add(kind); r.what.push(what); by.set(id, r); };
     for (const [nm, v] of Object.entries(FIELD.visited || {})) add(window.RoadsCore.idOfName(M, nm), "visit", "Saints visited" + (v && v.last ? " (last " + String(v.last).slice(0, 10) + ")" : ""));
+    const bc = POI && POI.categories.find(c => c.key === "built"); if (bc) for (const [id, t] of bc.items) add(id, "built", "built there: " + (t || "a structure"));
     const kc = POI && POI.categories.find(c => c.key === "kills"); if (kc) for (const [id, n] of kc.items) add(id, "kill", (n || "?") + " kill" + (String(n) === "1" ? "" : "s"));
     for (const [id, e] of M.ef.byId) add(id, e.status === "confirmed" ? "named" : "once", e.status === "confirmed" ? "named on EF-Map by more than one player" : "named once on EF-Map");
     const h = M.ids.get(M.home), all = [...by.values()], count = {};
@@ -1235,7 +1236,7 @@
     if (t.dataset && t.dataset.priotick != null) { planPrio[+t.dataset.priotick][1] = t.checked ? 1 : 0; renderPrio(); return; }
     if (t.id === "check-from" || t.id === "check-kind") { if (sysId("check-from")) runChecker(null); return; }
     if (t.id === "chart-from" || t.id === "chart-reach" || t.id === "chart-ly" || t.id === "chart-n") { if (chartOn) runChart(); return; }
-    if (t.dataset && t.dataset.reachkind) { if (t.checked) reachKinds.add(t.dataset.reachkind); else reachKinds.delete(t.dataset.reachkind); try { localStorage.setItem("roads:reachkinds", JSON.stringify([...reachKinds])); } catch (e) {} drawStars(); return; }
+    if (t.dataset && t.dataset.reachkind) { if (t.checked) reachKinds.add(t.dataset.reachkind); else reachKinds.delete(t.dataset.reachkind); try { localStorage.setItem("roads:reachkinds2", JSON.stringify([...reachKinds])); } catch (e) {} drawStars(); return; }
     if (t.id === "chart-only") { chartMarks(); if (!t.checked && sf) sf.dimStars(false); return; }
     if (t.id === "chart-show") { if (chartOn) drawChart(); return; }
     if (t.dataset && t.dataset.poi && poiOn) { if (t.checked) poiOn.add(t.dataset.poi); else poiOn.delete(t.dataset.poi); poiSave(); drawStars(); drawPoi(); return; }
