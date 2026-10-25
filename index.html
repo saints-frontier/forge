@@ -857,6 +857,11 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-stars .sf-compass .tick { stroke: #f1e9d2; stroke-width: 2.6; }
 .roads-stars .sf-compass text { fill: #ff7a3a; font: 700 9px var(--mono); text-anchor: middle; }
 .roads-stars .sf-compass:hover .ring { stroke: rgba(217,178,76,.6); }
+/* Reached layer summary (2026-10-25): top-right, so it never covers the POI box */
+.roads-stars .sf-reach { left: auto; right: 8px; }
+.roads-stars .sf-reach p.roads-hint { margin: 8px 0 2px; font-size: 11px; line-height: 1.4; }
+.roads-stars .sf-reach .roads-poirow { display: flex; align-items: center; gap: 6px; }
+.roads-stars .sf-reach .roads-poirow span:not(.n) { flex: 1; }
 
 /* SITES (/sites): every kind of site in one table, client information only (user 2026-10-20) */
 .sites-on .topctl, .sites-on .tier { display: none; }
@@ -1967,5 +1972,5 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=163f5b0b"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=78822a67"></script><script src="quarry-data.js?v=9a8c3bbc"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=c3577285"></script><script src="sites-layouts.js?v=5bd01e97"></script><script src="sites.js?v=80b03dc6"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=0e7207f3"></script><script src="starfield.js?v=794e495c"></script><script src="roadscore.js?v=b3ddd1e5"></script><script src="roads.js?v=be3da74a"></script><script type="module" src="machines.js?v=9cb8a800"></script>
+<script src="lodge-data.js?v=163f5b0b"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=78822a67"></script><script src="quarry-data.js?v=9a8c3bbc"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=c3577285"></script><script src="sites-layouts.js?v=5bd01e97"></script><script src="sites.js?v=80b03dc6"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=0e7207f3"></script><script src="starfield.js?v=794e495c"></script><script src="roadscore.js?v=b3ddd1e5"></script><script src="roads.js?v=cf84df36"></script><script type="module" src="machines.js?v=9cb8a800"></script>
 </body></html>
