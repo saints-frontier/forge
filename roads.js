@@ -41,6 +41,8 @@
   const noOld = d => !d || !d.list || !d.list.plans ? d : Object.assign({}, d, { list: Object.assign({}, d.list, { plans: d.list.plans.map(p => Object.assign({}, p, { hops: (p.hops || []).map(h => Object.assign({}, h, { fromName: undefined, toName: undefined })) })) }) });
   const build = d => { const m = window.RoadsCore.build(oldNames ? d : noOld(d), dist); if (!oldNames && d && d.list && m.list) m.list = Object.assign({}, m.list, { plans: d.list.plans || [] }); return m; };   /* saves keep the stored plan names */
   const oldOf = id => oldNames && sf && sf.oldName ? sf.oldName(id) : null;
+  const INF_WORDS = ["NOMINAL", "ELEVATED", "SEVERE"];   /* the System Map words seen so far (levels 1, 4, 5); a misread within two letters snaps to one (2026-10-24: "ELEUATEO") */
+  const infWord = w => { w = String(w || "").toUpperCase().trim(); if (!w) return ""; const ed = (a, b) => { const m = a.length, n = b.length, d = []; for (let i = 0; i <= m; i++) { d[i] = [i]; for (let j = 1; j <= n; j++) d[i][j] = i ? Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)) : j; } return d[m][n]; }; let best = w, bd = 3; for (const k of INF_WORDS) { const e = ed(w, k); if (e < bd) { bd = e; best = k; } } return best; };
 
   // ---------- layout: columns by hops from home, one band per connected group ----------
   const BW = 156, BH = 60, GY = 40, PAD = 22;
@@ -1053,7 +1055,7 @@
     const nm = up(nameHint || "") || fieldName(id); if (!nm) return "";
     const sv = (FIELD.survey || {})[nm], vi = (FIELD.visited || {})[nm];
     const out = [];
-    if (sv) out.push(`<div class="roads-field">${sv.infest ? `<span class="inf" style="--c:${INF_COL[sv.infest]}">Infestation ${sv.infest}/6${sv.word ? " " + esc(sv.word.toLowerCase()) : ""}</span>` : ""}${sv.transient ? ` · transient mass <b>${esc(sv.transient.toLowerCase())}</b>` : ""}${sv.umbra ? ` · crude umbra <b>${esc(sv.umbra.toLowerCase())}</b>` : ""}${sv.star ? ` · star ${esc(sv.star)}` : ""}${sv.planets != null ? ` · ${sv.planets} planets` : ""}${sv.belts != null ? ` · ${sv.belts} belts` : ""} <span class="roads-hint">(System Map, ${esc(String(sv.at).slice(0, 10))}${sv.by ? ", " + esc(sv.by) : ""})</span></div>`);
+    if (sv) out.push(`<div class="roads-field">${sv.infest ? `<span class="inf" style="--c:${INF_COL[sv.infest]}">Infestation ${sv.infest}/6${sv.word ? " " + esc(infWord(sv.word).toLowerCase()) : ""}</span>` : ""}${sv.transient ? ` · transient mass <b>${esc(sv.transient.toLowerCase())}</b>` : ""}${sv.umbra ? ` · crude umbra <b>${esc(sv.umbra.toLowerCase())}</b>` : ""}${sv.star ? ` · star ${esc(sv.star)}` : ""}${sv.planets != null ? ` · ${sv.planets} planets` : ""}${sv.belts != null ? ` · ${sv.belts} belts` : ""} <span class="roads-hint">(System Map, ${esc(String(sv.at).slice(0, 10))}${sv.by ? ", " + esc(sv.by) : ""})</span></div>`);
     if (vi) out.push(`<div class="roads-hint">Visited by Saints on ${vi.days} day${vi.days === 1 ? "" : "s"}, last ${esc(String(vi.last).slice(0, 10))}${vi.by ? " (" + esc(vi.by) + ")" : ""}.</div>`);
     return out.join("");
   }

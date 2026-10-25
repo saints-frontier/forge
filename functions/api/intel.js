@@ -193,7 +193,9 @@ export async function onRequestPost({ request, env }) {
   if (d.type === "survey") {
     const infest = Number.isInteger(d.infest) && d.infest >= 1 && d.infest <= 6 ? d.infest : null;
     const word = v => WORDS.includes(up(v)) ? up(v) : null;
-    const r = { sys, at, by, infest, word: /^[A-Z ]{3,14}$/.test(up(d.word)) ? up(d.word) : null, transient: word(d.transient), umbra: word(d.umbra),
+    const INF_WORDS = ["NOMINAL", "ELEVATED", "SEVERE"];   /* the System Map words seen so far (levels 1, 4, 5); a misread within two letters snaps to one (2026-10-24: "ELEUATEO") */
+    const infWord = w => { w = String(w || "").toUpperCase().trim(); if (!w) return ""; const ed = (a, b) => { const m = a.length, n = b.length, d = []; for (let i = 0; i <= m; i++) { d[i] = [i]; for (let j = 1; j <= n; j++) d[i][j] = i ? Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)) : j; } return d[m][n]; }; let best = w, bd = 3; for (const k of INF_WORDS) { const e = ed(w, k); if (e < bd) { bd = e; best = k; } } return best; };
+    const r = { sys, at, by, infest, word: /^[A-Z ]{3,14}$/.test(up(d.word)) ? infWord(up(d.word)) : null, transient: word(d.transient), umbra: word(d.umbra),
                 star: /^[A-Z][0-9]?$/.test(up(d.star)) ? up(d.star) : null, planets: Number.isInteger(d.planets) && d.planets >= 0 && d.planets < 40 ? d.planets : null,
                 belts: Number.isInteger(d.belts) && d.belts >= 0 && d.belts < 40 ? d.belts : null, state: /^[A-Z ]{3,14}$/.test(up(d.state)) ? up(d.state) : null };
     if (r.infest == null && !r.transient && !r.umbra) return json({ ok: false, error: "nothing was read" }, 400, cookies);
