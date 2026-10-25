@@ -32,8 +32,8 @@
     const gl = gl3.getContext("webgl", { antialias: true, alpha: true, premultipliedAlpha: true, preserveDrawingBuffer: false });
     if (!gl) { container.innerHTML = '<div class="sf-nogl">Your browser has no WebGL: the flat map still works.</div>'; return null; }
     const ctx = ov.getContext("2d");
-    const mono = getComputedStyle(document.documentElement).getPropertyValue("--mono").trim() || "Consolas, monospace";
-    const display = getComputedStyle(document.documentElement).getPropertyValue("--body").trim() || "'Segoe UI', Arial, sans-serif";   /* system names in a plain sans: the gothic display font is hard to read on the map (user 2026-10-20) */
+    const mono = getComputedStyle(document.documentElement).getPropertyValue("--num").trim() || getComputedStyle(document.documentElement).getPropertyValue("--mono").trim() || "Consolas, monospace";
+    const display = getComputedStyle(document.documentElement).getPropertyValue("--data").trim() || "'IBM Plex Sans', 'Segoe UI', Arial, sans-serif";   /* --data, not --body: the cathedral theme makes --body gothic (2026-10-25) */   /* system names in a plain sans: the gothic display font is hard to read on the map (user 2026-10-20) */
 
     // ---------- shaders ----------
     const compile = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
