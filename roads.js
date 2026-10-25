@@ -445,11 +445,11 @@
        page the window covered the star even after a double-click centred it) */
     if (id && sf) { const box = $("roads-stars"), p = sf.project(sf.position(id)); el.classList.toggle("dock-left", !!(p && box && p[0] > box.clientWidth / 2 + 4)); }
     const dh = el.querySelector(".roads-dh"); if (!dh) return;
-    dh.insertAdjacentHTML("afterend", `<div class="roads-dfacts">${facts.join(" · ")}${id ? ` <button type="button" class="roads-quiet" data-copylink="${id}" data-copyname="${esc(name || "system")}" title="A link to paste into a chat line in game">Copy in-game link</button>` : ""}</div>` + (id ? `<div class="roads-dkills" id="roads-dkills">kills here in the last day: reading the chain…</div>` : ""));
+    dh.insertAdjacentHTML("afterend", `<div class="roads-dfacts">${facts.join(" · ")}${id ? ` <button type="button" class="roads-quiet" data-copylink="${id}" data-copyname="${esc(name || "system")}" title="A link to paste into a chat line in game">Copy in-game link</button>` : ""}</div>` + (id ? `<div class="roads-dkills" id="roads-dkills" data-sys="${id}">kills here in the last day: reading the chain…</div>` : ""));
     if (id) loadKills(id);
   }
   async function loadKills(id) {
-    const show = d => { const box = $("roads-dkills"); if (!box) return;
+    const show = d => { const box = $("roads-dkills"); if (!box || box.dataset.sys !== String(id)) return;   /* a late answer for a system no longer open must not fill the open one (2026-10-25: kills showed in the wrong system) */
       if (!d || !d.ok) { box.textContent = "kills here: could not be read just now"; return; }
       const ks = d.kills || []; if (!ks.length) { box.innerHTML = `<span class="ok">no kills here in the last day</span>`; return; }
       const who = p => p ? esc(p.name || "?") + (p.tag ? ` [${esc(p.tag)}]` : "") : "?";
