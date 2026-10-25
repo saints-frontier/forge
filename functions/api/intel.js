@@ -48,8 +48,9 @@ export function person(R, id) {
   if (!c) return { id: String(id), name: "character " + id, tribe: 0, tag: "", saint: false };
   return { id: String(id), name: c[0] || "character " + id, tribe: c[1] || 0, tag: (R.tribes && R.tribes[c[1]]) || (c[1] ? String(c[1]) : ""), saint: c[1] === SAINTS };
 }
+const newer = (a, b) => a.length !== b.length ? a.length > b.length : a > b;   /* in-game ids are decimal strings that grow with time */
 export function byName(R, name) {
-  if (!BY_NAME) { BY_NAME = new Map(); for (const id in (R && R.chars) || {}) { const k = up(R.chars[id][0]); if (k && !BY_NAME.has(k)) BY_NAME.set(k, id); } }
+  if (!BY_NAME) { BY_NAME = new Map(); for (const id in (R && R.chars) || {}) { const k = up(R.chars[id][0]); if (!k) continue; const o = BY_NAME.get(k); if (!o || newer(id, o)) BY_NAME.set(k, id); } }   /* two characters can share a name (one player made Selveris twice, 2026-10-25): the newest id is the one in play */
   const id = BY_NAME.get(up(name));
   return id ? person(R, id) : null;
 }
