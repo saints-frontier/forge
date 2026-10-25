@@ -45,23 +45,28 @@
      that someone was there this cycle: a Saint's companion visit, a kill on the chain (the POI kill list), a name
      players agree on at EF-Map, a name one player reported. One ring per system, coloured by the strongest proof. */
   let reachOn = (() => { try { return localStorage.getItem("roads:reach") === "1"; } catch (e) { return false; } })();
-  const REACH = [["visit", "Saints were there", "#ffd27a"], ["kill", "kills on the chain", "#ff4b4b"], ["named", "named on EF-Map (agreed)", "#8fd0ff"], ["once", "named once on EF-Map", "#5d7f9e"]];
+  const REACH = [["visit", "Saints were there", "#ffd27a"], ["kill", "kills on the chain", "#ff4b4b"], ["named", "named by more than one player", "#8fd0ff"], ["once", "named by one player only", "#5d7f9e"]];
+  /* which kinds of proof are shown (user 2026-10-25: "filter them whether they're reported once or ... more than once"):
+     a system with several kinds stays while any of its ticked kinds is on, coloured by the strongest ticked one */
+  let reachKinds = (() => { try { const v = JSON.parse(localStorage.getItem("roads:reachkinds") || "null"); if (Array.isArray(v)) return new Set(v); } catch (e) {} return new Set(REACH.map(x => x[0])); })();
   function reachSet(s) {
-    const by = new Map(), add = (id, kind, what) => { if (!id || !s.has(id)) return; const r = by.get(id) || { id, kind, what: [] }; if (REACH.findIndex(x => x[0] === kind) < REACH.findIndex(x => x[0] === r.kind)) r.kind = kind; r.what.push(what); by.set(id, r); };
+    const by = new Map(), add = (id, kind, what) => { if (!id || !s.has(id)) return; const r = by.get(id) || { id, kinds: new Set(), what: [] }; r.kinds.add(kind); r.what.push(what); by.set(id, r); };
     for (const [nm, v] of Object.entries(FIELD.visited || {})) add(window.RoadsCore.idOfName(M, nm), "visit", "Saints visited" + (v && v.last ? " (last " + String(v.last).slice(0, 10) + ")" : ""));
     const kc = POI && POI.categories.find(c => c.key === "kills"); if (kc) for (const [id, n] of kc.items) add(id, "kill", (n || "?") + " kill" + (String(n) === "1" ? "" : "s"));
-    for (const [id, e] of M.ef.byId) add(id, e.status === "confirmed" ? "named" : "once", e.status === "confirmed" ? "named on EF-Map" : "named once on EF-Map");
-    const h = M.ids.get(M.home), list = [...by.values()];
-    for (const r of list) { r.ly = dist && h ? dist(h.id, r.id) : null; const e = M.ef.byId.get(r.id), n = nameOfId(r.id); r.label = /^#|\(C6\)$/.test(n) && e && e.name ? e.name + " (reported once)" : n; }
-    return { list, home: h };
+    for (const [id, e] of M.ef.byId) add(id, e.status === "confirmed" ? "named" : "once", e.status === "confirmed" ? "named on EF-Map by more than one player" : "named once on EF-Map");
+    const h = M.ids.get(M.home), all = [...by.values()], count = {};
+    for (const [k] of REACH) count[k] = all.filter(r => r.kinds.has(k)).length;
+    const list = [];
+    for (const r of all) { const k = REACH.find(x => reachKinds.has(x[0]) && r.kinds.has(x[0])); if (!k) continue; r.kind = k[0];
+      r.ly = dist && h ? dist(h.id, r.id) : null; const e = M.ef.byId.get(r.id), n = nameOfId(r.id); r.label = /^#|\(C6\)$/.test(n) && e && e.name ? e.name + " (reported once)" : n; list.push(r); }
+    return { list, home: h, count };
   }
   function drawReachBox(R) {
     const box = $("sf-reach"); if (!box) return; box.hidden = !reachOn; if (!reachOn) return;
-    const n = k => R.list.filter(r => r.kind === k).length, far = R.list.filter(r => r.ly != null).sort((a, b) => b.ly - a.ly);
-    const farOf = k => far.find(r => r.kind === k);
-    box.innerHTML = `<div class="roads-poiacts"><b>Reached this cycle · ${R.list.length.toLocaleString("en-US")}</b><button type="button" class="roads-quiet" data-sf="reach" title="Close" aria-label="Close">×</button></div>`
-      + `<div class="roads-poirows">` + REACH.map(([k, label, col]) => { const f = farOf(k); return `<div class="roads-poirow"><i class="poikey" style="--c:${col}"></i><span>${label}${f && R.home && f.ly >= 1 ? ` <span class="roads-hint">· farthest ${Math.round(f.ly).toLocaleString("en-US")} LY</span>` : ""}</span><span class="n">${n(k).toLocaleString("en-US")}</span></div>`; }).join("") + `</div>`
-      + (R.home && far.length ? `<h4>Farthest from ${esc(M.home)}</h4><div class="roads-poinear">` + far.slice(0, 10).map(r => `<button type="button" data-poigo="${r.id}" title="${esc(r.what.join(" · "))}"><i class="poikey" style="--c:${(REACH.find(x => x[0] === r.kind) || [])[2]}"></i> ${esc(r.label)} · ${Math.round(r.ly).toLocaleString("en-US")} LY</button>`).join("") + `</div>` : "")
+    const far = R.list.filter(r => r.ly != null).sort((a, b) => b.ly - a.ly), farOf = k => far.find(r => r.kinds.has(k) && reachKinds.has(k));
+    box.innerHTML = `<div class="roads-poiacts"><b>Reached this cycle \u00b7 ${R.list.length.toLocaleString("en-US")} shown</b><button type="button" class="roads-quiet" data-sf="reach" title="Close" aria-label="Close">\u00d7</button></div>`
+      + `<div class="roads-poirows">` + REACH.map(([k, label, col]) => { const f = farOf(k); return `<label class="roads-poirow"><input type="checkbox" data-reachkind="${k}"${reachKinds.has(k) ? " checked" : ""}><i class="poikey" style="--c:${col}"></i><span>${label}${f && R.home && f.ly >= 1 ? ` <span class="roads-hint">\u00b7 farthest ${Math.round(f.ly).toLocaleString("en-US")} LY</span>` : ""}</span><span class="n">${(R.count[k] || 0).toLocaleString("en-US")}</span></label>`; }).join("") + `</div>`
+      + (R.home && far.length ? `<h4>Farthest from ${esc(M.home)}</h4><div class="roads-poinear">` + far.slice(0, 10).map(r => `<button type="button" data-poigo="${r.id}" title="${esc(r.what.join(" \u00b7 "))}"><i class="poikey" style="--c:${(REACH.find(x => x[0] === r.kind) || [])[2]}"></i> ${esc(r.label)} \u00b7 ${Math.round(r.ly).toLocaleString("en-US")} LY</button>`).join("") + `</div>` : "")
       + `<p class="roads-hint">Proof of a visit only: a name one player reported can be wrong, and pilots who never named a system or died anywhere leave no trace here.</p>`;
   }
   const INF_WORDS = ["NOMINAL", "ELEVATED", "SEVERE"];   /* the System Map words seen so far (levels 1, 4, 5); a misread within two letters snaps to one (2026-10-24: "ELEUATEO") */
@@ -1230,6 +1235,7 @@
     if (t.dataset && t.dataset.priotick != null) { planPrio[+t.dataset.priotick][1] = t.checked ? 1 : 0; renderPrio(); return; }
     if (t.id === "check-from" || t.id === "check-kind") { if (sysId("check-from")) runChecker(null); return; }
     if (t.id === "chart-from" || t.id === "chart-reach" || t.id === "chart-ly" || t.id === "chart-n") { if (chartOn) runChart(); return; }
+    if (t.dataset && t.dataset.reachkind) { if (t.checked) reachKinds.add(t.dataset.reachkind); else reachKinds.delete(t.dataset.reachkind); try { localStorage.setItem("roads:reachkinds", JSON.stringify([...reachKinds])); } catch (e) {} drawStars(); return; }
     if (t.id === "chart-only") { chartMarks(); if (!t.checked && sf) sf.dimStars(false); return; }
     if (t.id === "chart-show") { if (chartOn) drawChart(); return; }
     if (t.dataset && t.dataset.poi && poiOn) { if (t.checked) poiOn.add(t.dataset.poi); else poiOn.delete(t.dataset.poi); poiSave(); drawStars(); drawPoi(); return; }
