@@ -113,10 +113,12 @@
   }
   // A fit from outside (a link, the tribe store) is checked before it is shown: known modules, their own shape, inside
   // the hull, on nothing else. Returns the placements with true turn labels, or null.
+  const RETIRED = new Set(D.retired || []);
   function soundPlacements(hullName, list) {
     const hull = D.hulls[hullName]; if (!hull || !Array.isArray(list) || list.length > 600) return null;
     const sets = hull.sections.map(s => new Set(s.cells.map(c => c.join(",")))), used = hull.sections.map(() => new Set()), out = [];
     for (const t of list) {
+      if (Array.isArray(t) && RETIRED.has(t[0])) { soundPlacements.dropped = (soundPlacements.dropped || 0) + 1; continue; }   /* not in the game yet: left out, the rest of the fit opens */
       if (!Array.isArray(t) || !MOD[t[0]] || !Number.isInteger(t[1]) || !sets[t[1]] || !Array.isArray(t[3]) || t[3].length !== MOD[t[0]].cells.length) return null;
       const cells = [];
       for (const c of t[3]) { if (!Array.isArray(c) || !Number.isInteger(c[0]) || !Number.isInteger(c[1])) return null; const k = c[0] + "," + c[1]; if (!sets[t[1]].has(k) || used[t[1]].has(k)) return null; used[t[1]].add(k); cells.push([c[0], c[1]]); }
