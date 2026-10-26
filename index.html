@@ -693,7 +693,7 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-stars .sf-find { position: absolute; left: 8px; top: 8px; z-index: 4; width: min(280px, calc(100% - 16px)); }
 .roads-stars .sf-find input { width: 100%; box-sizing: border-box; padding: 5px 9px; font: 12px var(--mono); color: var(--title); background: rgba(7,7,10,.82); border: 1px solid rgba(217,178,76,.45); }
 .roads-stars .sf-find input:focus { outline: none; border-color: var(--gold); }
-.roads-stars .sf-poi { position: absolute; left: 8px; top: 44px; z-index: 3; width: min(300px, calc(100% - 16px)); max-height: calc(100% - 56px); overflow: auto;
+.roads-stars .sf-poi { position: absolute; left: 8px; top: 82px; z-index: 3; width: min(300px, calc(100% - 16px)); max-height: calc(100% - 56px); overflow: auto;
   background: rgba(7,7,10,.88); border: 1px solid var(--gold-soft); padding: 8px 10px; font-size: 12px; }
 .roads-stars .sf-poi h4 { margin: 8px 0 4px; font-size: 11px; }
 .roads-stars .sf-poi .roads-poirows { grid-template-columns: 1fr; gap: 3px; }
@@ -862,6 +862,29 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-stars .sf-reach p.roads-hint { margin: 8px 0 2px; font-size: 11px; line-height: 1.4; }
 .roads-stars .sf-reach .roads-poirow { display: flex; align-items: center; gap: 6px; }
 .roads-stars .sf-reach .roads-poirow span:not(.n) { flex: 1; }
+
+/* route choices + the cross that leaves a jump out (2026-10-26) */
+.roads-ways { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; flex-basis: 100%; }
+.roads-ways button { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 11px; clip-path: none; border: 1px solid var(--line-strong); background: rgba(10,7,9,.55); color: var(--silver); font: 600 12px var(--body); letter-spacing: .3px; text-transform: none; cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
+.roads-ways button span { font: 500 11px var(--mono); color: var(--dim); }
+.roads-ways button.on { border-color: var(--gold); color: var(--title); background: rgba(217,178,76,.12); box-shadow: inset 0 0 0 1px rgba(217,178,76,.25); }
+.roads-ways button.on span { color: var(--gold); }
+.roads-ways button:hover:not(:disabled) { border-color: var(--gold); color: var(--title); }
+.roads-ways button:disabled { opacity: .45; cursor: default; }
+.roads-strike { display: inline-grid; place-items: center; width: 17px; height: 17px; margin-left: 3px; padding: 0; vertical-align: 1px; clip-path: none; border: 1px solid rgba(227,34,44,.45); background: transparent; color: #e3222c; font: 700 10px/1 var(--body); cursor: pointer; opacity: .55; transition: opacity .15s, background .15s; }
+.roads-strike:hover, .roads-strike:focus-visible { opacity: 1; background: rgba(227,34,44,.15); }
+
+/* the charted / uncharted filter under the search box (2026-10-26) */
+.roads-stars .sf-chartf { display: flex; gap: 4px; margin-top: 6px; }
+.roads-stars .sf-chartf button { flex: 1 1 auto; padding: 4px 8px; clip-path: none; border: 1px solid var(--line-strong); background: rgba(7,7,10,.82); color: var(--silver); font: 600 11px var(--body); letter-spacing: .3px; text-transform: none; cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s, background .15s; }
+.roads-stars .sf-chartf button span { font: 500 10px var(--mono); opacity: .8; }
+.roads-stars .sf-chartf button:hover { color: var(--title); }
+.roads-stars .sf-chartf button.on { color: var(--title); border-color: var(--gold); background: rgba(217,178,76,.14); }
+.roads-stars .sf-chartf .cf-charted { border-left: 3px solid #9fd8ff; }
+.roads-stars .sf-chartf .cf-uncharted { border-left: 3px solid #ff7a5c; }
+.roads-stars .sf-chartf .cf-charted.on { border-color: #9fd8ff; background: rgba(159,216,255,.14); color: #dff3ff; }
+.roads-stars .sf-chartf .cf-uncharted.on { border-color: #ff7a5c; background: rgba(255,122,92,.14); color: #ffe1d8; }
+.roads-stars .sf-chartf.muted { opacity: .45; }
 
 /* SITES (/sites): every kind of site in one table, client information only (user 2026-10-20) */
 .sites-on .topctl, .sites-on .tier { display: none; }
@@ -1956,7 +1979,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=163f5b0b"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=78822a67"></script><script src="quarry-data.js?v=9a8c3bbc"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=c3577285"></script><script src="sites-layouts.js?v=5bd01e97"></script><script src="sites.js?v=80b03dc6"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=0e7207f3"></script><script src="starfield.js?v=0a3ec782"></script><script src="roadscore.js?v=b3ddd1e5"></script><script src="roads.js?v=0db5926a"></script><script type="module" src="machines.js?v=9cb8a800"></script>
+<script src="lodge-data.js?v=163f5b0b"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=78822a67"></script><script src="quarry-data.js?v=9a8c3bbc"></script><script src="quarry-app.js?v=531fcafe"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=c3577285"></script><script src="sites-layouts.js?v=5bd01e97"></script><script src="sites.js?v=80b03dc6"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=0e7207f3"></script><script src="starfield.js?v=a36b61e0"></script><script src="roadscore.js?v=85c3d323"></script><script src="roads.js?v=aba9f6bf"></script><script type="module" src="machines.js?v=9cb8a800"></script>
 
 <style id="theme-cathedral">
 /* The Saints Forge, "cathedral" design language (settled on the About us page, design study rounds 1-29, 2026-10-25):

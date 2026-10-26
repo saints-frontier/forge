@@ -114,7 +114,16 @@
 
   let M = null, selected = null, picked = null;             // picked: a charted system clicked on the star map (not one of ours)
   let unplacedBy = "builder"; try { unplacedBy = localStorage.getItem("roads:unplacedBy") === "node" ? "node" : "builder"; } catch (e) {}   // how Not on the map is grouped
-  let showCharted = true; try { showCharted = localStorage.getItem("roads:charted") !== "0"; } catch (e) {}
+  let showCharted = true;   /* the old Charted layer button is replaced by the filter below (2026-10-26) */
+  /* the charted / uncharted filter on the star map (user 2026-10-26: "a brighter, clearer distinction between charted
+     and uncharted systems, acting as a filter"): all / only charted / only uncharted, every such star coloured */
+  let chartF = (() => { try { const q = /[?&]chartf=(charted|uncharted|all)/.exec(location.search), v = q ? q[1] : localStorage.getItem("roads:chartf"); return v === "charted" || v === "uncharted" ? v : "all"; } catch (e) { return "all"; } })();
+  function drawChartF(nCh, nUn) { const el = $("sf-chartf"); if (!el) return;
+    const b = (k, t, n, tip) => `<button type="button" data-chartf="${k}" class="cf-${k}${chartF === k ? " on" : ""}" title="${tip}" aria-pressed="${chartF === k}">${t}${n != null ? ` <span>${n.toLocaleString("en-US")}</span>` : ""}</button>`;
+    el.innerHTML = b("all", "All", null, "every star: charted systems ringed blue, uncharted ones with a report ringed red")
+      + b("charted", "Charted", nCh, "only systems with a sure name: ours (copied from the game) or two players agree on EF-Map")
+      + b("uncharted", "Uncharted", nUn, "only systems nobody has a sure name for: one report, a disputed name, or never seen");
+    el.classList.toggle("muted", reachOn || chartOn); el.title = reachOn || chartOn ? "paused while Reached or Chart the uncharted is open" : ""; }
   /* Points of interest (user 2026-10-18: "place all the interesting spots on the map with POI filter"): pois.json from
      tools/export_pois.py, client and public-chain data only; poiOn = the ticked categories (localStorage roads:poi) */
   let POI = null, poiBy = new Map(), poiOn = null; try { const v = JSON.parse(localStorage.getItem("roads:poi") || "null"); if (Array.isArray(v)) poiOn = new Set(v); } catch (e) {}
@@ -185,11 +194,34 @@
     }).catch(() => {});
     if (!gatePairs) { gatePairs = []; fetch("gates.bin?v=3").then(r => r.ok ? r.arrayBuffer() : null).then(b => { if (b) { gatePairs = window.RoadsCore.parseGates(b); drawLoc(); if ($("roads-route") && $("roads-route").textContent) route(); } }).catch(() => {}); }
   }
-  function navSet(id) {
+  function navSet(id, extra) {
     /* a system without a number goes by its name ("n:NAME"): the navigator finds it over our roads */
     const body = typeof id === "string" && id.startsWith("n:") ? { to: null, name: id.slice(2).slice(0, 40) } : id ? { to: id, name: String(nameOfId(id)).slice(0, 40) } : { to: null };
+    if (id) Object.assign(body, { way: routeWay, avoid: [] }, extra || {});
     return fetch("/api/nav", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then(r => r.json()).then(d => { if (d && d.ok) { NAV = d.nav; drawLoc(); return true; } alertNav((d && d.error) || "could not set it"); return false; }).catch(() => { alertNav("the site did not answer"); return false; });   /* true only when the site took it (bug squash 2026-10-21) */
+  }
+  /* Route choices (user 2026-10-26: "the system tried to route me through a public gate that was unfueled"): every
+     way the navigator knows is offered, the chosen one is followed; a jump struck off with the cross is left out. On
+     the "Heading to" line both are kept with the destination on the site, so the companion follows the same pick; in
+     the Navigator panel they last until From or To changes. */
+  let routeWay = (() => { try { return localStorage.getItem("roads:way") || "safe"; } catch (e) { return "safe"; } })(), routeAvoid = [], routeKey = "";
+  const WAY_TIP = { safe: "never a public gate recorded with no fuel on the far side, dormant, or with an empty tank; gates found working come first", ours: "our own gates and catapults first: a public gate only where no road of ours goes (up to three of our jumps before one public gate), never a bad one", known: "only our roads and public gates a Saint has found working: nothing untried", short: "the fewest jumps over everything, flagged gates included" };
+  const pickWay = (all, w) => all.choices.find(x => x.way === w || x.also.includes(w)) || null;
+  function wayChips(all, cur, attr) {
+    const C = window.RoadsCore;
+    return `<div class="roads-ways" role="group" aria-label="Route choice">` + C.WAYS.map(w => { const c = pickWay(all, w);
+      return `<button type="button" data-${attr}="${w}" class="${w === cur ? "on" : ""}" title="${esc(WAY_TIP[w])}"${c ? "" : " disabled"}>${esc(C.WAY_TEXT[w])}<span>${c ? c.hops.length + (c.hops.length === 1 ? " jump" : " jumps") + (c.flagged ? ` · ${c.flagged} flagged` : c.untried ? ` · ${c.untried} untried` : "") : "no road"}</span></button>`; }).join("") + `</div>`;
+  }
+  const hopFlag = h => h.bad ? ` <span class="bad">${h.state === "dormant" ? "dormant on the far side" : h.state === "unfueled" ? "no fuel on the far side" : "its tank is empty"}</span>` : h.untried ? ` <span class="roads-hint">state not known</span>` : "";
+  const strike = (h, attr) => `<button type="button" class="roads-strike" data-${attr}="${esc(h.from + ">" + h.to)}" title="leave out the jump ${esc(nameOfId(h.from))} → ${esc(nameOfId(h.to))} (a gate you found dead, a road you won't take)" aria-label="leave out this jump">✕</button>`;
+  const putBack = (n, attr) => n ? ` <button type="button" class="roads-quiet" data-${attr}="1" title="put every jump you left out back">${n} jump${n === 1 ? "" : "s"} left out · put back</button>` : "";
+  function navPatch(p) {
+    if (!NAV) return;
+    const body = Object.assign({ to: NAV.to || null, name: NAV.name || "", way: NAV.way || "safe", avoid: NAV.avoid || [] }, p);
+    NAV = Object.assign({}, NAV, p); drawLoc();
+    fetch("/api/nav", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(r => r.json()).then(d => { if (d && d.ok) { NAV = d.nav; drawLoc(); } else alertNav((d && d.error) || "could not change the route"); }).catch(() => alertNav("the site did not answer"));
   }
   function alertNav(msg) { const el = $("roads-me"); if (el) { el.hidden = false; el.insertAdjacentHTML("beforeend", ` <span class="bad">Navigation: ${esc(msg)}</span>`); } }
   function navLine(fromId) {
@@ -200,15 +232,17 @@
     if (!gatePairs || !gatePairs.length) return `<div class="roads-nav">${head} <span class="roads-hint">· reading the gates…</span>${stop}</div>`;
     const target = NAV.to || window.RoadsCore.navKey(M, NAV.name);
     if (!target) return `<div class="roads-nav">${head} <span class="roads-hint">· ${esc(NAV.name || "")} is not a system on our roads or the star map</span>${stop}</div>`;
-    const r = window.RoadsCore.navigate({ model: M, gates: gatePairs, from: fromId, to: target, dist });
-    if (r.hops && !r.hops.length) return `<div class="roads-nav">${head} <span class="good">· you are there</span>${stop}</div>`;
-    if (!r.hops) {
-      const c = r.closest;
-      return `<div class="roads-nav">${head} <span class="roads-hint">· no road from here over our roads and the public gates${c ? `; the closest you can get is <b>${esc(nameOfId(c.id))}</b>${c.ly != null ? `, ${c.ly.toFixed(0)} LY short` : c.edge ? ", where our roads to it begin (they lead out of its group, not in)" : ""} (${c.jumps} jump${c.jumps === 1 ? "" : "s"})` : ""}</span>${stop}</div>`;
+    const avoid = NAV.avoid || [], all = window.RoadsCore.navigateAll({ model: M, gates: gatePairs, from: fromId, to: target, dist, avoid }), cur = NAV.way || "safe", r = pickWay(all, cur);
+    if (r && !r.hops.length) return `<div class="roads-nav">${head} <span class="good">· you are there</span>${stop}</div>`;
+    if (!all.choices.length) {
+      const c = all.closest;
+      return `<div class="roads-nav">${head} <span class="roads-hint">· no road from here over our roads and the public gates${c ? `; the closest you can get is <b>${esc(nameOfId(c.id))}</b>${c.ly != null ? `, ${c.ly.toFixed(0)} LY short` : c.edge ? ", where our roads to it begin (they lead out of its group, not in)" : ""} (${c.jumps} jump${c.jumps === 1 ? "" : "s"})` : ""}</span>${putBack(avoid.length, "navclear")}${stop}</div>`;
     }
+    const chips = wayChips(all, cur, "navway");
+    if (!r) return `<div class="roads-nav">${head} <span class="bad">· no road this way</span> <span class="roads-hint">pick another way below</span>${putBack(avoid.length, "navclear")}${stop}${chips}</div>`;
     const h = r.hops[0], how = h => h.how === "ours" ? `our ${h.kind}` : `public gate${h.state === "unfueled" ? ", no fuel on the far side" : h.state === "dormant" ? ", dormant on the far side" : ""}${h.fuel ? `, ${h.fuel.jumps} jumps of fuel` : ""}`;
-    const chain = [nameOfId(r.hops[0].from)].concat(r.hops.map(x => nameOfId(x.to))).map(esc).join(" → ");
-    return `<div class="roads-nav">${head} <span>· next: <b>${esc(nameOfId(h.to))}</b> by ${esc(how(h))}</span> <span class="roads-hint">· ${r.hops.length} jump${r.hops.length === 1 ? "" : "s"}${r.crude ? ` · ${r.crude} crude for the public gates` : ""}</span>${stop}<div class="roads-hint navchain">${chain}</div></div>`;
+    const chain = esc(nameOfId(r.hops[0].from)) + r.hops.map(x => ` → <b>${esc(nameOfId(x.to))}</b>${x.bad ? ' <span class="bad">!</span>' : ""}${strike(x, "navavoid")}`).join("");
+    return `<div class="roads-nav">${head} <span>· next: <b>${esc(nameOfId(h.to))}</b> by ${esc(how(h))}</span> <span class="roads-hint">· ${r.hops.length} jump${r.hops.length === 1 ? "" : "s"}${r.crude ? ` · ${r.crude} crude for the public gates` : ""}</span>${putBack(avoid.length, "navclear")}${stop}${chips}<div class="roads-hint navchain">${chain}</div></div>`;
   }
   function drawLoc() {
     const el = $("roads-me"), b = $("roads-stars") && $("roads-stars").querySelector('[data-sf="me"]');
@@ -539,14 +573,17 @@
     const C = window.RoadsCore, a = C.navKey(M, from), b = C.navKey(M, to);
     const go = b ? ` <button type="button" class="roads-quiet" data-navgo="${esc(to)}" title="the companion tells you every jump on the way, with a card over the game">Navigate with the companion</button>` : "";
     if (!gatePairs || !gatePairs.length) { navPoll(); out.innerHTML = `<span class="roads-hint">reading the public gates…</span>`; return; }
-    const r = C.navigate({ model: M, gates: gatePairs, from: a, to: b, dist });
-    if (!r.hops) {
-      const c = r.closest;
-      out.innerHTML = `<span class="bad">No road from ${esc(from)} to ${esc(to)}</span> over our roads and the public gates.` + (c ? ` The closest you can get is <b>${esc(nameOfId(c.id))}</b>${c.ly != null ? `, ${c.ly.toFixed(0)} LY short` : c.edge ? ", where our roads to it begin (they lead out of its group, not in)" : ""}, ${c.jumps} jump${c.jumps === 1 ? "" : "s"}.` : "") + go;
+    if (a + "|" + b !== routeKey) { routeKey = a + "|" + b; routeAvoid = []; }
+    const all = C.navigateAll({ model: M, gates: gatePairs, from: a, to: b, dist, avoid: routeAvoid }), r = pickWay(all, routeWay);
+    if (!all.choices.length) {
+      const c = all.closest;
+      out.innerHTML = `<span class="bad">No road from ${esc(from)} to ${esc(to)}</span> over our roads and the public gates.` + (c ? ` The closest you can get is <b>${esc(nameOfId(c.id))}</b>${c.ly != null ? `, ${c.ly.toFixed(0)} LY short` : c.edge ? ", where our roads to it begin (they lead out of its group, not in)" : ""}, ${c.jumps} jump${c.jumps === 1 ? "" : "s"}.` : "") + putBack(routeAvoid.length, "routeclear") + go;
       return;
     }
+    const chips = wayChips(all, routeWay, "routeway");
+    if (!r) { out.innerHTML = chips + `<div class="roads-hint"><span class="bad">No road this way.</span> Pick another way above.${putBack(routeAvoid.length, "routeclear")}</div>`; return; }
     const how = h => h.how === "ours" ? h.kind : "public gate" + (h.state === "unfueled" ? ", no fuel on the far side" : h.state === "dormant" ? ", dormant" : "");
-    out.innerHTML = `<div class="roads-hops"><b>${esc(from)}</b>` + r.hops.map(h => ` <span class="hop">→ <i>${esc(how(h))}</i> →</span> <b>${esc(nameOfId(h.to))}</b>`).join("") + `</div><div class="roads-hint">${r.hops.length} jump${r.hops.length === 1 ? "" : "s"}${r.crude ? ` · ${r.crude} crude for the public gates` : ""}.${go}</div>`;
+    out.innerHTML = chips + `<div class="roads-hops"><b>${esc(from)}</b>` + r.hops.map(h => ` <span class="hop">→ <i>${esc(how(h))}</i> →</span> <b>${esc(nameOfId(h.to))}</b>${hopFlag(h)}${strike(h, "routeavoid")}`).join("") + `</div><div class="roads-hint">${r.hops.length} jump${r.hops.length === 1 ? "" : "s"}${r.crude ? ` · ${r.crude} crude for the public gates` : ""}.${putBack(routeAvoid.length, "routeclear")}${go}</div>`;
   }
 
   // the tool column sits centred beside the map while no panel is open, and level with the map's top while one is
@@ -568,7 +605,7 @@
       setTimeout(findBox, 0);
       setTimeout(() => { const ul = box.querySelector(".sf-legend ul"); if (ul) ul.insertAdjacentHTML("beforeend", '<li><button type="button" class="sf-l-more" data-panel="legend">More about the lines and names ›</button></li>'); }, 0);                                     /* the find box is in the toolbar HTML below */                                      // tests
       box.insertAdjacentHTML("beforeend", '<div class="sf-hint"></div><div class="sf-missing" id="sf-missing"></div>' +
-        '<div class="sf-find"><input type="search" id="sf-find" placeholder="Find a system: name or number" aria-label="Find a system by name or system number" autocomplete="off" spellcheck="false"></div><div class="sf-poi" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-poi sf-reach" id="sf-reach" hidden></div><div class="sf-layers" id="sf-layers" hidden><b>Show on the map</b><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="survey" title="Systems Saints have surveyed with the companion: infestation 1 (green) to 6 (red)" hidden>Survey</button><button type="button" data-sf="reach"' + (reachOn ? ' class="on"' : '') + ' title="Every system with proof that someone was there this cycle: Saints visits, kills, names on EF-Map">Reached</button><button type="button" data-sf="oldnames"' + (oldNames ? ' class="on"' : '') + ' title="Off: a system nobody has named this cycle shows as its number. On: as its old Cycle 6 name, marked (C6)">Old Cycle 6 names</button><b>View</b><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button><button type="button" data-sf="all" title="The whole galaxy">Whole galaxy</button></div><div class="sf-tools"><button type="button" data-sf="me" title="Fly to where you are (from the Saints Frontier Companion)" hidden>You</button><button type="button" data-sf="fit" title="Back to our roads">Our roads</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="layers" title="What the map shows, and the view">Layers ▾</button></div>');
+        '<div class="sf-find"><input type="search" id="sf-find" placeholder="Find a system: name or number" aria-label="Find a system by name or system number" autocomplete="off" spellcheck="false"><div class="sf-chartf" id="sf-chartf" role="group" aria-label="Show systems"></div></div><div class="sf-poi" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-poi sf-reach" id="sf-reach" hidden></div><div class="sf-layers" id="sf-layers" hidden><b>Show on the map</b><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="survey" title="Systems Saints have surveyed with the companion: infestation 1 (green) to 6 (red)" hidden>Survey</button><button type="button" data-sf="reach"' + (reachOn ? ' class="on"' : '') + ' title="Every system with proof that someone was there this cycle: Saints visits, kills, names on EF-Map">Reached</button><button type="button" data-sf="oldnames"' + (oldNames ? ' class="on"' : '') + ' title="Off: a system nobody has named this cycle shows as its number. On: as its old Cycle 6 name, marked (C6)">Old Cycle 6 names</button><b>View</b><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button><button type="button" data-sf="all" title="The whole galaxy">Whole galaxy</button></div><div class="sf-tools"><button type="button" data-sf="me" title="Fly to where you are (from the Saints Frontier Companion)" hidden>You</button><button type="button" data-sf="fit" title="Back to our roads">Our roads</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="layers" title="What the map shows, and the view">Layers ▾</button></div>');
       sfLoading = sf.load("stars.bin?v=2").then(() => { dist = (a, b) => { const p = sf.position(a), q = sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; }; if (lastData && !draft) { M = build(lastData); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); stamp(lastData); }
         // the public gates come after the stars, never in their way: the button appears once they are in
         sf.showGates(showGates); poiLoad(); locPoll();
@@ -611,7 +648,15 @@
       if (reachOn) { const R = reachSet(s); for (const r of R.list) { const what = r.what.join(" \u00b7 "); if (placed.has(r.id)) { const i = systems.findIndex(x => x.id === r.id); if (i >= 0) systems[i].sub = (systems[i].sub ? systems[i].sub + " \u00b7 " : "") + what; continue; }
           placed.add(r.id); systems.push({ id: r.id, name: r.label, cls: "poi", color: (REACH.find(x => x[0] === r.kind) || [])[2], sub: what }); }
         drawReachBox(R); s.dimStars(true); } else { const rb = $("sf-reach"); if (rb) rb.hidden = true; }
-      const cb = $("roads-stars").querySelector('[data-sf="charted"]'); if (cb) { cb.hidden = !(chartedN + waitingN); cb.textContent = `Charted · ${chartedN.toLocaleString("en-US")}`; cb.classList.toggle("on", showCharted); }
+      { const own = new Set([...M.ids.values()].filter(k => !k.c6).map(k => k.id)), isCh = id => own.has(id) || (M.ef.byId.get(id) || {}).status === "confirmed";
+        const all = s.ids(); let nCh = 0; for (const id of all) if (isCh(id)) nCh++;
+        drawChartF(nCh, all.length - nCh);
+        if (chartF !== "all" && !reachOn && !chartOn) { const want = chartF === "charted", L = [];
+          for (const id of all) { if (isCh(id) !== want) continue; const once = !want && M.ef.byId.has(id); L.push([id, want ? "#9fd8ff" : once ? "#ff9a7a" : "#ff6a4a", want ? 7 : once ? 6.5 : 4.6, want ? 1 : once ? 1 : 0.9]); }
+          for (let i = systems.length; i--;) if (systems[i].cls === (want ? "uncharted" : "charted")) systems.splice(i, 1);
+          s.paint(L); s.dimStars(true);
+        } else { s.paint(null); if (!reachOn && !chartOn) s.dimStars(false); } }
+      const cb = $("roads-stars").querySelector('[data-sf="charted"]'); if (cb) { cb.hidden = true; cb.textContent = `Charted · ${chartedN.toLocaleString("en-US")}`; cb.classList.toggle("on", showCharted); }
       const roads = [];
       for (const r of M.roads) { const a = M.ids.get(r.from), b = M.ids.get(r.to); if (a && b) roads.push({ a: a.id, b: b.id, kind: r.kind, twoWay: r.twoWay, online: r.online, source: r.inferred ? "inferred" : r.source, status: r.status || "built", state: r.state || "" }); }
       /* long-haul stargate pairs (2026-10-23; the POI layer's own pairs): drawn as lines between the
@@ -1160,7 +1205,13 @@
     if (b.dataset.planto) { planTo(+b.dataset.planto); return; }
     if (b.dataset.navto) { navSet(+b.dataset.navto); return; }
     if (b.dataset.navname) { navSet("n:" + b.dataset.navname); return; }
-    if (b.dataset.navgo) { const k = window.RoadsCore.navKey(M, b.dataset.navgo); if (k) navSet(k).then(ok => { const o = $("roads-route"); if (ok && o) o.insertAdjacentHTML("beforeend", `<div class="good">Sent to the companion: it shows the next jump as you fly.</div>`); }); return; }
+    if (b.dataset.routeway) { routeWay = b.dataset.routeway; try { localStorage.setItem("roads:way", routeWay); } catch (e) {} route(); return; }
+    if (b.dataset.routeavoid) { if (!routeAvoid.includes(b.dataset.routeavoid)) routeAvoid.push(b.dataset.routeavoid); route(); return; }
+    if (b.dataset.routeclear) { routeAvoid = []; route(); return; }
+    if (b.dataset.navway) { routeWay = b.dataset.navway; try { localStorage.setItem("roads:way", routeWay); } catch (e) {} navPatch({ way: routeWay }); return; }
+    if (b.dataset.navavoid) { const l = (NAV && NAV.avoid) || []; if (!l.includes(b.dataset.navavoid)) navPatch({ avoid: l.concat(b.dataset.navavoid).slice(-24) }); return; }
+    if (b.dataset.navclear) { navPatch({ avoid: [] }); return; }
+    if (b.dataset.navgo) { const k = window.RoadsCore.navKey(M, b.dataset.navgo); if (k) navSet(k, { way: routeWay, avoid: routeAvoid.slice() }).then(ok => { const o = $("roads-route"); if (ok && o) o.insertAdjacentHTML("beforeend", `<div class="good">Sent to the companion: it shows the next jump as you fly.</div>`); }); return; }
     if (b.dataset.navstop) { navSet(null); return; }
     if (b.dataset.home) { placesSet({ home: placeOf(+b.dataset.home) }); return; }
     if (b.dataset.mark) { const pl = placeOf(+b.dataset.mark), lab = askLabel("", pl.name); if (lab === null) return; if (lab) pl.label = lab; placesSet({ add: pl }); return; }
@@ -1197,6 +1248,7 @@
     if (b.dataset.flatlayout) { flatLayout = b.dataset.flatlayout === "space" ? "space" : "tree"; try { localStorage.setItem("roads:flatlayout", flatLayout); } catch (e) {} drawMap(); return; }
     if (b.dataset.flat) { flatMode = b.dataset.flat === "build" ? "build" : "route"; try { localStorage.setItem("roads:flat", flatMode); } catch (e) {} drawMap(); return; }
     if (b.dataset.view) { setView(b.dataset.view); return; }
+    if (b.dataset.chartf) { chartF = b.dataset.chartf; try { localStorage.setItem("roads:chartf", chartF); } catch (e) {} drawStars(); return; }
     if (b.dataset.sfmissing) { $("sf-missing").classList.toggle("open"); return; }
     if (b.dataset.sf === "layers") { const L = $("sf-layers"); L.hidden = !L.hidden; b.classList.toggle("on", !L.hidden); return; }
     if (b.dataset.sf === "gates") { showGates = !showGates; try { localStorage.setItem("roads:gates", showGates ? "1" : "0"); } catch (e) {} if (sf) sf.showGates(showGates); b.classList.toggle("on", showGates); drawDetail(); return; }

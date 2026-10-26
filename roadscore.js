@@ -220,8 +220,35 @@
     const a = h[0], z = h[h.length - 1], hrs = (Date.parse(z[0]) - Date.parse(a[0])) / 3600000, used = a[1] - z[1];
     return hrs >= 0.5 && used > 0 ? f.jumps / (used / hrs) : null;
   }
+  /* The ways a pilot can choose (user 2026-10-26: "the system tried to route me through a public gate that was unfueled"):
+       safe  = never a public gate recorded unfueled, dormant or with an empty tank; gates jumped and found working first
+       known = only our roads and public gates a Saint found working (or whose tank reads fuel): nothing untried
+       ours  = our own roads first (tribe gates and catapults): a public gate only where no road of ours goes,
+               never a bad one (user 2026-10-26: "prefer tribe gates")
+       short = the fewest jumps over everything, flagged gates included (each one says so)
+     o.way picks one; without it (the companion pages released before 2026-10-26) the safe way is used, and when it
+     finds nothing the shortest is returned with fallback: true. o.avoid: hops the pilot struck off, "from>to" keys of
+     the navigator's own ids (one direction: a gate dead on the far side may still bring you back). */
+  const WAYS = ["safe", "ours", "known", "short"];
+  const WAY_TEXT = { safe: "Avoid bad gates", ours: "Tribe gates first", known: "Known gates only", short: "Fewest jumps" };
   function navigate(o) {
-    const M = o.model, adj = new Map(), push = (a, b, e) => { let l = adj.get(a); if (!l) adj.set(a, l = []); l.push(Object.assign({ to: b }, e)); };
+    const way = WAYS.includes(o.way) ? o.way : "safe";
+    const r = route1(o, way);
+    if (!r.hops && !o.way && way !== "short") { const s = route1(o, "short"); if (s.hops) { s.fallback = true; return s; } }
+    return r;
+  }
+  /* every way at once, the same route shown once: [{ way, label, hops, crude, flagged, untried }]; ways that found
+     nothing are left out (the first answer's closest point is in .closest when none did) */
+  function navigateAll(o) {
+    const out = [], seen = new Set(); let closest = null;
+    for (const w of WAYS) { const r = route1(o, w); if (!r.hops) { if (!closest) closest = r.closest; continue; }
+      const k = r.hops.map(h => h.from + ">" + h.to).join(","); if (seen.has(k)) { const d = out.find(x => x.key === k); if (d) d.also.push(w); continue; } seen.add(k);
+      out.push(Object.assign(r, { way: w, label: WAY_TEXT[w], key: k, also: [] })); }
+    return { choices: out, closest };
+  }
+  function route1(o, way) {
+    const avoid = new Set(o.avoid || []);
+    const M = o.model, adj = new Map(), push = (a, b, e) => { if (avoid.has(a + ">" + b)) return; let l = adj.get(a); if (!l) adj.set(a, l = []); l.push(Object.assign({ to: b }, e)); };
     const idOf = n => idOfName(M, n) || (n ? "n:" + up(n) : null);   /* our roads join systems by name: one without a number still counts */
     for (const r of M.roads) {
       if ((r.source !== "chain" && r.source !== "seen") || r.online === false || r.tooFar) continue;   /* "seen" = a road a Saint jumped */
@@ -236,7 +263,12 @@
     for (let i = 0; i + 1 < G.length; i += 2) for (const [x, y] of [[G[i], G[i + 1]], [G[i + 1], G[i]]]) {
       const s = st.get(x + ">" + y) || "", f = fuel.get(x + ">" + y) || null;
       /* the gate's own tank, read from its window: none left = it cannot send anyone (as bad as dormant) */
-      push(x, y, { kind: "Public Gate", how: "public", state: s, fuel: f ? { jumps: f.jumps, cap: f.cap, at: f.at, left: hoursLeft(f) } : null, cost: s === "dormant" || (f && f.jumps < 1) ? 6 : s === "unfueled" ? 3 : 1.25 });
+      const bad = s === "dormant" || s === "unfueled" || !!(f && f.jumps < 1), good = !bad && (s === "working" || !!(f && f.jumps >= 1));
+      if ((way === "safe" || way === "ours") && bad) continue;
+      if (way === "known" && !good) continue;
+      /* fewest jumps: every jump counts 1, a flagged one a hair more so a tie goes the clean way */
+      const cost = way === "short" ? (bad ? 1.001 : 1.0005) : way === "ours" ? (good ? 3 : 3.5) : good ? 1.15 : 1.25;   /* "ours": three of our jumps are worth one public gate */
+      push(x, y, { kind: "Public Gate", how: "public", state: s, bad, untried: !bad && !good, fuel: f ? { jumps: f.jumps, cap: f.cap, at: f.at, left: hoursLeft(f) } : null, cost });
     }
     const from = o.from, to = o.to, best = new Map([[from, 0]]), prev = new Map(), jumps = new Map([[from, 0]]);
     const heap = [[0, from]], pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; for (let i = 0;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[i], heap[m]] = [heap[m], heap[i]]; i = m; } } return top; };
@@ -258,8 +290,8 @@
       }
       return { hops: null, closest, reached: best.size };
     }
-    const hops = []; for (let x = to; x !== from;) { const [p, e] = prev.get(x); hops.unshift({ from: p, to: x, kind: e.kind, how: e.how, state: e.state || "", name: e.name || "", inferred: !!e.inferred, fuel: e.fuel || null, ly: o.dist && typeof p === "number" && typeof x === "number" ? o.dist(p, x) : null }); x = p; }
-    return { hops, crude: hops.filter(h => h.how === "public").length * 50 };
+    const hops = []; for (let x = to; x !== from;) { const [p, e] = prev.get(x); hops.unshift({ from: p, to: x, kind: e.kind, how: e.how, state: e.state || "", bad: !!e.bad, untried: !!e.untried, name: e.name || "", inferred: !!e.inferred, fuel: e.fuel || null, ly: o.dist && typeof p === "number" && typeof x === "number" ? o.dist(p, x) : null }); x = p; }
+    return { hops, way, crude: hops.filter(h => h.how === "public").length * 50, flagged: hops.filter(h => h.bad).length, untried: hops.filter(h => h.untried).length };
   }
   /* Where a pilot stands on a route: the hop to fly next, from the system the game says they are in (cur) and the
      index they were at before (was). A system whose name we do not know yet (shown with its old Cycle 6 name) cannot
@@ -273,5 +305,5 @@
     return { i: null, off: true };
   }
 
-  G.RoadsCore = { up, RANGE, readName, mentions, build, parseStars, parseGates, namer, idOfName, navKey, navigate, routeStep, hoursLeft };
+  G.RoadsCore = { up, RANGE, readName, mentions, build, parseStars, parseGates, namer, idOfName, navKey, navigate, navigateAll, WAYS, WAY_TEXT, routeStep, hoursLeft };
 })(typeof window !== "undefined" ? window : self);

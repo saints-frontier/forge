@@ -13,7 +13,7 @@
 (function () {
   "use strict";
   const LY_FOV = 50 * Math.PI / 180;
-  const COLORS = { me: "#5fe3ff", mate: "#8fe0b0", home: "#e3222c", ours: "#d9b24c", inferred: "#b8b3a8", far: "#8a8378", plan: "#9a9389", charted: "#8d98a3", uncharted: "#737d86", road: "#d9b24c", planned: "#b8b3a8", off: "#e3222c", gate: "#f1e9d2", hand: "#b8b3a8", pub: "#7d8894", cat: "#ff8a3d", longhaul: "#ff5fa2", pubOk: "#6fd08c", pubFuel: "#f0b74a", pubDead: "#e3222c" };
+  const COLORS = { me: "#5fe3ff", mate: "#8fe0b0", home: "#e3222c", ours: "#d9b24c", inferred: "#b8b3a8", far: "#8a8378", plan: "#9a9389", charted: "#9fd8ff", uncharted: "#ff7a5c", road: "#d9b24c", planned: "#b8b3a8", off: "#e3222c", gate: "#f1e9d2", hand: "#b8b3a8", pub: "#7d8894", cat: "#ff8a3d", longhaul: "#ff5fa2", pubOk: "#6fd08c", pubFuel: "#f0b74a", pubDead: "#e3222c" };
   /* the line grammar (2026-10-23, user: "those arching lines are confusing ... only straight lines ... the color coding
      should be better"): every road is a straight line; the colour says WHAT it is, the dash says how sure, the arrows
      say which way. Shown in the legend over the map. */
@@ -64,7 +64,7 @@
       attribute vec3 aPos; uniform mat4 uVP; void main() { gl_Position = uVP * vec4(aPos, 1.0); }`, `
       precision mediump float; uniform vec4 uCol; void main() { gl_FragColor = vec4(uCol.rgb * uCol.a, uCol.a); }`);
     const loc = (p, n) => gl.getAttribLocation(p, n), uloc = (p, n) => gl.getUniformLocation(p, n);
-    const starBuf = gl.createBuffer(), glowBuf = gl.createBuffer(), markBuf = gl.createBuffer(), gateBuf = gl.createBuffer();
+    const starBuf = gl.createBuffer(), glowBuf = gl.createBuffer(), markBuf = gl.createBuffer(), gateBuf = gl.createBuffer(), paintBuf = gl.createBuffer();
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.disable(gl.DEPTH_TEST);
 
     // ---------- state ----------
@@ -74,6 +74,7 @@
     let selected = null, hovered = null, marked = null;
     let many = [], sphereOf = null;             // Check a jump: rings for every legal / blocked target, the sphere of the tested jump
     let starDim = 1;                            // Chart the uncharted: the background stars dimmed so only the targets stand out
+    let paintCount = 0;                         // the charted / uncharted filter (2026-10-26): one coloured point per star, over the dimmed cloud
     let gateVerts = 0, gatePairs = 0, gateAdj = new Map(), gatesOn = true;      // the public stargate network: id -> [neighbour ids]
     const cam = { target: [0, 0, 0], dist: 9000, yaw: 0.6, pitch: 0.35 };
     let w = 1, h = 1, dpr = 1, dirty = true, raf = 0;
@@ -136,7 +137,7 @@
         /* a pair of roads between the same two systems (there and back): each is moved 3 px to its own left on screen */
         polys.push({ road: r, pts: [A, B], col, dash, alpha, cat, pub, heavy, shift: pairCount.get(key) > 1 ? 3 : 0 });
       }
-      for (const s of scene.systems) { const p = P(s.id), col = s.color || COLORS[s.cls] || COLORS.far, minor = s.cls === "charted" || s.cls === "uncharted" || s.cls === "poi", size = s.cls === "home" || s.cls === "me" ? 9 : s.cls === "ours" ? 7 : s.cls === "uncharted" ? 2 : minor ? 2.6 : 5; M.push(...p, ...rgba(col, minor ? 0.07 : 0.16), size * 4.5); M.push(...p, ...rgba(col, minor ? 0.75 : 0.95), size); }
+      for (const s of scene.systems) { const p = P(s.id), col = s.color || COLORS[s.cls] || COLORS.far, minor = s.cls === "charted" || s.cls === "uncharted" || s.cls === "poi", size = s.cls === "home" || s.cls === "me" ? 9 : s.cls === "ours" ? 7 : s.cls === "uncharted" ? 2.6 : minor ? 3 : 5; M.push(...p, ...rgba(col, minor ? 0.07 : 0.16), size * 4.5); M.push(...p, ...rgba(col, minor ? 0.75 : 0.95), size); }
       marks = new Float32Array(M); markCount = M.length / 8; polylines = polys;
       gl.bindBuffer(gl.ARRAY_BUFFER, markBuf); gl.bufferData(gl.ARRAY_BUFFER, marks, gl.STATIC_DRAW);
       dirty = true; schedule();
@@ -215,6 +216,12 @@
         gl.bindBuffer(gl.ARRAY_BUFFER, glowBuf); const ag = loc(starProg, "aGlowHue"); gl.enableVertexAttribArray(ag); gl.vertexAttribPointer(ag, 2, gl.FLOAT, false, 0, 0);
         gl.drawArrays(gl.POINTS, 0, n);
       }
+      if (paintCount) {
+        gl.useProgram(markProg); gl.uniformMatrix4fv(uloc(markProg, "uVP"), false, VP); gl.uniform1f(uloc(markProg, "uDpr"), dpr); gl.uniform1f(uloc(markProg, "uK"), Math.max(0.55, zoomK()));
+        gl.bindBuffer(gl.ARRAY_BUFFER, paintBuf); const ap = loc(markProg, "aPos"), ac = loc(markProg, "aCol"), as = loc(markProg, "aSize");
+        gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap, 3, gl.FLOAT, false, 32, 0); gl.enableVertexAttribArray(ac); gl.vertexAttribPointer(ac, 4, gl.FLOAT, false, 32, 12); gl.enableVertexAttribArray(as); gl.vertexAttribPointer(as, 1, gl.FLOAT, false, 32, 28);
+        gl.drawArrays(gl.POINTS, 0, paintCount);
+      }
       if (gatesOn && gateVerts) {
         // 4,800 lines: faint from far away, clear as the camera closes in
         const a = Math.max(0.12, Math.min(0.55, 140 / cam.dist)), c = rgba(COLORS.pub, a);
@@ -289,7 +296,7 @@
       for (const o of leaders) {
         const s = o.s, p = o.p, col = s.color || COLORS[s.cls] || COLORS.far, unch = s.cls === "uncharted", poi = s.cls === "poi", charted = s.cls === "charted" || unch || poi, plan = s.cls === "plan" || charted, hot = s.id === selected || s.id === hovered;
         const R = Math.max(2.5, (s.cls === "me" ? 12 : s.cls === "mate" ? 9 : s.cls === "home" ? 11 : s.cls === "ours" ? 9 : plan ? (unch ? 3 : 4) : 7) * (plan ? Math.max(k, 0.7) : k));
-        ctx.beginPath(); if (poi) { const D = R + 1.5; ctx.moveTo(p[0], p[1] - D); ctx.lineTo(p[0] + D, p[1]); ctx.lineTo(p[0], p[1] + D); ctx.lineTo(p[0] - D, p[1]); ctx.closePath(); } else ctx.arc(p[0], p[1], R, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.lineWidth = s.id === selected ? 2.5 : poi ? 1.6 : 1.3; ctx.setLineDash(s.cls === "inferred" || unch ? [3, 3] : []); ctx.globalAlpha = charted && !hot ? 0.7 : 1; ctx.stroke(); ctx.globalAlpha = 1; ctx.setLineDash([]);
+        ctx.beginPath(); if (poi) { const D = R + 1.5; ctx.moveTo(p[0], p[1] - D); ctx.lineTo(p[0] + D, p[1]); ctx.lineTo(p[0], p[1] + D); ctx.lineTo(p[0] - D, p[1]); ctx.closePath(); } else ctx.arc(p[0], p[1], R, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.lineWidth = s.id === selected ? 2.5 : poi ? 1.6 : 1.3; ctx.setLineDash(s.cls === "inferred" || unch ? [3, 3] : []); ctx.globalAlpha = unch && !hot ? 0.85 : 1; ctx.stroke(); ctx.globalAlpha = 1; ctx.setLineDash([]);
         if (hot || s.cls === "me") { ctx.beginPath(); ctx.arc(p[0], p[1], R + 5, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.globalAlpha = 0.45; ctx.stroke(); ctx.globalAlpha = 1; }
         if ((plan && !labelPlans && !hot) || (unch && !hot)) continue;   // an uncharted mark is named only under the pointer
         const label = (s.cls === "home" ? "✠ " : "") + (s.name || String(s.id)) + (o.more ? `  +${o.more}` : "");
@@ -299,7 +306,7 @@
         if (!hot && hit(box)) continue;
         boxes.push(box);
         if (k < 0.45) { ctx.fillStyle = "rgba(7,7,10,.82)"; ctx.fillRect(box[0] - 2, box[1] - 1, box[2] - box[0] + 4, box[3] - box[1] + 2); ctx.strokeStyle = "rgba(217,178,76,.45)"; ctx.lineWidth = 1; ctx.strokeRect(box[0] - 1.5, box[1] - 0.5, box[2] - box[0] + 3, box[3] - box[1] + 1); }
-        ctx.fillStyle = "rgba(7,7,10,.75)"; ctx.fillText(label, x + 1, y + 1); ctx.fillStyle = s.cls === "home" ? "#ffd27a" : poi || s.cls === "me" || s.cls === "mate" ? col : charted ? "#aab3bc" : "#f1e9d2"; ctx.fillText(label, x, y);
+        ctx.fillStyle = "rgba(7,7,10,.75)"; ctx.fillText(label, x + 1, y + 1); ctx.fillStyle = s.cls === "home" ? "#ffd27a" : poi || s.cls === "me" || s.cls === "mate" ? col : s.cls === "charted" ? COLORS.charted : charted ? "#aab3bc" : "#f1e9d2"; ctx.fillText(label, x, y);
         if (showSub) { ctx.font = `600 11px ${mono}`; ctx.fillStyle = s.subColor || "#b8b3a8"; ctx.fillText(s.sub, x, y + 14); }
       }
       // the hover card (2026-10-23): what the system under the pointer is, its roads and public gates
@@ -379,6 +386,12 @@
       searchOld(q, limit) { const out = [], inc = []; if (!names) return out; q = String(q).toLowerCase(); for (let i = 0; i < n && out.length < limit; i++) { const nm = names[i]; if (!nm) continue; const l = nm.toLowerCase(); if (l.startsWith(q)) out.push({ id: ids[i], name: nm }); else if (inc.length < limit && l.includes(q)) inc.push({ id: ids[i], name: nm }); } return out.concat(inc).slice(0, limit); },
       markMany(list) { many = (list || []).filter(m => m && byId.has(m.id)); dirty = true; schedule(); },
       dimStars(on) { starDim = on ? 0.1 : 1; dirty = true; schedule(); },
+      /* colour stars by id: [[id, "#rrggbb", size px, alpha], ...]; null or [] clears (the charted / uncharted filter) */
+      paint(list) { const a = new Float32Array((list || []).length * 8), cache = new Map(); let k = 0;
+        for (const [id, col, size, al] of list || []) { const i = byId.get(id); if (i == null) continue; const key = col + al; let c = cache.get(key); if (!c) cache.set(key, c = rgba(col, al));
+          a[k++] = pos[i * 3]; a[k++] = pos[i * 3 + 1]; a[k++] = pos[i * 3 + 2]; a[k++] = c[0]; a[k++] = c[1]; a[k++] = c[2]; a[k++] = c[3]; a[k++] = size; }
+        paintCount = k / 8; gl.bindBuffer(gl.ARRAY_BUFFER, paintBuf); gl.bufferData(gl.ARRAY_BUFFER, a.subarray(0, k), gl.STATIC_DRAW); dirty = true; schedule(); },
+      ids: () => ids,
       /* every star within r light-years of a star: [[id, ly], ...], nearest first (Chart the uncharted) */
       near(id, r) { const i = byId.get(id); if (i == null || !pos) return []; const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2], r2 = r * r, out = [];
         for (let k = 0; k < n; k++) { if (k === i) continue; const dx = pos[k * 3] - x, dy = pos[k * 3 + 1] - y, dz = pos[k * 3 + 2] - z, d2 = dx * dx + dy * dy + dz * dz; if (d2 <= r2) out.push([ids[k], Math.sqrt(d2)]); }
