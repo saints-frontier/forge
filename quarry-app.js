@@ -46,9 +46,17 @@
   const R = D.rifts && D.rifts.kinds && D.rifts.kinds.length ? D.rifts : null;
   const RIFT_NAMES = R ? R.names.map(n => n.rift) : [];
   const riftKind = crude => R ? R.kinds.find(k => k.crude === crude) : null;
+  /* one name per thing (user 2026-10-27: "we need to consolidate names"): what a pilot typed counts as a rift's name only
+     when it is a name the game uses (an earlier build's name becomes today's); everything else is filed under the item
+     the game log names: the crude kind, the salvage material */
+  const riftName = typed => { const t = String(typed || "").trim().toLowerCase(); if (!R || !t) return null;
+    for (const [c, old] of Object.entries(R.former || {})) if (t === c.toLowerCase() || old.some(o => o.toLowerCase() === t)) return c; return null; };
   // salvage: what we cut from wrecks, debris fields and ruins (D.salvage, data/salvage.json), and the sources pilots named
   const SV = D.salvage && D.salvage.materials && D.salvage.materials.length ? D.salvage : null;
   const salvMat = name => SV ? SV.materials.find(m => m.name === name) : null;
+  // a typed salvage source that is only the material ("Debris") or the category ("Salvage") names no source
+  const salvSource = typed => { const t = String(typed || "").trim(), lc = t.toLowerCase();
+    return !t || /^(salvage|wrecks?)$/.test(lc) || (SV && SV.materials.some(m => m.name.toLowerCase() === lc)) ? null : t; };
   const INDEX = [];
   for (const f of FAMS) INDEX.push({ name: f, tag: "rock" });
   const seenRock = new Set(FAMS);
@@ -338,7 +346,7 @@
   $("q-rocks").innerHTML = FAMS.map(f => go(f)).join("");
   $("q-ores").innerHTML = ORES.map(o => `<button type="button" class="lk" data-go="${esc(o)}">${dot(o)}${esc(o)}</button>`).join("");
   if ($("q-salv")) { $("q-salv").innerHTML = SV ? [go("Salvage", "what salvage is")].concat(SV.sources.map(s => go(s.name))).concat(SV.materials.length ? [`<span class="dim small">gives</span>`] : []).concat(SV.materials.map(m => go(m.name))).join("") : ""; if ($("q-salvrow")) $("q-salvrow").hidden = !SV; }
-  if ($("q-rifts")) { $("q-rifts").innerHTML = R ? [go("Rifts", "what rifts give")].concat(RIFT_NAMES.map(n => go(n))).concat(R.kinds.map(k => go(k.crude, k.crude.replace("Crude - ", "")))).join("") : ""; if ($("q-riftrow")) $("q-riftrow").hidden = !R; }
+  if ($("q-rifts")) { $("q-rifts").innerHTML = R ? [go("Rifts", "what rifts give")].concat(R.kinds.map(k => go(k.crude, k.crude.replace("Crude - ", "")))).join("") : ""; if ($("q-riftrow")) $("q-riftrow").hidden = !R; }
   $("q-foot").textContent = "data of " + D.generated;
   const CR = D.contributors || [];
   /* a sender's name as the roll shows it (user 2026-10-17: "my name pops up twice"): a Discord rank tag in front
@@ -372,19 +380,30 @@
         let k = riftKind(mat);
         if (!k) { k = { crude: mat, age: "", grade: "", names: [], n: 0, units: 0, cuts: 0, minutes: 0, per_min_one: 0, sessions: [], desc: "" }; R.kinds.push(k); }
         k.n++; k.units += q; k.cuts += +r.cuts || 0; k.minutes = Math.round((k.minutes + minutes) * 10) / 10;
-        k.sessions.push({ date, units: q, minutes, runs: 1, rift: RIFT_NAMES.includes(r.rock) ? r.rock : null });
-        if (RIFT_NAMES.includes(r.rock)) { if (!k.names.includes(r.rock)) k.names.push(r.rock); const nm = R.names.find(x => x.rift === r.rock); if (nm) { nm.n++; nm.units += q; if (!nm.crude.includes(mat)) nm.crude.push(mat); } }
+        const rn = riftName(r.rock);
+        k.sessions.push({ date, units: q, minutes, runs: 1, rift: rn });
+        if (rn) {
+          if (!k.names.includes(rn)) k.names.push(rn);
+          let nm = R.names.find(x => x.rift === rn);
+          if (!nm) { nm = { rift: rn, former: (R.former || {})[rn] || [], crude: [], n: 0, units: 0 }; R.names.push(nm); RIFT_NAMES.push(rn); INDEX.push({ name: rn, tag: "rift" }); }
+          nm.n++; nm.units += q; if (!nm.crude.includes(mat)) nm.crude.push(mat);
+        }
       } else if (r.kind === "salvage" && SV) {
         let m = salvMat(mat);
         if (!m) { m = { name: mat, n: 0, units: 0, cuts: 0, minutes: 0, per_min: null, sizes: {}, sessions: [] }; SV.materials.push(m); }
         m.n++; m.units += q; m.cuts += +r.cuts || 0; m.minutes = Math.round((m.minutes + minutes) * 10) / 10;
-        m.sessions.push({ date, units: q, minutes, cuts: +r.cuts || 0, source: r.rock });
-        let s = SV.sources.find(x => x.name === r.rock);
-        if (!s) { s = { name: r.rock, n: 0, units: 0, materials: [] }; SV.sources.push(s); INDEX.push({ name: r.rock, tag: "salvage source" }); }
-        s.n++; s.units += q; if (!s.materials.includes(mat)) s.materials.push(mat);
+        const src = salvSource(r.rock);
+        m.sessions.push({ date, units: q, minutes, cuts: +r.cuts || 0, source: src });
+        if (src) {
+          let s = SV.sources.find(x => x.name.toLowerCase() === src.toLowerCase());
+          if (!s) { s = { name: src, n: 0, units: 0, materials: [] }; SV.sources.push(s); INDEX.push({ name: src, tag: "salvage source" }); }
+          s.n++; s.units += q; if (!s.materials.includes(mat)) s.materials.push(mat);
+        }
       } else return false;
     }
-    if (by) { let c = CR.find(x => x.name === by); if (!c) { c = { name: by, samples: [] }; CR.push(c); } let s = c.samples.find(x => x.rock === r.rock); if (!s) { s = { rock: r.rock, date, units: 0, n: 0 }; c.samples.push(s); } s.units += tot; s.n++; if (date > s.date) s.date = date; }
+    // the Roll files a rift or salvage run under the crude kind / salvage material, never under the typed name
+    if (by) { let c = CR.find(x => x.name === by); if (!c) { c = { name: by, samples: [] }; CR.push(c); }
+      for (const [mat, q] of Object.entries(r.ores)) { let s = c.samples.find(x => x.rock === mat); if (!s) { s = { rock: mat, date, units: 0, n: 0 }; c.samples.push(s); } s.units += q; s.n++; if (date > s.date) s.date = date; } }
     return true;
   }
   const KNOWN = new Set(D.known || []);     /* companion samples already in the baked numbers: never counted twice */
