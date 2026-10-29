@@ -12,7 +12,8 @@
    GET  ?q=field                  -> the tribe's field records: system surveys, visited systems
    POST {type: "survey", sys, at, infest, word, transient, umbra, star, planets, belts, state}
         -> the System Map's readings for a system (one write per system per day, or when a reading changes)
-   POST {type: "sysids", links: [{name, id}]}  -> system numbers copied in game (showinfo:5//ID), added to the Roads
+   POST {type: "sysids", links: [{name, id}], from?}  -> system numbers copied in game (showinfo:5//ID), or read by the
+        companion from the game's cache (from: "cache", stored as from "cache"), added to the Roads
         list's numbers when the name is new there; a different number for a known name is reported, never written
    The field records live in KV "field" (not in the Roads list "network" a Paladin edits, so the two never overwrite
    each other); the system numbers go into "network" list.systems, as the Roads page's own paste box does. */
@@ -180,7 +181,7 @@ export async function onRequestPost({ request, env }) {
     for (const l of links) {
       const name = up(l.name), id = +l.id, cur = list.systems[name] != null ? list.systems[name] : Object.entries(list.systems).find(([n]) => up(n) === name);
       const curId = cur == null ? null : typeof cur === "number" ? cur : Array.isArray(cur) ? (typeof cur[1] === "number" ? cur[1] : +cur[1].id) : +cur.id;
-      if (curId == null) { if (Object.keys(list.systems).length >= MAX_SYSTEMS) return json({ ok: false, error: `the map's list of numbers is full (${MAX_SYSTEMS})` }, 400, cookies); list.systems[name] = { id, sure: true, from: "companion", by }; added.push(name); }
+      if (curId == null) { if (Object.keys(list.systems).length >= MAX_SYSTEMS) return json({ ok: false, error: `the map's list of numbers is full (${MAX_SYSTEMS})` }, 400, cookies); list.systems[name] = { id, sure: true, from: d.from === "cache" ? "cache" : "companion", by }; added.push(name); }
       else if (curId === id) known.push(name); else differ.push({ name, ours: curId, copied: id });
     }
     if (added.length) { list.updated = new Date().toISOString(); await env.DOCTRINE.put("network", JSON.stringify(list)); }

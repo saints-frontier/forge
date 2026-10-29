@@ -1118,6 +1118,35 @@
     el.innerHTML = notes + warn + once + bar + body;
   }
 
+  // ---------- Send to EF-Map: names Saints copied from the game that EF-Map's community map lacks (user 2026-10-28) ----------
+  // Our partner key only reads, so each name goes over by hand: Copy link here, paste it into Submit system on EF-Map
+  // (signed in). Systems our roads touch stay out unless ticked: once charted there, EF-Map routes every player to them.
+  let efSendRoads = false, efSendShown = [];
+  const EF_SEND_BATCH = 14;   /* EF-Map's Submit system takes at most 14 links per paste (user, 2026-10-28) */
+  const EF_SEND_WORD = { missing: "not on EF-Map", once: "one player reported it: yours charts it", disputed: "name disputed on EF-Map", other: "EF-Map has this number under another name" };
+  function efSendList() {
+    const out = [], seen = new Set();
+    for (const [name, k] of M.ids) {
+      if (k.ef || k.c6 || !k.id || k.sure === false || seen.has(k.id)) continue;
+      seen.add(k.id);
+      const e = M.ef.byId.get(k.id);
+      if (e && e.status === "confirmed" && e.name === name) continue;
+      out.push({ id: k.id, name, st: !e ? "missing" : e.name !== name ? "other" : e.status === "conflict" ? "disputed" : "once", efName: e && e.name !== name ? e.name : "", roads: M.systems.has(name) });
+    }
+    const rank = { missing: 0, once: 1, disputed: 2, other: 3 };
+    return out.sort((a, b) => rank[a.st] - rank[b.st] || a.name.localeCompare(b.name));
+  }
+  function drawEfSend() {
+    const el = $("roads-efsend"); if (!el || !M) return;
+    if (!M.ef.count) { el.innerHTML = `<h4>Send to EF-Map</h4><div class="roads-hint">EF-Map's names did not load${M.ef.error ? " (" + esc(M.ef.error) + ")" : ""}, so this list cannot tell which of ours they lack. Try the refresh arrow later.</div>`; return; }
+    const all = efSendList(), onRoads = all.filter(x => x.roads).length, list = efSendRoads ? all : all.filter(x => !x.roads);
+    efSendShown = list;
+    const row = x => `<div class="roads-urow"><span><b>${esc(x.name)}</b> <span class="roads-hint">${x.id} · ${EF_SEND_WORD[x.st]}${x.efName ? " (" + esc(x.efName) + "): ours was copied from the game" : ""}${x.roads ? " · on our roads" : ""}</span></span><button type="button" class="roads-quiet" data-copylink="${x.id}" data-copyname="${esc(x.name)}" data-copydone="Copied: paste it into Submit system on EF-Map">Copy link</button></div>`;
+    el.innerHTML = `<h4>Send to EF-Map · ${list.length}</h4><div class="roads-hint">Names Saints copied from the game that the community map at <a href="https://ef-map.com" target="_blank" rel="noopener">EF-Map</a> does not have, or has from one player only. Our EF-Map key can only read, so each one goes over by hand: Copy link, then on EF-Map, signed in, paste it into <b>Submit system</b>. A name leaves this list within the hour once EF-Map has it.</div>`
+      + (onRoads ? `<label class="tick"><input type="checkbox" id="efsend-roads"${efSendRoads ? " checked" : ""}>Include systems our roads touch (${onRoads})</label><div class="roads-hint">Off by default: a charted system is one EF-Map routes every player to.</div>` : "")
+      + (list.length ? `<div class="roads-copy">${Array.from({ length: Math.ceil(list.length / EF_SEND_BATCH) }, (_, k) => k * EF_SEND_BATCH).map(s => `<button type="button" data-efsendall="${s + 1}">Copy ${list.length <= EF_SEND_BATCH ? "all " + list.length : (s + 1) + "–" + Math.min(s + EF_SEND_BATCH, list.length)}</button>`).join(" ")} <span class="roads-hint" id="efsend-copied">EF-Map takes ${EF_SEND_BATCH} links per paste: one batch, paste, then the next</span></div><div class="roads-ugroup">${list.map(row).join("")}</div>` : `<div class="roads-hint">Every name we copied from the game${onRoads && !efSendRoads ? ", away from our roads," : ""} is charted on EF-Map.</div>`);
+  }
+
   function stamp(d) {
     const mins = Math.max(0, Math.round((Date.now() - (d.at || Date.now())) / 60000)), built = M.roads.filter(r => r.source === "chain"), guess = built.filter(r => r.inferred).length;
     $("roads-stamp").textContent = (d.error ? "The chain did not answer: " + d.error + " · " : "") + `${M.systems.size} systems · ${built.length} roads${guess ? ` (${guess} worked out)` : ""} · read ${mins ? mins + " min ago" : "just now"}` + (M.ef.count ? ` · EF-Map: ${M.ef.confirmed.toLocaleString("en-US")} systems charted, ${(M.ef.count - M.ef.confirmed).toLocaleString("en-US")} reported once` : M.ef.error ? ` · EF-Map names: ${M.ef.error}` : "");
@@ -1143,7 +1172,7 @@
     $("roads-gate").hidden = true; $("roads-app").hidden = false;
     stamp(d);
     $("roads-manage-btn").hidden = !M.canEdit; if (!M.canEdit) $("roads-p-manage").hidden = true;
-    drawSurveyBtn(); setView(view); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); drawPlans(); fillPlanner(); if (openPlan != null && M.plans[openPlan]) drawPlan(openPlan);
+    drawSurveyBtn(); setView(view); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); drawEfSend(); drawPlans(); fillPlanner(); if (openPlan != null && M.plans[openPlan]) drawPlan(openPlan);
     if (chartOn) { $("chart-save").hidden = !M.canEdit; starsReady().then(s => { if (s && chartOn) runChart(); }); }
     const ed = $("roads-editor"); ed.hidden = !M.canEdit; $("roads-gate-form").hidden = !M.canEdit;
     if (M.canEdit) $("roads-json").value = JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, gates: M.list.gates || [], plans: (M.list.plans || []).filter(p => !p.draft && !p.mine) }, null, 1);
@@ -1242,8 +1271,10 @@
     }
     if (b.dataset.mindetail) { const d = $("roads-detail"); d.classList.toggle("mini"); detailMini = d.classList.contains("mini"); b.textContent = detailMini ? "+" : "–"; b.title = detailMini ? "Open the window" : "Fold to the title bar"; return; }
     if (b.dataset.closedetail) { selected = null; picked = null; if (sf) { sf.select(null); sf.mark(null); } drawDetail(); drawMap(); return; }
-    if (b.dataset.copylink) { const t = `<a href="showinfo:5//${b.dataset.copylink}">${b.dataset.copyname}</a>`; const done = () => { b.textContent = "Copied: paste it into a chat line"; };
+    if (b.dataset.copylink) { const t = `<a href="showinfo:5//${b.dataset.copylink}">${b.dataset.copyname}</a>`; const done = () => { b.textContent = b.dataset.copydone || "Copied: paste it into a chat line"; };
       try { navigator.clipboard.writeText(t).then(done, () => { prompt("Copy this link:", t); }); } catch (err) { prompt("Copy this link:", t); } return; }
+    if (b.dataset.efsendall) { const s = +b.dataset.efsendall - 1, part = efSendShown.slice(s, s + EF_SEND_BATCH), t = part.map(x => `<a href="showinfo:5//${x.id}">${x.name}</a>`).join("\n"), out = $("efsend-copied"), done = () => { out.textContent = `Copied ${part.length} links (${s + 1}–${s + part.length}): paste them into Submit system on EF-Map`; b.textContent = "✓ " + b.textContent.replace(/^✓ /, ""); };
+      try { navigator.clipboard.writeText(t).then(done, () => { prompt("Copy these links:", t); }); } catch (err) { prompt("Copy these links:", t); } return; }
     if (b.id === "roads-refresh") { load(true); return; }
     if (b.dataset.flatlayout) { flatLayout = b.dataset.flatlayout === "space" ? "space" : "tree"; try { localStorage.setItem("roads:flatlayout", flatLayout); } catch (e) {} drawMap(); return; }
     if (b.dataset.flat) { flatMode = b.dataset.flat === "build" ? "build" : "route"; try { localStorage.setItem("roads:flat", flatMode); } catch (e) {} drawMap(); return; }
@@ -1291,6 +1322,7 @@
     if (t.dataset && t.dataset.reachkind) { if (t.checked) reachKinds.add(t.dataset.reachkind); else reachKinds.delete(t.dataset.reachkind); try { localStorage.setItem("roads:reachkinds2", JSON.stringify([...reachKinds])); } catch (e) {} drawStars(); return; }
     if (t.id === "chart-only") { chartMarks(); if (!t.checked && sf) sf.dimStars(false); return; }
     if (t.id === "chart-show") { if (chartOn) drawChart(); return; }
+    if (t.id === "efsend-roads") { efSendRoads = t.checked; drawEfSend(); return; }
     if (t.dataset && t.dataset.poi && poiOn) { if (t.checked) poiOn.add(t.dataset.poi); else poiOn.delete(t.dataset.poi); poiSave(); drawStars(); drawPoi(); return; }
     if (t.id === "roads-from" || t.id === "roads-to") route();
   });
