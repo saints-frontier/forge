@@ -158,11 +158,25 @@ export async function loadList(env) {
   try { return settings(Object.assign({}, EMPTY, raw ? JSON.parse(raw) : {})); } catch (e) { return Object.assign({}, EMPTY); }
 }
 
+/* the stored builders, then every other Saint the alerts Worker found holding a key to a gate or catapult (KV
+   "alerts:builders", rewritten when that set changes; 2026-10-30, user: "keep checking for builders and add their
+   stuff to the map"). The stored list is never changed by this: a found builder can still be added there by hand. */
+const MAX_READ = 20;
+async function allBuilders(env, list) {
+  const out = (list.builders || []).slice(0, MAX_BUILDERS), have = new Set(out.map(b => b.address));
+  let found = null; try { found = env.DOCTRINE ? await env.DOCTRINE.get("alerts:builders", "json") : null; } catch (e) {}
+  for (const b of (found && Array.isArray(found.builders) ? found.builders : [])) {
+    if (out.length >= MAX_READ) break;
+    if (b && ADDR(b.address) && typeof b.name === "string" && !have.has(b.address)) { out.push({ name: b.name.slice(0, 40), address: b.address }); have.add(b.address); }
+  }
+  return out;
+}
+
 export async function onRequestGet({ request, env }) {
   const { s, key, cookies } = await who(env, request);
   if (!s) return json({ ok: false }, 401, cookies);
   const list = await loadList(env);
-  const builders = (list.builders || []).slice(0, MAX_BUILDERS);
+  const builders = await allBuilders(env, list);
   let chain = { assemblies: [], nodes: [] }, at = Date.now(), error = null, cached = false;
   const fresh = new URL(request.url).searchParams.get("fresh") === "1";
   const namesP = readNames(env, fresh);                 // runs beside the chain read
