@@ -596,8 +596,8 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-stars .sf-nogl { padding: 40px 16px; font: 13px var(--mono); color: var(--dim); text-align: center; }
 .roads-stars .sf-hint { position: absolute; left: 10px; bottom: 8px; font: 10px var(--mono); letter-spacing: 1px; color: var(--dim); pointer-events: none; }
 .roads-stars .sf-hint.flash { color: var(--gold); text-shadow: 0 0 8px rgba(217,178,76,.6); }
-.roads-stars .sf-missing { position: absolute; right: 10px; top: 8px; max-width: 46%; font: 11px/1.4 var(--mono); color: var(--silver); text-align: right; pointer-events: none; }
-.roads-stars .sf-missing b { color: var(--warn); }
+.roads-show .sf-missing { position: absolute; right: 10px; top: 8px; max-width: 46%; font: 11px/1.4 var(--mono); color: var(--silver); text-align: right; pointer-events: none; }
+.roads-show .sf-missing b { color: var(--warn); }
 .roads-stars .sf-tools { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 6px; }
 .roads-stars .sf-tools button { padding: 4px 9px; font-size: 10px; letter-spacing: 1px; background: rgba(7,7,10,.7); }
 .roads-stars .sf-tools button.on { color: var(--gold); border-color: var(--gold); }
@@ -693,18 +693,18 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-chart-save textarea { width: 100%; font: 12px var(--mono); background: #0b0a0e; color: var(--fg); border: 1px solid var(--line-strong); padding: 6px 8px; resize: vertical; }
 
 /* Points of interest (2026-10-18): a filter box over the star map, opened from its toolbar */
-.roads-stars .sf-find { position: absolute; left: 8px; top: 8px; z-index: 4; width: min(280px, calc(100% - 16px)); }
-.roads-stars .sf-find input { width: 100%; box-sizing: border-box; padding: 5px 9px; font: 12px var(--mono); color: var(--title); background: rgba(7,7,10,.82); border: 1px solid rgba(217,178,76,.45); }
-.roads-stars .sf-find input:focus { outline: none; border-color: var(--gold); }
-.roads-stars .sf-poi { position: absolute; left: 8px; top: 82px; z-index: 3; width: min(300px, calc(100% - 16px)); max-height: calc(100% - 56px); overflow: auto;
+.roads-show .sf-find { position: absolute; left: 8px; top: 8px; z-index: 4; width: min(280px, calc(100% - 16px)); }
+.roads-show .sf-find input { width: 100%; box-sizing: border-box; padding: 5px 9px; font: 12px var(--mono); color: var(--title); background: rgba(7,7,10,.82); border: 1px solid rgba(217,178,76,.45); }
+.roads-show .sf-find input:focus { outline: none; border-color: var(--gold); }
+.roads-show .sf-poi { position: absolute; left: 8px; top: 82px; z-index: 3; width: min(300px, calc(100% - 16px)); max-height: calc(100% - 56px); overflow: auto;
   background: rgba(7,7,10,.88); border: 1px solid var(--gold-soft); padding: 8px 10px; font-size: 12px; }
-.roads-stars .sf-poi h4 { margin: 8px 0 4px; font-size: 11px; }
-.roads-stars .sf-poi .roads-poirows { grid-template-columns: 1fr; gap: 3px; }
-.roads-stars .sf-poi .roads-poiacts { align-items: center; }
-.roads-stars .sf-poi .roads-poiacts b { flex: 1; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); }
-.roads-stars .sf-poi .roads-poiacts button { padding: 2px 8px; font-size: 10px; }
-.roads-stars .sf-poi .roads-poinear { flex-direction: column; align-items: stretch; gap: 3px; }
-.roads-stars .sf-poi .roads-poinear button { justify-content: flex-start; padding: 2px 6px; font-size: 11px; text-align: left; text-transform: none; letter-spacing: 0; font-family: inherit; }
+.roads-show .sf-poi h4 { margin: 8px 0 4px; font-size: 11px; }
+.roads-show .sf-poi .roads-poirows { grid-template-columns: 1fr; gap: 3px; }
+.roads-show .sf-poi .roads-poiacts { align-items: center; }
+.roads-show .sf-poi .roads-poiacts b { flex: 1; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); }
+.roads-show .sf-poi .roads-poiacts button { padding: 2px 8px; font-size: 10px; }
+.roads-show .sf-poi .roads-poinear { flex-direction: column; align-items: stretch; gap: 3px; }
+.roads-show .sf-poi .roads-poinear button { justify-content: flex-start; padding: 2px 6px; font-size: 11px; text-align: left; text-transform: none; letter-spacing: 0; font-family: inherit; }
 .roads-page .poikey { display: inline-block; width: 9px; height: 9px; transform: rotate(45deg); border: 1.6px solid var(--c); margin: 0 8px 0 2px; flex: none; }
 .roads-page .roads-poiacts { display: flex; gap: 8px; margin-bottom: 8px; }
 .roads-page .roads-poirows { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 18px; }
@@ -756,10 +756,10 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 
 /* the cleaner map (2026-10-23, user: "the interface is still too busy"): a chip for the missing numbers, four buttons and
    a Layers menu, the key hint only when it is needed */
-.roads-stars .sf-missing { max-width: 50%; text-align: right; pointer-events: auto; z-index: 4; }
-.roads-stars .sf-missing .sf-chip { padding: 3px 9px; font: 600 10px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--warn); background: rgba(9,8,12,.78); border: 1px solid rgba(224,168,74,.5); cursor: pointer; }
-.roads-stars .sf-missing .sf-chipbox { display: none; margin-top: 6px; padding: 8px 10px; text-align: left; background: rgba(9,8,12,.92); border: 1px solid rgba(217,178,76,.35); font: 11px/1.45 var(--mono); color: var(--silver); }
-.roads-stars .sf-missing.open .sf-chipbox { display: block; }
+.roads-show .sf-missing { max-width: 50%; text-align: right; pointer-events: auto; z-index: 4; }
+.roads-show .sf-missing .sf-chip { padding: 3px 9px; font: 600 10px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--warn); background: rgba(9,8,12,.78); border: 1px solid rgba(224,168,74,.5); cursor: pointer; }
+.roads-show .sf-missing .sf-chipbox { display: none; margin-top: 6px; padding: 8px 10px; text-align: left; background: rgba(9,8,12,.92); border: 1px solid rgba(217,178,76,.35); font: 11px/1.45 var(--mono); color: var(--silver); }
+.roads-show .sf-missing.open .sf-chipbox { display: block; }
 .roads-stars .sf-hint { opacity: 0; transition: opacity .3s; }
 .roads-stars .sf-hint.flash { opacity: 1; }
 .roads-stars .sf-tools button { padding: 5px 10px; }
@@ -861,10 +861,10 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-stars .sf-compass text { fill: #ff7a3a; font: 700 9px var(--mono); text-anchor: middle; }
 .roads-stars .sf-compass:hover .ring { stroke: rgba(217,178,76,.6); }
 /* Reached layer summary (2026-10-25): top-right, so it never covers the POI box */
-.roads-stars .sf-reach { left: auto; right: 8px; }
-.roads-stars .sf-reach p.roads-hint { margin: 8px 0 2px; font-size: 11px; line-height: 1.4; }
-.roads-stars .sf-reach .roads-poirow { display: flex; align-items: center; gap: 6px; }
-.roads-stars .sf-reach .roads-poirow span:not(.n) { flex: 1; }
+.roads-show .sf-reach { left: auto; right: 8px; }
+.roads-show .sf-reach p.roads-hint { margin: 8px 0 2px; font-size: 11px; line-height: 1.4; }
+.roads-show .sf-reach .roads-poirow { display: flex; align-items: center; gap: 6px; }
+.roads-show .sf-reach .roads-poirow span:not(.n) { flex: 1; }
 
 /* route choices + the cross that leaves a jump out (2026-10-26) */
 .roads-ways { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; flex-basis: 100%; }
@@ -878,16 +878,162 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 .roads-strike:hover, .roads-strike:focus-visible { opacity: 1; background: rgba(227,34,44,.15); }
 
 /* the charted / uncharted filter under the search box (2026-10-26) */
-.roads-stars .sf-chartf { display: flex; gap: 4px; margin-top: 6px; }
-.roads-stars .sf-chartf button { flex: 1 1 auto; padding: 4px 8px; clip-path: none; border: 1px solid var(--line-strong); background: rgba(7,7,10,.82); color: var(--silver); font: 600 11px var(--body); letter-spacing: .3px; text-transform: none; cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s, background .15s; }
-.roads-stars .sf-chartf button span { font: 500 10px var(--mono); opacity: .8; }
-.roads-stars .sf-chartf button:hover { color: var(--title); }
-.roads-stars .sf-chartf button.on { color: var(--title); border-color: var(--gold); background: rgba(217,178,76,.14); }
-.roads-stars .sf-chartf .cf-charted { border-left: 3px solid #9fd8ff; }
-.roads-stars .sf-chartf .cf-uncharted { border-left: 3px solid #ff7a5c; }
-.roads-stars .sf-chartf .cf-charted.on { border-color: #9fd8ff; background: rgba(159,216,255,.14); color: #dff3ff; }
-.roads-stars .sf-chartf .cf-uncharted.on { border-color: #ff7a5c; background: rgba(255,122,92,.14); color: #ffe1d8; }
-.roads-stars .sf-chartf.muted { opacity: .45; }
+.roads-show .sf-chartf { display: flex; gap: 4px; margin-top: 6px; }
+.roads-show .sf-chartf button { flex: 1 1 auto; padding: 4px 8px; clip-path: none; border: 1px solid var(--line-strong); background: rgba(7,7,10,.82); color: var(--silver); font: 600 11px var(--body); letter-spacing: .3px; text-transform: none; cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s, background .15s; }
+.roads-show .sf-chartf button span { font: 500 10px var(--mono); opacity: .8; }
+.roads-show .sf-chartf button:hover { color: var(--title); }
+.roads-show .sf-chartf button.on { color: var(--title); border-color: var(--gold); background: rgba(217,178,76,.14); }
+.roads-show .sf-chartf .cf-charted { border-left: 3px solid #9fd8ff; }
+.roads-show .sf-chartf .cf-uncharted { border-left: 3px solid #ff7a5c; }
+.roads-show .sf-chartf .cf-charted.on { border-color: #9fd8ff; background: rgba(159,216,255,.14); color: #dff3ff; }
+.roads-show .sf-chartf .cf-uncharted.on { border-color: #ff7a5c; background: rgba(255,122,92,.14); color: #ffe1d8; }
+.roads-show .sf-chartf.muted { opacity: .45; }
+
+/* the infestation filter (2026-10-31): chips 1-6 in the infestation colours, on the star map and over the list */
+.roads-page .sf-inf { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 6px; }
+.roads-page .sf-inf[hidden] { display: none; }
+.roads-page .sf-inf .inf-lab { font: 700 10px var(--mono); letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); margin-right: 2px; }
+.roads-page .sf-inf button { flex: 0 0 auto; padding: 4px 8px; clip-path: none; border: 1px solid var(--line-strong); border-bottom: 3px solid var(--c, var(--line-strong)); background: rgba(7,7,10,.82); color: var(--silver); font: 600 11px var(--body); text-transform: none; letter-spacing: .3px; cursor: pointer; }
+.roads-page .sf-inf button span { font: 500 10px var(--mono); opacity: .8; }
+.roads-page .sf-inf button:hover { color: var(--title); }
+.roads-page .sf-inf button.on { color: var(--title); border-color: var(--c, var(--gold)); background: color-mix(in srgb, var(--c, #d9b24c) 22%, rgba(7,7,10,.82)); }
+
+/* the List view (2026-10-31): every known system as a sortable table; it scrolls sideways inside its box on a phone */
+.roads-list { border: 1px solid var(--gold-soft); background: rgba(12,10,15,.72); padding: 12px; min-width: 0; }
+.roads-list .rl-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.roads-list #rl-q { flex: 1 1 180px; min-width: 0; padding: 5px 9px; font: 12px var(--mono); color: var(--title); background: rgba(7,7,10,.82); border: 1px solid rgba(217,178,76,.45); }
+.roads-list #rl-q:focus { outline: none; border-color: var(--gold); }
+.roads-list .rl-wrap { overflow-x: auto; margin-top: 10px; }
+.roads-list .rl-table { width: 100%; border-collapse: collapse; font: 12px var(--mono); color: var(--silver); }
+.roads-list .rl-table th { text-align: left; border-bottom: 1px solid rgba(217,178,76,.3); padding: 0; white-space: nowrap; }
+.roads-list .rl-table th button { all: unset; display: block; padding: 6px 6px; font: 700 10px var(--mono); letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); cursor: pointer; }
+.roads-list .rl-table th button:hover, .roads-list .rl-table th.on button { color: var(--gold); }
+.roads-list .rl-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.05); white-space: nowrap; vertical-align: baseline; }
+.roads-list .rl-table tbody tr:hover { background: rgba(217,178,76,.06); }
+.roads-list .rl-table td.num { text-align: right; }
+.roads-list .rl-sys b { color: var(--title); }
+.roads-list .rl-acts { margin-left: 6px; }
+.roads-list .rl-acts button { padding: 1px 6px; font-size: 10px; margin-right: 3px; }
+.roads-list .rl-inf { display: inline-block; min-width: 18px; text-align: center; font-weight: 700; color: #07070a; background: var(--c); border-radius: 2px; }
+.roads-list .rl-old { color: var(--dim); }
+.roads-list .rl-note { margin-top: 10px; line-height: 1.45; }
+.roads-list .roads-empty { padding: 14px 4px; }
+
+/* ======== the Triptych (2026-10-31, the user picked proposal C of three): tools | map | show + selected system ========
+   Left wing: every tool a gilded plate, its menu unfolds under it. Centre: the map, nothing over the stars. Right wing:
+   every filter, layer, view and camera button in one place, then the selected system. The map's box never changes size. */
+@media (min-width: 1250px) { #roads-app:not([hidden]) { display: block; } }
+.roads-tri { display: grid; grid-template-columns: clamp(270px, 23%, 340px) minmax(0, 1fr) clamp(280px, 24%, 350px); grid-template-areas: "tools main lens";
+  height: clamp(560px, calc(100vh - 28px), 1240px); border: 1px solid var(--gold-soft); background: #050304; box-shadow: 0 30px 70px #000e; }
+.roads-tri .roads-toolwing { grid-area: tools; } .roads-tri .roads-main { grid-area: main; } .roads-tri .roads-lens { grid-area: lens; }
+.roads-wing { min-width: 0; overflow-y: auto; padding: 12px; background: linear-gradient(180deg, #120c0fec, #080607f4); scrollbar-width: thin; scrollbar-color: #c8923a55 transparent; }
+.roads-toolwing { border-right: 1px solid var(--line-strong); }
+.roads-lens { border-left: 1px solid var(--line-strong); display: flex; flex-direction: column; gap: 8px; }
+.roads-wh { display: flex; align-items: center; gap: 8px; margin: 14px 2px 7px; font: 400 14px var(--display); color: var(--red); letter-spacing: .06em; text-transform: none; }
+.roads-wh::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line-strong), transparent); }
+.roads-wing > .roads-wh:first-child { margin-top: 0; }
+
+/* the plate: a tool's own button (a cut ruby with the tool's mark, its name, a count); lit ruby while its menu is open */
+.roads-plate { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; margin: 0 0 6px; padding: 10px 12px; text-align: left; color: #e0b660;
+  font: 400 15px/1.1 var(--display); letter-spacing: .02em; text-transform: none;
+  background: linear-gradient(180deg, #ffffff12, #ffffff00 38%), linear-gradient(180deg, #241a1c, #120d0f 60%, #0a0708); border: 1px solid #c8923a77;
+  box-shadow: inset 0 1px 0 #f2cf8026, inset 0 -1px 0 #0008; }
+.roads-plate .gem { flex: none; width: 30px; height: 30px; display: grid; place-items: center; color: #f2cf80;
+  background: radial-gradient(circle at 35% 30%, #ff8a9a55, transparent 45%), radial-gradient(circle at 50% 55%, #8a1426, #3a050d 70%); border: 1px solid #d9a24a88;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.roads-plate .gem svg { width: 15px; height: 15px; }
+.roads-plate .nm { flex: 1; min-width: 0; }
+.roads-plate .roads-badge { font: 600 11px var(--data); color: #1a0d05; background: var(--gold); padding: 2px 6px; border-radius: 2px; letter-spacing: 0; }
+.roads-plate .roads-badge:empty { display: none; }
+.roads-plate[data-panel="fuel"] .roads-badge { background: #e0a84a; }
+.roads-plate .chev { color: var(--dim); font: 16px var(--data); transition: transform .2s; }
+.roads-plate:hover { color: var(--angel-2, #f2cf80); }
+.roads-plate.on { color: #fff1d2; border-color: var(--gold); background: linear-gradient(180deg, #ffffff22, #ffffff00 40%), linear-gradient(180deg, #5c0c1a, #34061a 55%, #120104);
+  box-shadow: 0 0 0 1px #e4b04e55, 0 0 18px #7a102088, inset 0 1px 0 #f2cf8040; }
+.roads-plate.on .chev { transform: rotate(90deg); color: var(--gold); }
+.roads-plate[hidden] { display: none; }
+/* a tool's menu, unfolded under its plate */
+.roads-toolwing .roads-panel { margin: -6px 0 8px; padding: 12px; border: 1px solid var(--gold-soft); border-top: 0; background: #0b080af0; box-shadow: none; max-width: none; overflow-x: auto; }
+.roads-toolwing .roads-panel:not([hidden]) { animation: roads-fold .22s cubic-bezier(.22,.61,.24,1); }
+@keyframes roads-fold { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.roads-toolwing .roads-panel::before { display: none; }
+.roads-toolwing .roads-planner:not(.roads-hint):not(.roads-prio) { flex-direction: column; align-items: stretch; }
+.roads-toolwing .roads-planner > label:not(.tick) { display: grid; gap: 3px; }
+.roads-toolwing .roads-planner.roads-hint { display: block; line-height: 1.6; }
+.roads-toolwing .roads-planner .roads-tools { display: grid; gap: 4px; }
+.roads-toolwing .roads-planner .roads-tools label, .roads-toolwing .roads-planner label.tick { display: flex; align-items: center; gap: 6px; }
+.roads-toolwing .roads-keys { margin-top: 10px; grid-template-columns: 1fr; }
+.roads-saved { display: grid; gap: 5px; margin-bottom: 8px; }
+.roads-saved button { justify-content: flex-start; text-align: left; }
+.roads-saved:empty::before { content: "No saved plans yet."; font: 12px var(--data); color: var(--dim); }
+
+/* the map fills the centre */
+.roads-tri .roads-main { display: block; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.roads-tri .roads-main > * { height: 100%; }
+.roads-tri .roads-main .roads-stars { height: 100%; border: 0; }
+.roads-tri .roads-main .roads-mapwrap { overflow: auto; border: 0; }
+.roads-tri .roads-main .roads-list { overflow: auto; border: 0; }
+.roads-stars .sf-legend { display: none; }     /* the key lives in the Legend tool */
+
+/* Show: every filter in one place */
+.roads-show { display: grid; gap: 10px; }
+.roads-show .roads-seg { display: flex; border: 1px solid var(--line-strong); }
+.roads-show .roads-seg button { flex: 1; justify-content: center; padding: 7px 6px; font-size: 13px; letter-spacing: .03em; }
+.roads-srow { display: grid; gap: 5px; }
+.roads-sl, .roads-page .sf-inf .inf-lab { font: 400 13px var(--display); color: var(--dim); letter-spacing: .03em; text-transform: none; }
+.roads-show .sf-find { position: static; width: auto; }
+.roads-show .sf-find input { font: 13px var(--data); padding: 7px 10px; }
+.roads-show .sf-chartf { margin: 0; }
+.roads-show .sf-chartf button { font-size: 12px; justify-content: center; }
+.roads-page .roads-show .sf-inf { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; margin: 0; }
+.roads-page .roads-show .sf-inf .inf-lab { grid-column: 1 / -1; }
+.roads-page .roads-show .sf-inf[hidden] { display: none; }
+.roads-page .roads-show .sf-inf button { padding: 5px 2px; justify-content: center; }
+.roads-show .sf-layers { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.roads-show .sf-layers button { display: flex; align-items: center; gap: 7px; justify-content: flex-start; padding: 6px 8px; clip-path: none; font: 400 12.5px/1.15 var(--display); letter-spacing: .02em; text-transform: none; color: var(--silver); background: #0b080acc; border: 1px solid var(--line-strong); text-align: left; }
+.roads-show .sf-layers button::before { content: ""; flex: none; width: 9px; height: 9px; border: 1px solid var(--dim); }
+.roads-show .sf-layers button.on { color: var(--fg, #d8cdb6); border-color: var(--gold-soft); }
+.roads-show .sf-layers button.on::before { background: var(--gold); border-color: var(--gold); box-shadow: 0 0 6px #e4b04e88; }
+.roads-show .sf-layers button[hidden] { display: none; }
+.roads-show .sf-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+.roads-show .sf-tools button { padding: 5px 8px; font-size: 12px; letter-spacing: .02em; clip-path: none; }
+.roads-show .sf-tools button[hidden] { display: none; }
+.roads-show .sf-poi { position: static; width: auto; max-height: 340px; overflow: auto; z-index: auto; }
+.roads-show .sf-poi[hidden] { display: none; }
+.roads-show .sf-missing { position: static; max-width: none; text-align: left; pointer-events: auto; }
+
+/* the selected system, docked under Show */
+.roads-lens > .roads-detail:not([hidden]) { margin: 0; padding: 12px 14px 14px; border: 1px solid var(--gold-soft); background: linear-gradient(180deg, #1a1216, #0b080a);
+  box-shadow: inset 0 1px 0 #f2cf801a; max-height: none; overflow: visible; }
+.roads-lens > .roads-detail .roads-dcols { grid-template-columns: 1fr; }
+.roads-dempty { padding: 4px 2px; font: 13px/1.45 var(--data); color: var(--dim); }
+.roads-dempty[hidden] { display: none; }
+.roads-stampline { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); font: 11px/1.45 var(--data); color: var(--dim); }
+.roads-stampline .roads-stamp { margin: 0; white-space: normal; }
+.roads-stampline .roads-quiet { padding: 1px 7px; font-size: 13px; clip-path: none; }
+
+/* narrower than the three columns: the map on top, then Show and the system, then the tools */
+@media (max-width: 1100px) {
+  .roads-tri { grid-template-columns: minmax(0, 1fr); grid-template-areas: "main" "lens" "tools"; height: auto; }
+  .roads-tri .roads-main { height: clamp(360px, 68vh, 760px); }
+  .roads-wing { overflow: visible; border: 0; border-top: 1px solid var(--line-strong); }
+  .roads-lens .roads-stampline { margin-top: 6px; }
+}
+
+/* the system card in the right column: the name on its own line, the actions small and two or three to a row */
+.roads-lens .roads-detail .roads-dh { font: 600 19px var(--data); color: var(--title); line-height: 1.3; }
+.roads-lens .roads-detail .roads-dh .roads-quiet { display: inline-flex; margin: 5px 4px 0 0; padding: 4px 8px; font-size: 12px; letter-spacing: .02em; vertical-align: middle; }
+.roads-lens .roads-detail .roads-dh .roads-quiet:first-of-type { margin-left: 0; }
+/* data in the plain face inside the columns: routes, facts, lists, tables (the gothic face stays on labels, plates
+   and buttons; user 2026-10-25: gothic star names are hard to read) */
+.roads-tri :is(.roads-hops, .roads-dfacts, .roads-dkills, .roads-poilines, .roads-field, .roads-dcols li, .roads-hint, .roads-note-top, #roads-fuel, #roads-unplaced, #roads-check, #roads-chart, #roads-plan, .roads-efsend),
+.roads-tri :is(.roads-hops, .roads-dfacts, .roads-dkills, .roads-poilines, .roads-field, .roads-dcols li, .roads-note-top, #roads-fuel, #roads-unplaced, #roads-check, #roads-chart, #roads-plan, .roads-efsend) :not(button):not(h4) { font-family: var(--data); letter-spacing: 0; }
+
+/* the Fuel list in the tool column: lasts and fuel never wrap */
+.roads-tri .roads-fhead, .roads-tri .roads-frow { grid-template-columns: minmax(0, 1fr) minmax(0, .7fr) 50px 86px; gap: 6px; padding: 4px 6px; }
+.roads-tri .roads-frow > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Show in the Flat and List views: only what applies there (the view, the infestation filter) */
+.roads-show:not([data-view="stars"]) .sf-only { display: none; }
 
 /* SITES (/sites): every kind of site in one table, client information only (user 2026-10-20) */
 .sites-on .topctl, .sites-on .tier { display: none; }
@@ -1498,52 +1644,20 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
   <div id="roads-app" hidden>
     <div class="roads-alert" id="roads-alert" hidden></div>
     <div class="roads-me" id="roads-me" hidden></div>
-    <div class="roads-main">
-    <div class="roads-stars" id="roads-stars" hidden></div>
-    <div class="roads-mapwrap" id="roads-map"></div>
-    <div class="roads-detail" id="roads-detail" hidden></div>
-    </div>
-    <aside class="roads-side" aria-label="Map tools">
-    <div class="roads-tabs" role="toolbar" aria-label="More about the roads">
-      <span class="roads-view" role="group" aria-label="Map view"><button type="button" data-view="stars" class="on">Stars</button><button type="button" data-view="flat">Flat</button></span>
-      <span class="roads-group" role="group" aria-label="Roads tools"><button type="button" data-panel="route" title="A route over the roads we have built">Navigator</button><button type="button" data-panel="plan" data-plan="new" title="What to build or jump to get somewhere">Road infrastructure planner</button><button type="button" data-panel="check" title="One catapult or gate jump, checked against every star">Check a jump</button><button type="button" data-panel="chart" title="Every uncharted system you can reach, and a run through them">Chart the uncharted</button></span>
-      <span id="roads-plan-btns"></span>
-      <button type="button" data-panel="fuel">Fuel<span id="roads-fuel-n"></span></button>
-      <button type="button" data-panel="legend" hidden>Legend</button>
-      <button type="button" data-panel="todo">Not on the map<span id="roads-unplaced-n"></span></button>
-      <button type="button" data-panel="manage" id="roads-manage-btn" hidden>Manage</button>
-      <span class="roads-stamp" id="roads-stamp"></span>
-      <button type="button" class="roads-quiet" id="roads-refresh" title="Read the chain again">↻</button>
-    </div>
     <div class="roads-savenote" id="roads-save-note"></div>
-    <div class="roads-keys" aria-label="Star map controls">
-      <b>Star map controls</b>
-      <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> fly</span>
-      <span><kbd>Q</kbd><kbd>E</kbd> down · up</span>
-      <span><kbd>Shift</kbd> faster</span>
-      <span><kbd>wheel</kbd> zoom</span>
-      <span><kbd>drag</kbd> turn</span>
-      <span><kbd>right-drag</kbd> pan</span>
-      <span><kbd>click</kbd> a star: info</span>
-      <span><kbd>double-click</kbd> centre on it</span>
-    </div>
-    <section class="pane roads-panel" id="roads-p-route" hidden>
+    <div class="roads-tri">
+    <nav class="roads-wing roads-toolwing" aria-label="Map tools">
+      <h3 class="roads-wh">Travel</h3>
+      <button type="button" class="roads-plate" data-panel="route" title="A route over the roads and gates that exist"><span class="gem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 4.5v1.8M12 17.7v1.8M4.5 12h1.8M17.7 12h1.8"/><path d="M14.8 9.2 13 13l-3.8 1.8L11 11z" fill="currentColor" fill-opacity=".25"/></svg></span><span class="nm">Navigator</span><span class="chev" aria-hidden="true">›</span></button>
+      <section class="pane roads-panel" id="roads-p-route" hidden>
       <div class="roads-route">
         <label>From <select id="roads-from" aria-label="From system"></select></label>
         <label>To <select id="roads-to" aria-label="To system"></select></label>
         <div id="roads-route"></div>
       </div>
     </section>
-    <section class="pane roads-panel" id="roads-p-fuel" hidden>
-      <div class="roads-fhead"><span>System</span><span>Node</span><span>Lasts</span><span>Fuel</span></div>
-      <div id="roads-fuel"></div>
-    </section>
-    <section class="pane roads-panel" id="roads-p-legend" hidden>
-      <div class="roads-legend"><span><i class="k home"></i>home</span><span><i class="k cat"></i>catapult, one way per arrow</span><span><i class="k heavy"></i>Heavy Catapult</span><span><i class="k gate"></i>gate</span><span><i class="k hand"></i>worked out from the names, not stated on chain</span><span><i class="k off"></i>offline (a red arrowhead: that direction is down)</span><span><i class="k pub"></i>public stargate (faint: in the game client · bright: a Saint has jumped it)</span></div>
-      <div class="roads-hint">The faint grey lines are the <b>public (NPC) stargate network</b> as the game client lists it: 4,781 gate pairs between 4,401 systems, most of them 30 to 150 light-years long; the game's own Map window draws the same links. (A second list in the client, 114 links of about a thousand light-years, is left off: nothing shows they are gates.) The client does not say which gates work, which are unfueled and which lie dormant waiting to be rebuilt; a jump costs 50 EU-40 Fuel or 50 SOF-40 Fuel. A gate a Saint has jumped and recorded under Manage is drawn bright: solid when it was working, dashed when the far side had no fuel, red when the far side was dormant and needs restoring. The <b>Public gates</b> button hides the network; click any system to see its own gates named and measured.</div>
-      <div class="roads-hint">Cycle 7 system names and numbers we have not copied from the game ourselves come from the community map at <a href="https://ef-map.com" target="_blank" rel="noopener">EF-Map</a>, with their permission. A system counts as <b>charted</b> when two or more players agree on its name there: those are the small steel rings with a name (the <b>Charted</b> button hides them). Every other system is <b>uncharted</b>: a faint dashed mark is one a single player has reported, and you can click any star to see what is known about it.</div>
-    </section>
-    <section class="pane roads-panel" id="roads-p-plan" hidden>
+      <button type="button" class="roads-plate" data-panel="plan" data-plan="new" title="What to build or jump to get somewhere"><span class="gem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19 9 10l5 4 6-9"/><circle cx="4" cy="19" r="1.6"/><circle cx="9" cy="10" r="1.6"/><circle cx="14" cy="14" r="1.6"/><circle cx="20" cy="5" r="1.6"/></svg></span><span class="nm">Road planner</span><span class="chev" aria-hidden="true">›</span></button>
+      <section class="pane roads-panel" id="roads-p-plan" hidden>
       <div class="roads-planner" id="roads-planner">
         <label>From <span class="sysbox"><input type="text" class="sysin" id="plan-from" placeholder="type a system" autocomplete="off" spellcheck="false" aria-label="From system"></span></label>
         <label>To <span class="sysbox"><input type="text" class="sysin" id="plan-to" placeholder="type a system" autocomplete="off" spellcheck="false" aria-label="To system"></span></label>
@@ -1561,7 +1675,8 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       <div class="roads-planner roads-prio"><span class="roads-hint">First wins:</span><ol id="plan-prio"></ol></div>
       <div id="roads-plan"></div>
     </section>
-    <section class="pane roads-panel" id="roads-p-check" hidden>
+      <button type="button" class="roads-plate" data-panel="check" title="One catapult or gate jump, checked against every star"><span class="gem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg></span><span class="nm">Check a jump</span><span class="chev" aria-hidden="true">›</span></button>
+      <section class="pane roads-panel" id="roads-p-check" hidden>
       <div class="roads-planner">
         <label>Jump with <select id="check-kind" aria-label="Structure"><option value="Mini Catapult">Mini Catapult (60 LY)</option><option value="Heavy Catapult">Heavy Catapult (250 LY)</option><option value="Mini Gate">Mini Gate pair (105 LY)</option><option value="Heavy Gate">Heavy Gate pair (365 LY)</option></select></label>
         <label>From <span class="sysbox"><input type="text" class="sysin" id="check-from" placeholder="type a system" autocomplete="off" spellcheck="false" aria-label="From system"></span></label>
@@ -1571,7 +1686,9 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       <div class="roads-note-top">Pick where you jump from and what with, or click any star on the map, charted or not: every system the jump can reach appears below and lights up green on the star map; in range but blocked by a star is red. Click one to test that jump. Every star counts, charted or not.</div>
       <div id="roads-check"></div>
     </section>
-    <section class="pane roads-panel" id="roads-p-chart" hidden>
+      <h3 class="roads-wh">Explore</h3>
+      <button type="button" class="roads-plate" data-panel="chart" title="Every uncharted system you can reach, and a run through them"><span class="gem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" stroke-dasharray="2.2 2.6"/><path d="m12 7 1.4 3.2 3.4.3-2.6 2.2.8 3.3L12 14.3 9 16l.8-3.3-2.6-2.2 3.4-.3z"/></svg></span><span class="nm">Chart the uncharted</span><span class="chev" aria-hidden="true">›</span></button>
+      <section class="pane roads-panel" id="roads-p-chart" hidden>
       <div class="roads-planner">
         <label>From <span class="sysbox"><input type="text" class="sysin" id="chart-from" placeholder="type a system" autocomplete="off" spellcheck="false" aria-label="Start the run from"></span></label>
         <label>Reach <select id="chart-reach" aria-label="What counts as reachable"><option value="gates">Public gates and our roads</option><option value="ly">Every star within a distance</option></select></label>
@@ -1589,11 +1706,42 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
       </div>
       <div class="roads-efsend" id="roads-efsend"></div>
     </section>
-    <section class="pane roads-panel" id="roads-p-todo" hidden>
+      <h3 class="roads-wh">Network</h3>
+      <button type="button" class="roads-plate" data-panel="fuel" title="Every Network Node's fuel"><span class="gem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c3 4.5 6 7.4 6 11a6 6 0 0 1-12 0c0-2.7 1.7-4.6 3.2-6.4.4 1.9 1.3 3 2.5 3.4C11.3 8.6 11.5 5.8 12 3z"/></svg></span><span class="nm">Fuel</span><span class="roads-badge" id="roads-fuel-n"></span><span class="chev" aria-hidden="true">›</span></button>
+      <section class="pane roads-panel" id="roads-p-fuel" hidden>
+      <div class="roads-fhead"><span>System</span><span>Node</span><span>Lasts</span><span>Fuel</span></div>
+      <div id="roads-fuel"></div>
+    </section>
+      <button type="button" class="roads-plate" data-panel="todo" title="Structures the chain has but the map cannot place yet"><span class="gem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11A6.5 6.5 0 0 1 18.5 10c0 4.8-6.5 11-6.5 11z"/><path d="M10.3 8.6a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.9.7-.9 1.3"/><circle cx="12" cy="13.6" r=".5" fill="currentColor"/></svg></span><span class="nm">Not on the map</span><span class="roads-badge" id="roads-unplaced-n"></span><span class="chev" aria-hidden="true">›</span></button>
+      <section class="pane roads-panel" id="roads-p-todo" hidden>
       <div class="roads-note-top">The map shows only what the chain says, and the chain knows a road by the names written in game. A launcher appears when its name carries both systems, like <b>ABC|D11 &gt; XYZ|K22</b>; a gate pair when both gates read <b>ABC|D11 &lt;&gt; XYZ|K22</b>. A name with one system is read as the destination. Renames show here within about five minutes.</div>
       <div id="roads-unplaced"></div>
     </section>
-    <section class="pane roads-panel" id="roads-p-manage" hidden>
+      <button type="button" class="roads-plate" data-panel="saved" title="The tribe's road plans and my routes"><span class="gem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg></span><span class="nm">Saved routes</span><span class="roads-badge" id="roads-saved-n"></span><span class="chev" aria-hidden="true">›</span></button>
+      <section class="pane roads-panel" id="roads-p-saved" hidden>
+      <div class="roads-saved" id="roads-plan-btns"></div>
+      <div class="roads-hint">The tribe's road plans and my routes (★, kept in this browser). A plan opens in the Road planner.</div>
+    </section>
+      <h3 class="roads-wh">Help</h3>
+      <button type="button" class="roads-plate" data-panel="legend" title="What the lines, rings and colours mean, and the map's keys"><span class="gem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5h9.5A3.5 3.5 0 0 1 18 8v11.5H8.5A3.5 3.5 0 0 1 5 16z"/><path d="M8.5 9h6M8.5 12.5h6M5 16a3.5 3.5 0 0 1 3.5-3.5"/></svg></span><span class="nm">Legend</span><span class="chev" aria-hidden="true">›</span></button>
+      <section class="pane roads-panel" id="roads-p-legend" hidden>
+      <div class="roads-legend"><span><i class="k home"></i>home</span><span><i class="k cat"></i>catapult, one way per arrow</span><span><i class="k heavy"></i>Heavy Catapult</span><span><i class="k gate"></i>gate</span><span><i class="k hand"></i>worked out from the names, not stated on chain</span><span><i class="k off"></i>offline (a red arrowhead: that direction is down)</span><span><i class="k pub"></i>public stargate (faint: in the game client · bright: a Saint has jumped it)</span></div>
+      <div class="roads-hint">The faint grey lines are the <b>public (NPC) stargate network</b> as the game client lists it: 4,781 gate pairs between 4,401 systems, most of them 30 to 150 light-years long; the game's own Map window draws the same links. (A second list in the client, 114 links of about a thousand light-years, is left off: nothing shows they are gates.) The client does not say which gates work, which are unfueled and which lie dormant waiting to be rebuilt; a jump costs 50 EU-40 Fuel or 50 SOF-40 Fuel. A gate a Saint has jumped and recorded under Manage is drawn bright: solid when it was working, dashed when the far side had no fuel, red when the far side was dormant and needs restoring. The <b>Public gates</b> button hides the network; click any system to see its own gates named and measured.</div>
+      <div class="roads-hint">Cycle 7 system names and numbers we have not copied from the game ourselves come from the community map at <a href="https://ef-map.com" target="_blank" rel="noopener">EF-Map</a>, with their permission. A system counts as <b>charted</b> when two or more players agree on its name there: those are the small steel rings with a name (the <b>Charted</b> button hides them). Every other system is <b>uncharted</b>: a faint dashed mark is one a single player has reported, and you can click any star to see what is known about it.</div>
+      <div class="roads-keys" aria-label="Star map controls">
+        <b>Star map controls</b>
+        <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> fly</span>
+        <span><kbd>Q</kbd><kbd>E</kbd> down · up</span>
+        <span><kbd>Shift</kbd> faster</span>
+        <span><kbd>wheel</kbd> zoom</span>
+        <span><kbd>drag</kbd> turn</span>
+        <span><kbd>right-drag</kbd> pan</span>
+        <span><kbd>click</kbd> a star: info</span>
+        <span><kbd>double-click</kbd> centre on it</span>
+      </div>
+    </section>
+      <button type="button" class="roads-plate" data-panel="manage" id="roads-manage-btn" hidden title="System numbers, recorded gates, settings (Paladins and Knights)"><span class="gem"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8"/></svg></span><span class="nm">Manage</span><span class="chev" aria-hidden="true">›</span></button>
+      <section class="pane roads-panel" id="roads-p-manage" hidden>
       <div class="roads-note-top">A system needs the game's number to stand on the star map. In game, drag the system's star into a chat or mail window, select the text, right-click → Copy selected with formatting, and paste it here. Several at once is fine.</div>
       <div class="roads-paste"><textarea id="roads-paste" rows="3" spellcheck="false" placeholder="Paste system links copied from the game here."></textarea><div class="row"><button type="button" id="roads-paste-save">Read the links</button><span class="roads-hint" id="roads-paste-note"></span></div></div>
       <div class="roads-paste" id="roads-gate-form" hidden><div class="roads-note-top">Jumped a <b>public stargate</b>? Record it and it goes on the map as a road for everyone: both systems, full names, and the state you found it in. Recording a pair again updates its state.</div><div class="row"><input type="text" id="roads-gate-a" placeholder="ABC|D11" maxlength="24" aria-label="One end of the gate"><span>⇄</span><input type="text" id="roads-gate-b" placeholder="XYZ|K22" maxlength="24" aria-label="The other end"><select id="roads-gate-state" aria-label="What state the gate was in"><option value="working">working: fuel at both ends</option><option value="unfueled">no fuel on the far side (one-way)</option><option value="dormant">dormant: the far side needs restoring (one-way)</option><option value="">state not known</option></select><button type="button" id="roads-gate-save">Record a public gate</button><span class="roads-hint" id="roads-gate-note"></span></div></div>
@@ -1604,7 +1752,23 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
         <div class="row"><button type="button" class="primary" id="roads-json-save">Save the settings</button></div>
       </details>
     </section>
+    </nav>
+    <div class="roads-main">
+    <div class="roads-stars" id="roads-stars" hidden></div>
+    <div class="roads-mapwrap" id="roads-map"></div>
+    <div class="roads-list" id="roads-list" hidden></div>
+    </div>
+    <aside class="roads-wing roads-lens" aria-label="What the map shows, and the selected system">
+      <h3 class="roads-wh">Show</h3>
+      <div class="roads-show" id="roads-show">
+        <div class="roads-view roads-seg" role="group" aria-label="Map view"><button type="button" data-view="stars" class="on">Stars</button><button type="button" data-view="flat">Flat</button><button type="button" data-view="list" title="Every system we know, as a table: infestation, resources, fuel, distance">List</button></div>
+      </div>
+      <h3 class="roads-wh">Selected system</h3>
+      <div class="roads-detail" id="roads-detail" hidden></div>
+      <div class="roads-dempty" id="roads-dempty">Click a system on the map: its facts, roads, fuel and what you can do there appear here.</div>
+      <div class="roads-stampline"><span class="roads-stamp" id="roads-stamp"></span> <button type="button" class="roads-quiet" id="roads-refresh" title="Read the chain again">↻</button></div>
     </aside>
+    </div>
   </div>
 </section>
   <nav class="guidesub" aria-label="Guides"><button type="button" class="gsub all" id="sub-guide" data-go="guide">&#8249; All guides</button><div class="gsubs"><button type="button" class="gsub" id="sub-g-creche" data-go="g-creche">The Crèche</button><button type="button" class="gsub" id="sub-g-ship" data-go="g-ship">Starter ship</button><button type="button" class="gsub" id="sub-g-fuel" data-go="g-fuel">Fuel</button><button type="button" class="gsub" id="sub-g-safe" data-go="g-safe">Safe spot</button><button type="button" class="gsub" id="sub-g-rocks" data-go="g-rocks">Mining & rocks</button><button type="button" class="gsub" id="sub-g-making" data-go="g-making">Making things</button><button type="button" class="gsub" id="sub-g-base" data-go="g-base">Your base</button><button type="button" class="gsub" id="sub-g-fitting" data-go="g-fitting">Fitting</button><button type="button" class="gsub" id="sub-g-alive" data-go="g-alive">Staying alive</button><button type="button" class="gsub" id="sub-g-scan" data-go="g-scan">Scanning & loot</button><button type="button" class="gsub" id="sub-sites" data-go="sites">Sites</button><button type="button" class="gsub" id="sub-npcs" data-go="npcs">NPCs</button><button type="button" class="gsub" id="sub-lore" data-go="lore">Lore</button></div></nav>
@@ -1983,7 +2147,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=1156e457"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=46c6777e"></script><script src="quarry-data.js?v=9d6346f8"></script><script src="quarry-app.js?v=a6bc55a0"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=c3577285"></script><script src="sites-layouts.js?v=5bd01e97"></script><script src="sites.js?v=80b03dc6"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=0e7207f3"></script><script src="starfield.js?v=a36b61e0"></script><script src="roadscore.js?v=85c3d323"></script><script src="roads.js?v=994359d9"></script><script type="module" src="machines.js?v=9cb8a800"></script>
+<script src="lodge-data.js?v=1156e457"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=46c6777e"></script><script src="quarry-data.js?v=9d6346f8"></script><script src="quarry-app.js?v=a6bc55a0"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=c3577285"></script><script src="sites-layouts.js?v=5bd01e97"></script><script src="sites.js?v=80b03dc6"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=0e7207f3"></script><script src="starfield.js?v=a36b61e0"></script><script src="roadscore.js?v=85c3d323"></script><script src="roads.js?v=d3c60d4f"></script><script type="module" src="machines.js?v=9cb8a800"></script>
 
 <style id="theme-cathedral">
 /* The Saints Forge, "cathedral" design language (settled on the About us page, design study rounds 1-29, 2026-10-25):

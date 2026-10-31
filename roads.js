@@ -123,12 +123,23 @@
     el.innerHTML = b("all", "All", null, "every star: charted systems ringed blue, uncharted ones with a report ringed red")
       + b("charted", "Charted", nCh, "only systems with a sure name: ours (copied from the game) or two players agree on EF-Map")
       + b("uncharted", "Uncharted", nUn, "only systems nobody has a sure name for: one report, a disputed name, or never seen");
-    el.classList.toggle("muted", reachOn || chartOn); el.title = reachOn || chartOn ? "paused while Reached or Chart the uncharted is open" : ""; }
+    const infPaint = infF.size && surveyOn;
+    el.classList.toggle("muted", reachOn || chartOn || infPaint); el.title = reachOn || chartOn ? "paused while Reached or Chart the uncharted is open" : infPaint ? "paused while an infestation level is picked" : ""; }
+  /* the infestation filter (user 2026-10-31: "a filter by infestation level so I can hunt level-6 systems"): the levels
+     picked (none = every survey), shared by the star map and the list; levels exist only where a companion read the System Map */
+  let infF = (() => { try { const q = /[?&]inf=([1-6](?:,[1-6])*)/.exec(location.search), v = q ? q[1] : localStorage.getItem("roads:inf") || ""; return new Set(v.split(",").filter(x => /^[1-6]$/.test(x)).map(Number)); } catch (e) { return new Set(); } })();
+  const INF_TIER = ["", "Nominal", "Low", "Moderate", "Elevated", "Severe", "Critical"];   /* the client's six tiers (client scrub 2026-10-20) */
+  function drawInfF() {
+    const n = [0, 0, 0, 0, 0, 0, 0]; for (const r of Object.values(FIELD.survey || {})) if (r.infest) n[r.infest]++;
+    const html = `<button type="button" data-inf="0" class="${infF.size ? "" : "on"}" title="every surveyed system" aria-pressed="${!infF.size}">Any</button>`
+      + [1, 2, 3, 4, 5, 6].map(l => `<button type="button" data-inf="${l}" class="${infF.has(l) ? "on" : ""}" style="--c:${INF_COL[l]}" title="infestation ${l}/6, ${INF_TIER[l].toLowerCase()}: ${n[l]} surveyed" aria-pressed="${infF.has(l)}">${l} <span>${n[l]}</span></button>`).join("");
+    for (const id of ["sf-inf"]) { const el = $(id); if (!el) continue; el.hidden = !n.some(Boolean); el.innerHTML = `<span class="inf-lab">Infestation</span>${html}`; }
+  }
   /* Points of interest (user 2026-10-18: "place all the interesting spots on the map with POI filter"): pois.json from
      tools/export_pois.py, client and public-chain data only; poiOn = the ticked categories (localStorage roads:poi) */
   let POI = null, poiBy = new Map(), poiOn = null; try { const v = JSON.parse(localStorage.getItem("roads:poi") || "null"); if (Array.isArray(v)) poiOn = new Set(v); } catch (e) {}
   let poiBox = false; try { poiBox = localStorage.getItem("roads:poibox") === "1"; } catch (e) {}
-  function openPoiBox(on) { poiBox = on; try { localStorage.setItem("roads:poibox", on ? "1" : "0"); } catch (e) {} const box = $("sf-poi"), b = $("roads-stars").querySelector('[data-sf="poi"]'); if (box) box.hidden = !on; if (b) b.classList.toggle("on", on); if (on) drawPoi(); }
+  function openPoiBox(on) { poiBox = on; try { localStorage.setItem("roads:poibox", on ? "1" : "0"); } catch (e) {} const box = $("sf-poi"), b = root.querySelector('[data-sf="poi"]'); if (box) box.hidden = !on; if (b) b.classList.toggle("on", on); if (on) drawPoi(); }
   const poiSave = () => { try { localStorage.setItem("roads:poi", JSON.stringify([...poiOn])); } catch (e) {} };
   /* Where the pilot is (user 2026-10-18: the Saints Frontier Companion "tracks my location on the map and highlights it in
      the pilgrim roads"): /api/location gives the pilot's own last system (from the game's Local chat log) and the tribe
@@ -245,7 +256,7 @@
     return `<div class="roads-nav">${head} <span>· next: <b>${esc(nameOfId(h.to))}</b> by ${esc(how(h))}</span> <span class="roads-hint">· ${r.hops.length} jump${r.hops.length === 1 ? "" : "s"}${r.crude ? ` · ${r.crude} crude for the public gates` : ""}</span>${putBack(avoid.length, "navclear")}${stop}${chips}<div class="roads-hint navchain">${chain}</div></div>`;
   }
   function drawLoc() {
-    const el = $("roads-me"), b = $("roads-stars") && $("roads-stars").querySelector('[data-sf="me"]');
+    const el = $("roads-me"), b = root.querySelector('[data-sf="me"]');
     const me = LOC && LOC.me, id = me && locOf(me.s), n = LOC ? LOC.mates.length : 0;
     if (b) { b.hidden = !id; }
     if (!el) return;
@@ -259,7 +270,7 @@
     fetch("/api/pois", { credentials: "same-origin" }).then(r => r.ok ? r.json() : null).then(d => { if (!d || !Array.isArray(d.categories)) return; POI = d; poiBy = new Map();
       for (const c of d.categories) for (const [id, x] of c.items) { let l = poiBy.get(id); if (!l) poiBy.set(id, l = []); l.push({ c, x }); }
       if (!poiOn) poiOn = new Set();   /* nothing ticked until the pilot ticks it (user 2026-10-18: "set poi setting to none by default") */
-      const pb = $("roads-stars").querySelector('[data-sf="poi"]'); if (pb) { pb.hidden = false; pb.textContent = `POI · ${poiBy.size.toLocaleString("en-US")}`; }
+      const pb = root.querySelector('[data-sf="poi"]'); if (pb) { pb.hidden = false; pb.textContent = `POI · ${poiBy.size.toLocaleString("en-US")}`; }
       if (poiBox) openPoiBox(true);
       if (M) { drawStars(); drawPoi(); drawDetail(); } }).catch(() => {});
   }
@@ -484,10 +495,9 @@
   let detailMini = false;   /* the pilot folded the window: it stays folded for the next system too */
   // where the system window lives: the top of the tool column on a wide screen, under the map when narrower
   const WIDE = window.matchMedia ? window.matchMedia("(min-width: 1250px)") : { matches: false };
-  function placeDetail() { const d = $("roads-detail"), side = root.querySelector(".roads-side"), main = root.querySelector(".roads-main"); if (!d || !side || !main) return;
-    if (WIDE.matches) { if (d.parentNode !== side) side.insertBefore(d, side.firstChild); } else if (d.parentNode !== main) main.appendChild(d); }
-  if (WIDE.addEventListener) WIDE.addEventListener("change", placeDetail);
-  function drawDetail() { placeDetail(); drawDetail0(); decorate(); const d = $("roads-detail"); d.classList.toggle("mini", detailMini && !d.hidden); const mb = d.querySelector("[data-mindetail]"); if (mb && detailMini) { mb.textContent = "+"; mb.title = "Open the window"; } }
+  /* the Triptych (2026-10-31): the window always sits in the right column, under Show; with nothing picked a line says what it holds */
+  function placeDetail() { const d = $("roads-detail"), e = $("roads-dempty"); if (d && e) e.hidden = !d.hidden; }
+  function drawDetail() { drawDetail0(); decorate(); placeDetail(); const d = $("roads-detail"); d.classList.toggle("mini", detailMini && !d.hidden); const mb = d.querySelector("[data-mindetail]"); if (mb && detailMini) { mb.textContent = "+"; mb.title = "Open the window"; } }
   const killCache = new Map();
   function decorate() {
     const el = $("roads-detail"); if (el.hidden) return;
@@ -506,7 +516,7 @@
     el.insertAdjacentHTML("afterbegin", '<button type="button" class="roads-dclose" data-closedetail="1" title="Close" aria-label="Close">×</button><button type="button" class="roads-dclose roads-dmin" data-mindetail="1" title="Fold to the title bar" aria-label="Fold">–</button>');
     /* dock on the side away from the star, so the window never sits on it (tribe feedback 2026-10-23: on a narrower
        page the window covered the star even after a double-click centred it) */
-    if (id && sf) { const box = $("roads-stars"), p = sf.project(sf.position(id)); el.classList.toggle("dock-left", !!(p && box && p[0] > box.clientWidth / 2 + 4)); }
+    if (id && sf) { const box = $("roads-stars"), pos = sf.position(id), p = pos && sf.project(pos);   /* null before the stars load (a ?sys= link) */ el.classList.toggle("dock-left", !!(p && box && p[0] > box.clientWidth / 2 + 4)); }
     const dh = el.querySelector(".roads-dh"); if (!dh) return;
     dh.insertAdjacentHTML("afterend", `<div class="roads-dfacts">${facts.join(" · ")}${id ? ` <button type="button" class="roads-quiet" data-copylink="${id}" data-copyname="${esc(name || "system")}" title="A link to paste into a chat line in game">Copy in-game link</button>` : ""}</div>` + (id ? `<div class="roads-dkills" id="roads-dkills" data-sys="${id}">kills here in the last day: reading the chain…</div>` : ""));
     if (id) loadKills(id);
@@ -552,7 +562,7 @@
       `<span class="fd ${fuelClass(x.d)}">${x.d == null ? noDays(x.n, "idle") : fmtDays(x.d)}</span><span class="fu">${x.n.fuel.quantity.toLocaleString("en-US")} ${esc(fuelName(x.n).replace(/ Fuel$/, ""))}</span></div>`).join("") : `<div class="roads-hint">No node on the map yet.</div>`) +
       (rest.length ? `<div class="roads-hint">${rest.length} more node${rest.length === 1 ? "" : "s"} not on the map yet${restLow ? `, the shortest at <span class="${fuelClass(restLow.d)}">${fmtDays(restLow.d)}</span>` : ""}.</div>` : "");
     const low = all.filter(x => x.d != null && x.d < 3);
-    $("roads-fuel-n").textContent = low.length ? ` · ${low.length} low` : "";
+    $("roads-fuel-n").textContent = low.length ? `${low.length} low` : "";
     const al = $("roads-alert"); al.hidden = true;   /* the Fuel button says how many are low (user 2026-10-23: the page was too busy) */
     if (low.length) al.innerHTML = `⚠ Fuel runs out within three days: ` + low.map(x => `<b>${esc(x.s || "a node not on the map")}</b> ${fmtDays(x.d)}`).join(" · ");
   }
@@ -591,8 +601,20 @@
   new MutationObserver(() => { const app = $("roads-app"); if (app) app.classList.toggle("panel-open", !!root.querySelector(".roads-panel:not([hidden])")); })
     .observe(root, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
   // ---------- the star map ----------
-  let sf = null, sfLoading = null, view = "stars";
+  let sf = null, sfLoading = null, view = "stars", linkSys = null, linkTool = null;
+  /* the Show column (the Triptych, 2026-10-31, user: "map filters should be in one place and easy to access"): search,
+     the charted and infestation filters, every layer, the camera, beside the map and never over it; built once */
+  function buildShow() {
+    const el = $("roads-show"); if (!el || el.dataset.built) return; el.dataset.built = "1";
+    const row = (label, html) => `<div class="roads-srow sf-only"><span class="roads-sl">${label}</span>${html}</div>`;
+    el.insertAdjacentHTML("beforeend", '<div class="sf-find sf-only"><input type="search" id="sf-find" placeholder="Find a system: name or number" aria-label="Find a system by name or system number" autocomplete="off" spellcheck="false"></div>'
+      + row("Systems", '<div class="sf-chartf" id="sf-chartf" role="group" aria-label="Show systems"></div>') + '<div class="sf-chartf sf-inf" id="sf-inf" role="group" aria-label="Infestation level" hidden></div>'
+      + row("Layers", '<div class="sf-layers" id="sf-layers"><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="survey" title="Systems Saints have surveyed with the companion: infestation 1 (green) to 6 (red)" hidden>Survey</button><button type="button" data-sf="reach"' + (reachOn ? ' class="on"' : '') + ' title="Every system with proof that someone was there this cycle: Saints visits, kills, names on EF-Map">Reached</button><button type="button" data-sf="oldnames"' + (oldNames ? ' class="on"' : '') + ' title="Off: a system nobody has named this cycle shows as its number. On: as its old Cycle 6 name, marked (C6)">Old Cycle 6 names</button></div>') + '<div class="sf-poi sf-only" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-poi sf-reach sf-only" id="sf-reach" hidden></div>'
+      + row("Camera", '<div class="sf-tools"><button type="button" data-sf="me" title="Fly to where you are (from the Saints Frontier Companion)" hidden>You</button><button type="button" data-sf="fit" title="Back to our roads">Our roads</button><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button><button type="button" data-sf="all" title="The whole galaxy">Whole galaxy</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button></div>') + '<div class="sf-missing sf-only" id="sf-missing"></div>');
+    el.dataset.view = view;
+  }
   function starsReady() {
+    buildShow();
     const box = $("roads-stars"); if (!box) return Promise.resolve(null);
     if (sf) return sfLoading || Promise.resolve(sf);   /* while the stars still load, wait for them (a resolved promise here made the Space layout loop, 2026-10-23) */
     if (!window.Starfield) return Promise.resolve(null);
@@ -604,12 +626,11 @@
       window.__roadsStars = sf;
       setTimeout(findBox, 0);
       setTimeout(() => { const ul = box.querySelector(".sf-legend ul"); if (ul) ul.insertAdjacentHTML("beforeend", '<li><button type="button" class="sf-l-more" data-panel="legend">More about the lines and names ›</button></li>'); }, 0);                                     /* the find box is in the toolbar HTML below */                                      // tests
-      box.insertAdjacentHTML("beforeend", '<div class="sf-hint"></div><div class="sf-missing" id="sf-missing"></div>' +
-        '<div class="sf-find"><input type="search" id="sf-find" placeholder="Find a system: name or number" aria-label="Find a system by name or system number" autocomplete="off" spellcheck="false"><div class="sf-chartf" id="sf-chartf" role="group" aria-label="Show systems"></div></div><div class="sf-poi" id="sf-poi" hidden><div id="roads-poi"></div></div><div class="sf-poi sf-reach" id="sf-reach" hidden></div><div class="sf-layers" id="sf-layers" hidden><b>Show on the map</b><button type="button" data-sf="gates" title="The public stargate network, read from the game client. Whether a gate works or lies dormant it does not say." hidden>Public gates</button><button type="button" data-sf="charted" title="Systems players have named on EF-Map\'s community map" hidden>Charted</button><button type="button" data-sf="poi" title="Rare stars, old capitals, long-haul gates and kill hotspots: tick what the map shows" hidden>POI</button><button type="button" data-sf="survey" title="Systems Saints have surveyed with the companion: infestation 1 (green) to 6 (red)" hidden>Survey</button><button type="button" data-sf="reach"' + (reachOn ? ' class="on"' : '') + ' title="Every system with proof that someone was there this cycle: Saints visits, kills, names on EF-Map">Reached</button><button type="button" data-sf="oldnames"' + (oldNames ? ' class="on"' : '') + ' title="Off: a system nobody has named this cycle shows as its number. On: as its old Cycle 6 name, marked (C6)">Old Cycle 6 names</button><b>View</b><button type="button" data-sf="flat">Edge-on</button><button type="button" data-sf="top">Top-down</button><button type="button" data-sf="all" title="The whole galaxy">Whole galaxy</button></div><div class="sf-tools"><button type="button" data-sf="me" title="Fly to where you are (from the Saints Frontier Companion)" hidden>You</button><button type="button" data-sf="fit" title="Back to our roads">Our roads</button><button type="button" data-sf="out" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-sf="in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-sf="layers" title="What the map shows, and the view">Layers ▾</button></div>');
+      box.insertAdjacentHTML("beforeend", '<div class="sf-hint"></div>');
       sfLoading = sf.load("stars.bin?v=2").then(() => { dist = (a, b) => { const p = sf.position(a), q = sf.position(b); return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : null; }; if (lastData && !draft) { M = build(lastData); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); stamp(lastData); }
         // the public gates come after the stars, never in their way: the button appears once they are in
         sf.showGates(showGates); poiLoad(); locPoll();
-        sf.loadGates("gates.bin?v=3").then(n => { const b = box.querySelector('[data-sf="gates"]'); if (b) { b.hidden = false; b.textContent = `Public gates · ${n.toLocaleString("en-US")}`; b.classList.toggle("on", showGates); } if (M) drawDetail(); }).catch(() => {});
+        sf.loadGates("gates.bin?v=3").then(n => { const b = root.querySelector('[data-sf="gates"]'); if (b) { b.hidden = false; b.textContent = `Public gates · ${n.toLocaleString("en-US")}`; b.classList.toggle("on", showGates); } if (M) drawDetail(); }).catch(() => {});
         return sf; }).catch(e => { box.insertAdjacentHTML("beforeend", `<div class="sf-nogl">The stars could not be loaded: ${esc(e.message)}.</div>`); return null; });
     }
     return sfLoading;
@@ -640,8 +661,12 @@
         if (i >= 0) { systems[i].sub = (systems[i].sub ? systems[i].sub + " · " : "") + note; continue; }
         placed.add(id); systems.push({ id, name: (isHome ? "Home: " : "\u2605 ") + (pl.label || pl.name), cls: "far", color: isHome ? "#ffd27a" : "#c9ced8", sub: pl.label ? pl.name + " \u00b7 " + note : note });
       }
+      const infHit = [];   /* the systems the infestation filter picked: painted bright over the dimmed cloud below */
       if (surveyOn) for (const [nm, r] of Object.entries(FIELD.survey || {})) { const id = window.RoadsCore.idOfName(M, nm); if (!id || !s.has(id) || !r.infest) continue;
-        const i = systems.findIndex(x => x.id === id); if (i >= 0) { systems[i].sub = (systems[i].sub ? systems[i].sub + " · " : "") + "inf " + r.infest; continue; }
+        const i = systems.findIndex(x => x.id === id);
+        if (infF.size) { if (!infF.has(r.infest)) continue; infHit.push([id, INF_COL[r.infest], 9, 1]);   /* a hunt: the ring in the level's colour, the level always written */
+          const tag = `infestation ${r.infest} · ${INF_TIER[r.infest].toLowerCase()}`, o = { color: INF_COL[r.infest], sub: tag, subWarn: true, subColor: INF_COL[r.infest] };
+          if (i >= 0) Object.assign(systems[i], o); else { placed.add(id); systems.push(Object.assign({ id, name: nm, cls: "ours" }, o)); } continue; } if (i >= 0) { systems[i].sub = (systems[i].sub ? systems[i].sub + " · " : "") + "inf " + r.infest; continue; }
         placed.add(id); systems.push({ id, name: `${nm} · inf ${r.infest}`, cls: "poi", color: INF_COL[r.infest], sub: r.transient ? r.transient.toLowerCase() : "" }); }
       if (POI && poiOn) for (const c of POI.categories) { if (!poiOn.has(c.key)) continue;
         for (const [id] of c.items) { if (!s.has(id) || placed.has(id)) continue; placed.add(id); systems.push({ id, name: `${c.label} · ${nameOfId(id).replace(/ \(C6\)$/, "")}`, cls: "poi", color: c.color, sub: "" }); } }
@@ -650,13 +675,14 @@
         drawReachBox(R); s.dimStars(true); } else { const rb = $("sf-reach"); if (rb) rb.hidden = true; }
       { const own = new Set([...M.ids.values()].filter(k => !k.c6).map(k => k.id)), isCh = id => own.has(id) || (M.ef.byId.get(id) || {}).status === "confirmed";
         const all = s.ids(); let nCh = 0; for (const id of all) if (isCh(id)) nCh++;
-        drawChartF(nCh, all.length - nCh);
-        if (chartF !== "all" && !reachOn && !chartOn) { const want = chartF === "charted", L = [];
+        drawChartF(nCh, all.length - nCh); drawInfF();
+        if (infF.size && surveyOn && !reachOn && !chartOn) { s.paint(infHit); s.dimStars(true); }
+        else if (chartF !== "all" && !reachOn && !chartOn) { const want = chartF === "charted", L = [];
           for (const id of all) { if (isCh(id) !== want) continue; const once = !want && M.ef.byId.has(id); L.push([id, want ? "#9fd8ff" : once ? "#ff9a7a" : "#ff6a4a", want ? 7 : once ? 6.5 : 4.6, want ? 1 : once ? 1 : 0.9]); }
           for (let i = systems.length; i--;) if (systems[i].cls === (want ? "uncharted" : "charted")) systems.splice(i, 1);
           s.paint(L); s.dimStars(true);
         } else { s.paint(null); if (!reachOn && !chartOn) s.dimStars(false); } }
-      const cb = $("roads-stars").querySelector('[data-sf="charted"]'); if (cb) { cb.hidden = true; cb.textContent = `Charted · ${chartedN.toLocaleString("en-US")}`; cb.classList.toggle("on", showCharted); }
+      const cb = root.querySelector('[data-sf="charted"]'); if (cb) { cb.hidden = true; cb.textContent = `Charted · ${chartedN.toLocaleString("en-US")}`; cb.classList.toggle("on", showCharted); }
       const roads = [];
       for (const r of M.roads) { const a = M.ids.get(r.from), b = M.ids.get(r.to); if (a && b) roads.push({ a: a.id, b: b.id, kind: r.kind, twoWay: r.twoWay, online: r.online, source: r.inferred ? "inferred" : r.source, status: r.status || "built", state: r.state || "" }); }
       /* long-haul stargate pairs (2026-10-23; the POI layer's own pairs): drawn as lines between the
@@ -674,18 +700,19 @@
     });
   }
   function setView(v) {
-    view = v; $("roads-stars").hidden = v !== "stars"; $("roads-map").hidden = v !== "flat";
+    view = v; $("roads-stars").hidden = v !== "stars"; $("roads-map").hidden = v !== "flat"; $("roads-list").hidden = v !== "list"; if ($("roads-show")) $("roads-show").dataset.view = v;
     const mainEl = root.querySelector(".roads-main"); if (mainEl) mainEl.classList.toggle("stars-view", v === "stars");
-    root.querySelectorAll(".roads-view button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
+    root.querySelectorAll("[data-view]").forEach(b => b.classList.toggle("on", b.dataset.view === v));
     try { localStorage.setItem("roads:view", v); } catch (e) {}
-    if (M) { if (v === "stars") drawStars(); else drawMap(); }
+    if (M) { if (v === "stars") drawStars(); else if (v === "list") drawList(); else drawMap(); }
   }
-  try { view = localStorage.getItem("roads:view") === "flat" ? "flat" : "stars"; } catch (e) {}
+  try { const v = localStorage.getItem("roads:view"); view = v === "flat" || v === "list" ? v : "stars"; } catch (e) {}
   { const qp = new URLSearchParams(location.search);   /* a link can open a view: /map?view=flat&layout=space&mode=build */
-    if (qp.get("view") === "flat" || qp.get("view") === "stars") view = qp.get("view");
+    if (["flat", "stars", "list"].includes(qp.get("view"))) view = qp.get("view");
     if (qp.get("layout") === "space" || qp.get("layout") === "tree") flatLayout = qp.get("layout");
     if (qp.get("mode") === "build" || qp.get("mode") === "route") flatMode = qp.get("mode");
-    if (qp.get("poi")) poiOn = new Set(qp.get("poi").split(",").filter(Boolean)); }   /* ?poi=longhaul ticks POI layers */
+    if (qp.get("poi")) poiOn = new Set(qp.get("poi").split(",").filter(Boolean));   /* ?poi=longhaul ticks POI layers */
+    linkSys = qp.get("sys"); linkTool = qp.get("tool"); }   /* ?sys=NAME&tool=route: a link opens on a system with a tool unfolded (2026-10-31) */
 
   // ---------- road plans: one button each, a hop table with a build sheet, the plan drawn on the star map ----------
   // per launcher: Kerogen Tar, Building Foam, Still Kernel, print minutes (data/recipes.json, Build Mode); a gate hop = two gates
@@ -734,6 +761,7 @@
   const hopKindText = h => h.gap ? "STARGATE NEEDED" : h.step === "gate" ? `BUILD ${esc(h.kind).toUpperCase()} PAIR` : h.kind === "Public Gate" ? "public gate · " + (STATE_TEXT[h.state || (gateRec(h.fromSys, h.toSys) || {}).state] || (gateRec(h.fromSys, h.toSys) ? "jumped before" : "state unknown")) : h.kind === "Our Road" ? "our road · built" : h.free ? esc(h.kind) + " · built above" : "build " + esc(h.kind);
   const STATUS_TEXT = { planned: "planned", progress: "in progress", built: "built" };
   function drawPlans() {
+    $("roads-saved-n").textContent = M.plans.length ? String(M.plans.length) : "";
     $("roads-plan-btns").innerHTML = M.plans.map(p => `<button type="button" data-panel="plan" data-plan="${p.i}"${(M.list.plans[p.i] || {}).mine ? ' title="one of my routes, kept in this browser"' : ""}>${(M.list.plans[p.i] || {}).mine ? "★ " : ""}${esc(p.name)}${(M.list.plans[p.i] || {}).draft ? " (unsaved)" : ""}</button>`).join("");
   }
   let openPlan = null;
@@ -924,14 +952,14 @@
     return true;
   }
   function planTo(id) {
-    const tab = root.querySelector('.roads-tabs [data-panel="plan"][data-plan="new"]');
+    const tab = root.querySelector('.roads-toolwing [data-panel="plan"][data-plan="new"]');
     if (!planOpen() && tab) tab.click();
     setSys("plan-to", id);
     const f = sysId("plan-from");
     if (f && f !== id) runPlanner(); else $("plan-status").textContent = "destination set: pick a From too.";
   }
   function checkFrom(id) {                       /* "Check jumps from here": open the panel on that star */
-    const tab = root.querySelector('.roads-tabs [data-panel="check"]');
+    const tab = root.querySelector('.roads-toolwing [data-panel="check"]');
     if (!checkOpen() && tab) tab.click();
     setSys("check-from", id); runChecker(null);
     const p = $("roads-p-check"); if (p && p.scrollIntoView) p.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -1092,7 +1120,7 @@
   }
 
   function drawUnplaced() {
-    const el = $("roads-unplaced"); $("roads-unplaced-n").textContent = M.unplaced.length ? ` · ${M.unplaced.length}` : "";
+    const el = $("roads-unplaced"); $("roads-unplaced-n").textContent = M.unplaced.length ? String(M.unplaced.length) : "";
     const long = M.roads.filter(r => r.tooFar);
     const warn = long.length ? `<div class="roads-ugroup"><div class="roads-uh">Names to check</div>` + long.map(r => `<div class="roads-urow"><span><b>${esc(r.from)} → ${esc(r.to)}</b> · ${esc(r.kind)} ${r.name ? `<i>${esc(r.name)}</i>` : ""}<br><span class="roads-hint">${r.ly.toFixed(0)} LY apart, beyond its ${RANGE[r.kind]} LY reach: one of the names is wrong${r.builder ? " · " + esc(r.builder) : ""}.</span></span></div>`).join("") + `</div>` : "";
     const notes = M.ef.notes.length ? `<div class="roads-ugroup"><div class="roads-uh">Numbers to check</div>` + M.ef.notes.map(t => `<div class="roads-urow"><span class="roads-hint">${esc(t)} Ours was copied from the game: tell EF-Map if theirs is wrong.</span></div>`).join("") + `</div>` : "";
@@ -1165,14 +1193,74 @@
     if (vi) out.push(`<div class="roads-hint">Visited by Saints on ${vi.days} day${vi.days === 1 ? "" : "s"}, last ${esc(String(vi.last).slice(0, 10))}${vi.by ? " (" + esc(vi.by) + ")" : ""}.</div>`);
     return out.join("");
   }
-  function drawSurveyBtn() { const b = $("roads-stars") && $("roads-stars").querySelector('[data-sf="survey"]'), n = Object.keys(FIELD.survey || {}).length; if (!b) return; b.hidden = !n; b.textContent = "Survey · " + n; b.classList.toggle("on", surveyOn); }
+  function drawSurveyBtn() { drawInfF(); const b = root.querySelector('[data-sf="survey"]'), n = Object.keys(FIELD.survey || {}).length; if (!b) return; b.hidden = !n; b.textContent = "Survey · " + n; b.classList.toggle("on", surveyOn); }
+
+  // ---------- the list (user 2026-10-31: "a version that isn't a map at all, but a list of known systems with their current stats") ----------
+  /* one row per system we know something about: a companion survey, a Saints visit, our roads, a number copied from the game,
+     the pilot's home and bookmarks. Readings are as old as their date says: the game keeps them on its server. */
+  const BUCKET = ["TRACE", "SCARCE", "MODEST", "PLENTIFUL", "ABUNDANT"];   /* the client's resource buckets, low to high */
+  let listSort = ["inf", -1], listAll = false;
+  try { const v = JSON.parse(localStorage.getItem("roads:lsort") || "null"); if (Array.isArray(v) && v.length === 2) listSort = v; listAll = localStorage.getItem("roads:lall") === "1"; } catch (e) {}
+  const daysAgo = at => at ? Math.max(0, Math.floor((Date.now() - Date.parse(at)) / 86400000)) : null;
+  const agoD = d => d == null ? "" : d === 0 ? "today" : d === 1 ? "yesterday" : d + " d ago";
+  function listRows() {
+    const rows = new Map(), add = nm => { nm = up(nm); if (!nm || /\(C6\)$|^#/.test(nm)) return null; if (!rows.has(nm)) rows.set(nm, { name: nm }); return rows.get(nm); };
+    for (const [nm, r] of Object.entries(FIELD.survey || {})) { const x = add(nm); if (x) x.sv = r; }
+    for (const [nm, v] of Object.entries(FIELD.visited || {})) { const x = add(nm); if (x) x.vi = v; }
+    for (const [nm, sys] of M.systems) { const x = add(nm); if (x) x.sys = sys; }
+    for (const [nm, k] of M.ids) if (!k.c6) add(nm);
+    for (const pl of (PLACES.home ? [PLACES.home] : []).concat(PLACES.marks)) { const x = add(pl.name); if (x) x.mark = pl === PLACES.home ? "your home" : "bookmark"; }
+    const homeId = (M.ids.get(M.home) || {}).id, meId = LOC && LOC.me ? locOf(LOC.me.s) : null;
+    for (const x of rows.values()) {
+      x.id = window.RoadsCore.idOfName(M, x.name);
+      x.home = dist && homeId && x.id ? dist(homeId, x.id) : null; x.you = dist && meId && x.id ? dist(meId, x.id) : null;
+      x.roads = M.roads.filter(r => r.source === "chain" && (r.from === x.name || r.to === x.name)).length;
+      const h = x.sv && x.sv.hist || []; x.was = h.length > 1 && h[h.length - 2][1] !== x.sv.infest ? h[h.length - 2][1] : null;
+    }
+    return [...rows.values()];
+  }
+  const LKEY = { name: x => x.name, inf: x => x.sv && x.sv.infest, transient: x => x.sv && x.sv.transient ? BUCKET.indexOf(x.sv.transient) : null, umbra: x => x.sv && x.sv.umbra ? BUCKET.indexOf(x.sv.umbra) : null,
+    star: x => x.sv && x.sv.star, planets: x => x.sv && x.sv.planets, belts: x => x.sv && x.sv.belts, read: x => x.sv && x.sv.at, visits: x => x.vi && x.vi.days,
+    ours: x => x.sys ? (x.sys.days != null ? x.sys.days : x.sys.nodes.length ? 0 : null) : null, home: x => x.home, you: x => x.you };
+  function drawList() {
+    const box = $("roads-list"); if (!box || !M || view !== "list") return;
+    if (!box.dataset.shell) { box.dataset.shell = 1;
+      box.innerHTML = `<div class="rl-bar"><input type="search" id="rl-q" placeholder="Find: part of a name" aria-label="Find a system in the list" autocomplete="off" spellcheck="false"><span class="roads-view" role="group" aria-label="Which systems"><button type="button" data-lall="0">Surveyed</button><button type="button" data-lall="1">Every known system</button></span><span class="roads-hint" id="rl-n"></span><button type="button" class="roads-quiet" data-lcopy="1" title="Every system in the list as an in-game link: paste into a chat line or a note">Copy in-game links</button></div>`
+        + `<div class="rl-wrap" id="rl-body"></div>`
+        + `<div class="roads-hint rl-note">Infestation, transient mass, crude umbra, star and planets are what a Saint's companion read off the System Map; the game keeps them on its server, so they are only as fresh as their date, and a system nobody surveyed has none. Light-years need the star map (loaded in the background).</div>`;
+      $("rl-q").addEventListener("input", drawList);
+    }
+    drawInfF(); box.querySelectorAll("[data-lall]").forEach(b => b.classList.toggle("on", (b.dataset.lall === "1") === listAll));
+    if (!dist) starsReady().then(s => { if (s && dist && view === "list") drawList(); });
+    const q = up($("rl-q").value), all = listRows();
+    let rows = all.filter(x => (listAll || x.sv) && (!infF.size || (x.sv && infF.has(x.sv.infest))) && (!q || x.name.includes(q)));
+    const [k, dir] = LKEY[listSort[0]] ? listSort : ["inf", -1], f = LKEY[k];
+    rows.sort((a, b) => { const p = f(a), r = f(b); if (p == null || r == null) return p == null && r == null ? a.name.localeCompare(b.name) : p == null ? 1 : -1; return (p < r ? -1 : p > r ? 1 : 0) * dir || a.name.localeCompare(b.name); });
+    box._rows = rows;
+    $("rl-n").textContent = `${rows.length} of ${all.filter(x => listAll || x.sv).length} systems`;
+    const th = (key, t, tip) => `<th${key === k ? ' class="on"' : ""}><button type="button" data-lsort="${key}" title="${tip || "sort"}">${t}${key === k ? (dir < 0 ? " ▼" : " ▲") : ""}</button></th>`;
+    const ly = v => v == null ? "" : v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString("en-US");
+    const word = w => w ? esc(w.charAt(0) + w.slice(1).toLowerCase()) : "";
+    const body = rows.map(x => { const sv = x.sv || {}, d = daysAgo(sv.at), vd = x.vi ? daysAgo(x.vi.last) : null, s = x.sys;
+      const ours = s ? (s.nodes.length ? `${s.nodes.length} node${s.nodes.length === 1 ? "" : "s"}${s.days != null ? ` · <span style="color:${s.days < 3 ? "#e3222c" : s.days < 14 ? "#e0a84a" : "#7ec98b"}">${fmtDays(s.days)}</span>` : ""}` : "") + (x.roads ? `${s.nodes.length ? " · " : ""}${x.roads} road${x.roads === 1 ? "" : "s"}` : "") : "";
+      return `<tr><td class="rl-sys"><b>${esc(x.name)}</b>${x.name === M.home ? ' <span class="roads-hint">home</span>' : x.mark ? ` <span class="roads-hint">${x.mark}</span>` : ""}<span class="rl-acts">${x.id ? `<button type="button" class="roads-quiet" data-lgo="${x.id}" title="Show it on the star map">map ›</button><button type="button" class="roads-quiet" data-copylink="${x.id}" data-copyname="${esc(x.name)}" data-copydone="✓" title="Copy its in-game link">link</button>` : ""}</span></td>`
+        + `<td>${sv.infest ? `<span class="rl-inf" style="--c:${INF_COL[sv.infest]}">${sv.infest}</span> ${INF_TIER[sv.infest]}${x.was ? ` <span class="roads-hint" title="the reading before this one">was ${x.was}</span>` : ""}` : ""}</td>`
+        + `<td>${word(sv.transient)}</td><td>${word(sv.umbra)}</td><td>${esc(sv.star || "")}</td><td class="num">${sv.planets != null ? sv.planets : ""}${sv.belts != null ? ` / ${sv.belts}` : ""}</td>`
+        + `<td class="${d != null && d > 7 ? "rl-old" : ""}"${sv.by ? ` title="read by ${esc(sv.by)}"` : ""}>${sv.at ? agoD(d) : ""}</td>`
+        + `<td>${x.vi ? `${x.vi.days} d <span class="roads-hint">· ${agoD(vd)}</span>` : ""}</td><td>${ours}</td><td class="num">${ly(x.home)}</td>${LOC && LOC.me ? `<td class="num">${ly(x.you)}</td>` : ""}</tr>`; }).join("");
+    $("rl-body").innerHTML = rows.length ? `<table class="rl-table"><thead><tr>${th("name", "System", "sort by name")}${th("inf", "Infestation")}${th("transient", "Transient")}${th("umbra", "Umbra", "crude umbra")}${th("star", "Star")}${th("planets", "Planets", "planets / belts; sorts by planets")}${th("read", "Surveyed")}${th("visits", "Visits", "days Saints were there, and the last")}${th("ours", "Our nodes", "sort by node fuel")}${th("home", "LY home", "light-years from home")}${LOC && LOC.me ? th("you", "LY you", "light-years from where you are") : ""}</tr></thead><tbody>${body}</tbody></table>`
+      : `<div class="roads-empty">${all.some(x => x.sv) || listAll ? "No system matches." : "No surveys yet: a Saint's companion records one each time the System Map is open in a system."}</div>`;
+  }
   function render(d) {
     lastData = d; draft = null; FIELD = Object.assign({ survey: {}, visited: {}, rifts: [] }, d.field || {});
-    M = build(withMine(d));
+    M = build(withMine(d)); buildShow();
     $("roads-gate").hidden = true; $("roads-app").hidden = false;
     stamp(d);
     $("roads-manage-btn").hidden = !M.canEdit; if (!M.canEdit) $("roads-p-manage").hidden = true;
     drawSurveyBtn(); setView(view); drawMap(); drawDetail(); drawFuel(); fillRoute(); drawUnplaced(); drawEfSend(); drawPlans(); fillPlanner(); if (openPlan != null && M.plans[openPlan]) drawPlan(openPlan);
+    if (linkSys || linkTool) { const nm = up(linkSys), id = nm ? window.RoadsCore.idOfName(M, nm) : null, tool = linkTool && root.querySelector(`.roads-plate[data-panel="${linkTool.replace(/[^a-z]/g, "")}"]`); linkSys = linkTool = null;
+      if (nm && M.systems.has(nm)) selected = nm; else if (id) picked = id; if (selected || picked) { drawDetail(); drawStars(); if (id) starsReady().then(s => { if (s) s.look(id, 260); }); }
+      if (tool && !tool.hidden) tool.click(); }
     if (chartOn) { $("chart-save").hidden = !M.canEdit; starsReady().then(s => { if (s && chartOn) runChart(); }); }
     const ed = $("roads-editor"); ed.hidden = !M.canEdit; $("roads-gate-form").hidden = !M.canEdit;
     if (M.canEdit) $("roads-json").value = JSON.stringify({ builders: M.list.builders, home: M.list.home || "", systems: M.list.systems || {}, gates: M.list.gates || [], plans: (M.list.plans || []).filter(p => !p.draft && !p.mine) }, null, 1);
@@ -1254,8 +1342,10 @@
     if (b.dataset.panel) {
       const want = $("roads-p-" + b.dataset.panel), open = want.hidden || (b.dataset.plan != null && b.dataset.plan !== "new" && openPlan !== +b.dataset.plan);
       if (b.dataset.plan === "new") { openPlan = null; $("roads-plan").innerHTML = ""; } else if (b.dataset.plan != null) drawPlan(+b.dataset.plan); else openPlan = null;
-      root.querySelectorAll(".roads-panel").forEach(x => { x.hidden = true; }); root.querySelectorAll(".roads-tabs [data-panel]").forEach(x => x.classList.remove("on"));
+      root.querySelectorAll(".roads-panel").forEach(x => { x.hidden = true; }); root.querySelectorAll("[data-panel]").forEach(x => x.classList.remove("on"));
       if (open) { want.hidden = false; b.classList.add("on"); }
+      root.querySelectorAll(".roads-plate").forEach(x => x.classList.toggle("on", !$("roads-p-" + x.dataset.panel).hidden));   /* a saved plan opens under the Road planner plate */
+      if (open) { const pl = root.querySelector(`.roads-plate[data-panel="${b.dataset.panel}"]`); if (pl && pl.scrollIntoView) setTimeout(() => pl.scrollIntoView({ block: "nearest", behavior: "smooth" }), 0); }
       setChart(!$("roads-p-chart").hidden);
       return;
     }
@@ -1279,13 +1369,21 @@
     if (b.dataset.flatlayout) { flatLayout = b.dataset.flatlayout === "space" ? "space" : "tree"; try { localStorage.setItem("roads:flatlayout", flatLayout); } catch (e) {} drawMap(); return; }
     if (b.dataset.flat) { flatMode = b.dataset.flat === "build" ? "build" : "route"; try { localStorage.setItem("roads:flat", flatMode); } catch (e) {} drawMap(); return; }
     if (b.dataset.view) { setView(b.dataset.view); return; }
+    if (b.dataset.inf) { const l = +b.dataset.inf; if (!l) infF.clear(); else if (infF.has(l)) infF.delete(l); else infF.add(l); if (infF.size && !surveyOn) { surveyOn = true; try { localStorage.setItem("roads:survey", "1"); } catch (e) {} }
+      try { localStorage.setItem("roads:inf", [...infF].sort().join(",")); } catch (e) {} drawSurveyBtn(); drawStars(); drawList(); return; }
+    if (b.dataset.lsort) { const k = b.dataset.lsort; listSort = listSort[0] === k ? [k, -listSort[1]] : [k, ["inf", "transient", "umbra", "planets", "belts", "read", "visits"].includes(k) ? -1 : 1]; try { localStorage.setItem("roads:lsort", JSON.stringify(listSort)); } catch (e) {} drawList(); return; }
+    if (b.dataset.lall) { listAll = b.dataset.lall === "1"; try { localStorage.setItem("roads:lall", listAll ? "1" : "0"); } catch (e) {} drawList(); return; }
+    if (b.dataset.lgo) { const id = +b.dataset.lgo, name = [...M.ids].find(([, v]) => v.id === id); selected = name ? name[0] : null; picked = name ? null : id; setView("stars");
+      starsReady().then(s => { if (!s) return; s.look(id, 300); s.mark(name ? null : id, name ? null : "found"); drawStars(); drawDetail(); }); return; }
+    if (b.dataset.lcopy) { const L = (($("roads-list") || {})._rows || []).filter(x => x.id), t = L.map(x => `<a href="showinfo:5//${x.id}">${x.name}</a>`).join("\n"), done = () => { b.textContent = `Copied ${L.length} links`; };
+      if (!L.length) return; try { navigator.clipboard.writeText(t).then(done, () => { prompt("Copy these links:", t); }); } catch (err) { prompt("Copy these links:", t); } return; }
     if (b.dataset.chartf) { chartF = b.dataset.chartf; try { localStorage.setItem("roads:chartf", chartF); } catch (e) {} drawStars(); return; }
     if (b.dataset.sfmissing) { $("sf-missing").classList.toggle("open"); return; }
     if (b.dataset.sf === "layers") { const L = $("sf-layers"); L.hidden = !L.hidden; b.classList.toggle("on", !L.hidden); return; }
     if (b.dataset.sf === "gates") { showGates = !showGates; try { localStorage.setItem("roads:gates", showGates ? "1" : "0"); } catch (e) {} if (sf) sf.showGates(showGates); b.classList.toggle("on", showGates); drawDetail(); return; }
     if (b.dataset.sf === "charted") { showCharted = !showCharted; try { localStorage.setItem("roads:charted", showCharted ? "1" : "0"); } catch (e) {} if (!showCharted) { picked = null; if (sf) sf.mark(null); } drawStars(); drawDetail(); return; }
     if (b.dataset.sf === "poi") { openPoiBox(!poiBox); return; }
-    if (b.dataset.sf === "reach") { reachOn = !reachOn; try { localStorage.setItem("roads:reach", reachOn ? "1" : "0"); } catch (e) {} const lb = $("roads-stars").querySelector('#sf-layers [data-sf="reach"]'); if (lb) lb.classList.toggle("on", reachOn); if (!reachOn && sf && !chartOn) sf.dimStars(false); drawStars(); return; }
+    if (b.dataset.sf === "reach") { reachOn = !reachOn; try { localStorage.setItem("roads:reach", reachOn ? "1" : "0"); } catch (e) {} const lb = root.querySelector('#sf-layers [data-sf="reach"]'); if (lb) lb.classList.toggle("on", reachOn); if (!reachOn && sf && !chartOn) sf.dimStars(false); drawStars(); return; }
     if (b.dataset.sf === "oldnames") { oldNames = !oldNames; try { localStorage.setItem("roads:oldnames", oldNames ? "1" : "0"); } catch (e) {} b.classList.toggle("on", oldNames); if (lastData) render(lastData); else { drawStars(); drawDetail(); } return; }
     if (b.dataset.sf === "survey") { surveyOn = !surveyOn; try { localStorage.setItem("roads:survey", surveyOn ? "1" : "0"); } catch (e) {} drawStars(); drawSurveyBtn(); return; }
     if (b.dataset.sf === "me" && sf && LOC && LOC.me) { const id = locOf(LOC.me.s); if (id) { const name = [...M.ids].find(([, v]) => v.id === id); selected = name ? name[0] : null; picked = name ? null : id; sf.look(id, 300); if (!name) sf.mark(null); drawStars(); drawDetail(); } return; }
@@ -1352,7 +1450,7 @@
   window.__roadsMapClick = id => checkClick(id) || planClick(id);   // tests: what a map click on a star does first (the same path as onPick / onPickStar)
   window.__roadsPoi = () => ({ on: poiOn ? [...poiOn] : null, n: POI ? POI.categories.length : 0 });   /* tests */
   window.__roadsNav = (nav, pairs) => { NAV = nav; if (pairs) gatePairs = pairs; drawLoc(); return $("roads-me").innerText; };   /* tests */
-  window.__roadsField = f => { FIELD = Object.assign({ survey: {}, visited: {}, rifts: [] }, f || {}); drawSurveyBtn(); drawStars(); drawDetail(); return Object.keys(FIELD.survey).length; };   /* tests */
+  window.__roadsField = f => { FIELD = Object.assign({ survey: {}, visited: {}, rifts: [] }, f || {}); drawSurveyBtn(); drawStars(); drawList(); drawDetail(); return Object.keys(FIELD.survey).length; };   /* tests */
   window.__roadsPlaces = d => { PLACES = { home: d.home || null, marks: d.marks || [] }; drawStars(); drawLoc(); drawDetail(); return PLACES; };   /* tests */
   window.__roadsLoc = d => { LOC = d; drawStars(); drawLoc(); return locOf(d && d.me && d.me.s); };   /* tests */
   window.__roadsPick = id => { selected = null; picked = id; drawDetail(); return $("roads-detail").hidden ? null : $("roads-detail").innerText; };   // tests: what a click on any star says
