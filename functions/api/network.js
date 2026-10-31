@@ -18,35 +18,59 @@ const EMPTY = { builders: [], home: "", systems: {}, plans: [] };
 const settings = l => ({ builders: Array.isArray(l.builders) ? l.builders : [], home: l.home || "", systems: l.systems || {}, gates: Array.isArray(l.gates) ? l.gates : [], plans: Array.isArray(l.plans) ? l.plans : [],
   seen: Array.isArray(l.seen) ? l.seen : [], placed: l.placed && typeof l.placed === "object" && !Array.isArray(l.placed) ? l.placed : {}, updated: l.updated, updated_by: l.updated_by });   // seen / placed: written by the companions (/api/gatestate), never by the page
 
-async function gql(query, variables) {
+/* Cloudflare allows one function call 50 outside requests, and the endpoint refuses a query over 5,000 bytes
+   (variables included). On 2026-10-31 the read had grown past 50 (one request per builder per page, then every
+   missing object asked twice more) and the map showed no roads at all; it now takes about 20. */
+async function gql(query, variables, withErrors) {
   const r = await fetch(SUI, { method: "POST", headers: { "content-type": "application/json", "user-agent": "saints-forge (read-only)" }, body: JSON.stringify({ query, variables: variables || {} }) });
   if (!r.ok) throw new Error("chain answered " + r.status);
   const b = await r.json();
   if (!b.data) throw new Error((b.errors && b.errors[0] && b.errors[0].message) || "chain returned no data");
-  return b.data;                                        // partial data is fine: unreadable objects come back null
+  return withErrors ? { data: b.data, errors: !!(b.errors && b.errors.length) } : b.data;   // partial data is fine: unreadable objects come back null
 }
-/* the ids of everything a character owns (through its OwnerCaps) */
-export async function ownedIds(character) {     // also used by /api/intel
-  const ids = []; let after = null;
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const d = await gql("query($a:SuiAddress!,$c:String){ address(address:$a) { objects(first:50, after:$c) { pageInfo { hasNextPage endCursor } nodes { contents { type { repr } json } } } } }", { a: character, c: after });
-    const o = d.address && d.address.objects; if (!o) break;
-    for (const n of o.nodes || []) { const c = n && n.contents; if (c && /OwnerCap/.test(c.type.repr) && c.json && c.json.authorized_object_id) ids.push(c.json.authorized_object_id); }
-    if (!o.pageInfo.hasNextPage) break; after = o.pageInfo.endCursor;
+const PAGE_Q = i => `b${i}: address(address:$a${i}) { objects(first:50, after:$c${i}) { pageInfo { hasNextPage endCursor } nodes { contents { type { repr } json } } } }`;
+/* the ids of everything the characters own (through their OwnerCaps), several characters per query (as many as fit
+   in 5,000 bytes); `only` keeps the caps whose type matches */
+export async function ownedIdsOf(characters, only) {
+  const out = new Map(characters.map(c => [c, []])), after = new Map();
+  let live = [...out.keys()];
+  for (let page = 0; page < MAX_PAGES && live.length; page++) {
+    const next = [];
+    for (let s = 0; s < live.length;) {
+      const decl = [], parts = [], vars = {}, group = [];
+      for (; s < live.length; s++) {
+        const i = group.length, v = Object.assign({}, vars, { ["a" + i]: live[s], ["c" + i]: after.get(live[s]) || null });
+        const q = `query(${decl.concat(`$a${i}:SuiAddress!`, `$c${i}:String`).join(",")}){ ${parts.concat(PAGE_Q(i)).join(" ")} }`;
+        if (group.length && JSON.stringify({ query: q, variables: v }).length > 4800) break;
+        decl.push(`$a${i}:SuiAddress!`, `$c${i}:String`); parts.push(PAGE_Q(i)); Object.assign(vars, v); group.push(live[s]);
+      }
+      const d = await gql(`query(${decl.join(",")}){ ${parts.join(" ")} }`, vars);
+      group.forEach((c, i) => {
+        const o = d["b" + i] && d["b" + i].objects; if (!o) return;
+        for (const n of o.nodes || []) { const x = n && n.contents; if (x && /OwnerCap/.test(x.type.repr) && (!only || only.test(x.type.repr)) && x.json && x.json.authorized_object_id) out.get(c).push(x.json.authorized_object_id); }
+        if (o.pageInfo.hasNextPage) { after.set(c, o.pageInfo.endCursor); next.push(c); }
+      });
+    }
+    live = next;
   }
-  return ids;
+  return out;
 }
-/* The public endpoint sometimes drops a few objects from a batch ("Failed to fetch object contents"), so whatever is
-   missing is asked for again, twice at most. Ids that never answer are objects that no longer exist. */
+export async function ownedIds(character) { return (await ownedIdsOf([character])).get(character); }   // also used by /api/intel
+/* The public endpoint sometimes drops a few objects from a batch ("Failed to fetch object contents") and says so in
+   its errors: only those batches' missing ids are asked for again, twice at most. A missing id in a batch without
+   errors is a structure that no longer exists (its OwnerCap stays behind: 166 of 683 on 2026-10-31). */
 export async function getObjects(ids) {
   const out = new Map();
   let want = [...new Set(ids)];
   for (let round = 0; round < 3 && want.length; round++) {
+    const again = [];
     for (let i = 0; i < want.length; i += 50) {
-      let d; try { d = await gql("query($k:[ObjectKey!]!){ multiGetObjects(keys:$k) { " + FIELDS + " } }", { k: want.slice(i, i + 50).map(a => ({ address: a })) }); } catch (e) { if (round === 2) throw e; continue; }
-      for (const o of d.multiGetObjects || []) { const c = o && o.asMoveObject && o.asMoveObject.contents; if (c && c.json) out.set(o.address, { type: c.type.repr, json: c.json }); }
+      const batch = want.slice(i, i + 50);
+      let d; try { d = await gql("query($k:[ObjectKey!]!){ multiGetObjects(keys:$k) { " + FIELDS + " } }", { k: batch.map(a => ({ address: a })) }, true); } catch (e) { if (round === 2) throw e; again.push(...batch); continue; }
+      for (const o of d.data.multiGetObjects || []) { const c = o && o.asMoveObject && o.asMoveObject.contents; if (c && c.json) out.set(o.address, { type: c.type.repr, json: c.json }); }
+      if (d.errors) for (const a of batch) if (!out.has(a)) again.push(a);
     }
-    want = want.filter(a => !out.has(a));
+    want = again;
   }
   return out;
 }
@@ -71,18 +95,19 @@ export async function fuelEfficiency(pkg) {
   return eff;
 }
 
+const ROAD_CAPS = /OwnerCap<[^>]*::(assembly::Assembly|gate::Gate)>/;   // catapults are Assemblies; nodes, turrets, storage and characters are skipped
 async function readChain(builders) {
-  const assemblies = [], nodeIds = new Set(), seen = new Set();
-  for (const b of builders) {
-    const objs = await getObjects(await ownedIds(b.address));
-    for (const [id, o] of objs) {
-      if (seen.has(id)) continue; seen.add(id);
-      const j = o.json, tid = String(j.type_id || "");
-      const isGate = /::gate::Gate$/.test(o.type), kind = CATAPULT[tid] || (isGate ? (tid === "88086" ? "Mini Gate" : "Heavy Gate") : null);
-      if (!kind) continue;
-      assemblies.push({ id, kind, name: label(j), status: variant(j), node: j.energy_source_id || null, linked: j.linked_gate_id || null, builder: b.name });
-      if (j.energy_source_id) nodeIds.add(j.energy_source_id);
-    }
+  const assemblies = [], nodeIds = new Set(), whose = new Map();
+  const owned = await ownedIdsOf(builders.map(b => b.address), ROAD_CAPS);
+  for (const b of builders) for (const id of owned.get(b.address) || []) if (!whose.has(id)) whose.set(id, b);
+  const objs = await getObjects([...whose.keys()]);
+  for (const [id, b] of whose) {
+    const o = objs.get(id); if (!o) continue;
+    const j = o.json, tid = String(j.type_id || "");
+    const isGate = /::gate::Gate$/.test(o.type), kind = CATAPULT[tid] || (isGate ? (tid === "88086" ? "Mini Gate" : "Heavy Gate") : null);
+    if (!kind) continue;
+    assemblies.push({ id, kind, name: label(j), status: variant(j), node: j.energy_source_id || null, linked: j.linked_gate_id || null, builder: b.name });
+    if (j.energy_source_id) nodeIds.add(j.energy_source_id);
   }
   const nodes = []; let pkg = "";
   for (const [id, o] of await getObjects([...nodeIds])) {
@@ -144,12 +169,17 @@ export async function onRequestGet({ request, env }) {
   if (builders.length) {
     const key = new Request("https://cache.saints-forge.internal/network/v2/" + encodeURIComponent(builders.map(b => b.address).join(",")));
     let hit = null; try { hit = fresh ? null : await caches.default.match(key); } catch (e) {}
+    const good = new Request(key.url + "/last-good");   // kept two days: a failed read shows the last good roads (the page says the chain did not answer, and how old the read is)
     if (hit) { const c = await hit.json(); chain = c.chain; at = c.at; cached = true; }
     else {
       try {
         chain = await readChain(builders);
-        try { await caches.default.put(key, new Response(JSON.stringify({ chain, at }), { headers: { "Cache-Control": "max-age=" + CACHE_SECONDS } })); } catch (e) {}
-      } catch (e) { error = String(e && e.message || e).slice(0, 200); }
+        const body = JSON.stringify({ chain, at });
+        try { await caches.default.put(key, new Response(body, { headers: { "Cache-Control": "max-age=" + CACHE_SECONDS } })); await caches.default.put(good, new Response(body, { headers: { "Cache-Control": "max-age=172800" } })); } catch (e) {}
+      } catch (e) {
+        error = String(e && e.message || e).slice(0, 200);
+        try { const last = await caches.default.match(good); if (last) { const c = await last.json(); chain = c.chain; at = c.at; cached = true; } } catch (e2) {}
+      }
     }
   }
   return json({ ok: true, at, cached, error, canEdit: !key && canUpload(env, s), list, assemblies: chain.assemblies, nodes: chain.nodes, names: Object.assign({ source: "EF-Map" }, await namesP), field: await (async () => { try { return (await env.DOCTRINE.get("field", "json")) || {}; } catch (e) { return {}; } })() }, 200, cookies);   // field = the companions' surveys, visited systems, rifts (/api/intel)
