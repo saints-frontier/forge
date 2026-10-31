@@ -1035,6 +1035,21 @@ footer { margin-top: 18px; font: 600 11px var(--mono); color: var(--silver); let
 /* Show in the Flat and List views: only what applies there (the view, the infestation filter) */
 .roads-show:not([data-view="stars"]) .sf-only { display: none; }
 
+/* the hunt (2026-10-31): the hits at the picked infestation levels, under the chips; a click flies to one */
+.roads-show .sf-hunt { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line-strong); background: #0b080acc; }
+.roads-show .sf-hunt[hidden] { display: none; }
+.roads-show .sf-hunt-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font: 13px var(--data); color: var(--silver); }
+.roads-show .sf-hunt-h b { color: var(--gold); }
+.roads-show .sf-hunt-h button { margin-left: auto; padding: 4px 9px; font-size: 12px; clip-path: none; }
+.roads-show .sf-hunt-l { display: grid; gap: 3px; max-height: 220px; overflow-y: auto; }
+.roads-show .sf-hunt-l button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 7px; clip-path: none; text-align: left; font: 13px var(--data); letter-spacing: 0; color: var(--fg, #d8cdb6); background: #120c0f; border: 1px solid var(--line); border-left: 3px solid var(--c); }
+.roads-show .sf-hunt-l button:hover { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, #120c0f); }
+.roads-show .sf-hunt-l button[disabled] { opacity: .5; cursor: default; }
+.roads-show .sf-hunt-l i { font: 700 12px var(--data); font-style: normal; color: #07070a; background: var(--c); min-width: 17px; text-align: center; border-radius: 2px; }
+.roads-show .sf-hunt-l b { flex: 1; min-width: 0; font-weight: 600; }
+.roads-show .sf-hunt-l span { font-size: 11.5px; color: var(--dim); white-space: nowrap; }
+.roads-show .sf-hunt-l b, .roads-show .sf-hunt-l span { font-family: var(--data); letter-spacing: 0; }
+
 /* SITES (/sites): every kind of site in one table, client information only (user 2026-10-20) */
 .sites-on .topctl, .sites-on .tier { display: none; }
 .sites-page { padding: 8px 0 20px; }
@@ -2147,7 +2162,7 @@ html:has(body.about-on), body.about-on { height: auto; min-height: 0; }       /*
     history.replaceState(null, "", "/" + PATH[first] + location.search);
 })();
 </script>
-<script src="lodge-data.js?v=1156e457"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=46c6777e"></script><script src="quarry-data.js?v=9d6346f8"></script><script src="quarry-app.js?v=a6bc55a0"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=c3577285"></script><script src="sites-layouts.js?v=5bd01e97"></script><script src="sites.js?v=80b03dc6"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=0e7207f3"></script><script src="starfield.js?v=a36b61e0"></script><script src="roadscore.js?v=85c3d323"></script><script src="roads.js?v=d3c60d4f"></script><script type="module" src="machines.js?v=9cb8a800"></script>
+<script src="lodge-data.js?v=1156e457"></script><script src="lodge-planner.js?v=9e142809"></script><script src="lodge-app.js?v=46c6777e"></script><script src="quarry-data.js?v=9d6346f8"></script><script src="quarry-app.js?v=a6bc55a0"></script><script src="companion.js?v=9896a412"></script><script src="sites-data.js?v=c3577285"></script><script src="sites-layouts.js?v=5bd01e97"></script><script src="sites.js?v=80b03dc6"></script><script src="npcs-data.js?v=3f4becc1"></script><script src="npcs.js?v=856b8157"></script><script src="doctrine.js?v=13c1c787"></script><script src="tribe.js?v=0e7207f3"></script><script src="starfield.js?v=f52d6d9e"></script><script src="roadscore.js?v=85c3d323"></script><script src="roads.js?v=d502bc33"></script><script type="module" src="machines.js?v=9cb8a800"></script>
 
 <style id="theme-cathedral">
 /* The Saints Forge, "cathedral" design language (settled on the About us page, design study rounds 1-29, 2026-10-25):

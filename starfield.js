@@ -74,6 +74,7 @@
     let selected = null, hovered = null, marked = null;
     let many = [], sphereOf = null;             // Check a jump: rings for every legal / blocked target, the sphere of the tested jump
     let starDim = 1;                            // Chart the uncharted: the background stars dimmed so only the targets stand out
+    let roadFade = 1;                           /* the infestation hunt (2026-10-31): our roads fade so the hits stand out */
     let paintCount = 0;                         // the charted / uncharted filter (2026-10-26): one coloured point per star, over the dimmed cloud
     let gateVerts = 0, gatePairs = 0, gateAdj = new Map(), gatesOn = true;      // the public stargate network: id -> [neighbour ids]
     const cam = { target: [0, 0, 0], dist: 9000, yaw: 0.6, pitch: 0.35 };
@@ -256,12 +257,12 @@
         if (pl.shift) { const ox = -dy * pl.shift, oy = dx * pl.shift; a = [a[0] + ox, a[1] + oy]; b = [b[0] + ox, b[1] + oy]; }
         const w = pl.pub ? 1.6 : pl.heavy ? 3.2 : 2.3;
         ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
-        ctx.setLineDash(pl.dash); ctx.globalAlpha = pl.alpha; ctx.strokeStyle = pl.col; ctx.lineWidth = w;
-        ctx.shadowColor = pl.col; ctx.shadowBlur = pl.dash.length || pl.pub ? 0 : 7; ctx.stroke(); ctx.shadowBlur = 0; ctx.setLineDash([]);
+        ctx.setLineDash(pl.dash); ctx.globalAlpha = pl.alpha * (pl.pub ? 1 : roadFade); ctx.strokeStyle = pl.col; ctx.lineWidth = w;
+        ctx.shadowColor = pl.col; ctx.shadowBlur = pl.dash.length || pl.pub || roadFade < 1 ? 0 : 7; ctx.stroke(); ctx.shadowBlur = 0; ctx.setLineDash([]);
         const ring = 10 * Math.max(k0, 0.6);
         const head = (p, ux, uy, s) => { ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0] - s * (ux * Math.cos(0.45) - uy * Math.sin(0.45)), p[1] - s * (uy * Math.cos(0.45) + ux * Math.sin(0.45)));
           ctx.lineTo(p[0] - s * (ux * Math.cos(-0.45) - uy * Math.sin(-0.45)), p[1] - s * (uy * Math.cos(-0.45) + ux * Math.sin(-0.45))); ctx.closePath(); ctx.fillStyle = pl.col; ctx.fill(); };
-        const s = pl.heavy ? 11 : 8;
+        const s = pl.heavy ? 11 : 8; if (!pl.pub && roadFade < 1) { ctx.globalAlpha = 1; continue; }   /* no arrowheads on faded roads */
         if (!pl.road.twoWay) {
           if (L > ring * 2 + 6) head([b[0] - dx * ring, b[1] - dy * ring], dx, dy, s);                     // the arrowhead stops at the target's ring
           if (L > 120) { const m = [(a[0] + b[0]) / 2 + dx * 4, (a[1] + b[1]) / 2 + dy * 4]; head(m, dx, dy, s - 1); }   // and one mid-line on a long road
@@ -283,11 +284,11 @@
       // cover another label is left out, its ring stays. Nothing is ever stacked.
       ctx.textBaseline = "middle";
       const k = zoomK(), far = k < 0.75, foldR = k < 0.45 ? 34 : k < 0.75 ? 10 : 0, labelPlans = cam.dist < 900;
-      const rank = s => s.id === selected || s.id === hovered ? 0 : s.cls === "me" ? 0.5 : s.cls === "mate" ? 1.5 : s.cls === "home" ? 1 : s.cls === "ours" ? 2 : s.cls === "inferred" ? 3 : s.cls === "plan" ? 5 : s.cls === "charted" ? 6 : s.cls === "poi" ? 6 : s.cls === "uncharted" ? 7 : 4;
+      const rank = s => s.id === selected || s.id === hovered ? 0 : s.hunt ? 0.6 : s.quiet ? 8 : s.cls === "me" ? 0.5 : s.cls === "mate" ? 1.5 : s.cls === "home" ? 1 : s.cls === "ours" ? 2 : s.cls === "inferred" ? 3 : s.cls === "plan" ? 5 : s.cls === "charted" ? 6 : s.cls === "poi" ? 6 : s.cls === "uncharted" ? 7 : 4;
       const order = scene.systems.map(s => ({ s, p: project(P(s.id)) })).filter(o => o.p).sort((a, b) => rank(a.s) - rank(b.s));
       const leaders = [], folded = [];
       for (const o of order) {
-        if (foldR && rank(o.s) > 0) { const L = leaders.find(l => Math.hypot(l.p[0] - o.p[0], l.p[1] - o.p[1]) < foldR); if (L) { if (o.s.cls !== "charted" && o.s.cls !== "uncharted" && o.s.cls !== "poi") L.more++; folded.push(o); continue; } }   // a charted system folds silently: "+N" counts our own only
+        if (foldR && rank(o.s) > 0 && !o.s.hunt) { const L = leaders.find(l => Math.hypot(l.p[0] - o.p[0], l.p[1] - o.p[1]) < foldR); if (L) { if (o.s.cls !== "charted" && o.s.cls !== "uncharted" && o.s.cls !== "poi") L.more++; folded.push(o); continue; } }   // a charted system folds silently: "+N" counts our own only
         o.more = 0; leaders.push(o);
       }
       // a folded system keeps a small mark, so a road never ends in empty space
@@ -295,18 +296,20 @@
       const boxes = [], hit = (b) => boxes.some(q => b[0] < q[2] && b[2] > q[0] && b[1] < q[3] && b[3] > q[1]);
       for (const o of leaders) {
         const s = o.s, p = o.p, col = s.color || COLORS[s.cls] || COLORS.far, unch = s.cls === "uncharted", poi = s.cls === "poi", charted = s.cls === "charted" || unch || poi, plan = s.cls === "plan" || charted, hot = s.id === selected || s.id === hovered;
-        const R = Math.max(2.5, (s.cls === "me" ? 12 : s.cls === "mate" ? 9 : s.cls === "home" ? 11 : s.cls === "ours" ? 9 : plan ? (unch ? 3 : 4) : 7) * (plan ? Math.max(k, 0.7) : k));
-        ctx.beginPath(); if (poi) { const D = R + 1.5; ctx.moveTo(p[0], p[1] - D); ctx.lineTo(p[0] + D, p[1]); ctx.lineTo(p[0], p[1] + D); ctx.lineTo(p[0] - D, p[1]); ctx.closePath(); } else ctx.arc(p[0], p[1], R, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.lineWidth = s.id === selected ? 2.5 : poi ? 1.6 : 1.3; ctx.setLineDash(s.cls === "inferred" || unch ? [3, 3] : []); ctx.globalAlpha = unch && !hot ? 0.85 : 1; ctx.stroke(); ctx.globalAlpha = 1; ctx.setLineDash([]);
-        if (hot || s.cls === "me") { ctx.beginPath(); ctx.arc(p[0], p[1], R + 5, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.globalAlpha = 0.45; ctx.stroke(); ctx.globalAlpha = 1; }
+        const R = s.hunt ? 11 * Math.max(k, 0.8) : Math.max(2.5, (s.cls === "me" ? 12 : s.cls === "mate" ? 9 : s.cls === "home" ? 11 : s.cls === "ours" ? 9 : plan ? (unch ? 3 : 4) : 7) * (plan ? Math.max(k, 0.7) : k));
+        ctx.beginPath(); if (poi) { const D = R + 1.5; ctx.moveTo(p[0], p[1] - D); ctx.lineTo(p[0] + D, p[1]); ctx.lineTo(p[0], p[1] + D); ctx.lineTo(p[0] - D, p[1]); ctx.closePath(); } else ctx.arc(p[0], p[1], R, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.lineWidth = s.id === selected ? 2.5 : poi ? 1.6 : 1.3; ctx.setLineDash(s.cls === "inferred" || unch ? [3, 3] : []); ctx.globalAlpha = s.quiet && !hot ? 0.3 : unch && !hot ? 0.85 : 1; ctx.stroke(); ctx.globalAlpha = 1; ctx.setLineDash([]);
+        if (hot || s.cls === "me" || s.hunt) { ctx.beginPath(); ctx.arc(p[0], p[1], R + 5, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.globalAlpha = s.hunt ? 0.7 : 0.45; ctx.lineWidth = s.hunt ? 2 : ctx.lineWidth; ctx.stroke(); ctx.globalAlpha = 1; }
+        if (s.hunt) { ctx.beginPath(); ctx.arc(p[0], p[1], R + 11, 0, Math.PI * 2); ctx.strokeStyle = col; ctx.globalAlpha = 0.25; ctx.lineWidth = 1; ctx.stroke(); ctx.globalAlpha = 1; }
+        if (s.quiet && !hot) continue;
         if ((plan && !labelPlans && !hot) || (unch && !hot)) continue;   // an uncharted mark is named only under the pointer
         const label = (s.cls === "home" ? "✠ " : "") + (s.name || String(s.id)) + (o.more ? `  +${o.more}` : "");
         ctx.font = charted ? `600 12.5px ${display}` : `700 13.5px ${display}`;
         const x = p[0] + R + 6, y = p[1] - (s.sub && !far ? 4 : 0), wdt = ctx.measureText(label).width, showSub = !!s.sub && !far && (hot || !!s.subWarn);
         const box = [x - 3, y - 9, x + wdt + 3, y + (showSub ? 22 : 9)];
-        if (!hot && hit(box)) continue;
+        if (!hot && !s.hunt && hit(box)) continue;
         boxes.push(box);
         if (k < 0.45) { ctx.fillStyle = "rgba(7,7,10,.82)"; ctx.fillRect(box[0] - 2, box[1] - 1, box[2] - box[0] + 4, box[3] - box[1] + 2); ctx.strokeStyle = "rgba(217,178,76,.45)"; ctx.lineWidth = 1; ctx.strokeRect(box[0] - 1.5, box[1] - 0.5, box[2] - box[0] + 3, box[3] - box[1] + 1); }
-        ctx.fillStyle = "rgba(7,7,10,.75)"; ctx.fillText(label, x + 1, y + 1); ctx.fillStyle = s.cls === "home" ? "#ffd27a" : poi || s.cls === "me" || s.cls === "mate" ? col : s.cls === "charted" ? COLORS.charted : charted ? "#aab3bc" : "#f1e9d2"; ctx.fillText(label, x, y);
+        ctx.fillStyle = "rgba(7,7,10,.75)"; ctx.fillText(label, x + 1, y + 1); ctx.fillStyle = s.cls === "home" ? "#ffd27a" : s.hunt || poi || s.cls === "me" || s.cls === "mate" ? col : s.cls === "charted" ? COLORS.charted : charted ? "#aab3bc" : "#f1e9d2"; ctx.fillText(label, x, y);
         if (showSub) { ctx.font = `600 11px ${mono}`; ctx.fillStyle = s.subColor || "#b8b3a8"; ctx.fillText(s.sub, x, y + 14); }
       }
       // the hover card (2026-10-23): what the system under the pointer is, its roads and public gates
@@ -403,6 +406,7 @@
       count: () => n,
       loadGates, gatesOf: id => (gateAdj.get(id) || []).slice(), gateCount: () => gatePairs,
       showGates(on) { gatesOn = !!on; dirty = true; schedule(); },
+      fadeRoads(f) { roadFade = f; dirty = true; schedule(); },
       destroy() { ro.disconnect(); if (raf) cancelAnimationFrame(raf); window.removeEventListener("keydown", onKey); window.removeEventListener("keyup", onKey); gl3.remove(); ov.remove(); leg.remove(); }
     };
   }
